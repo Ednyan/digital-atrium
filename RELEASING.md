@@ -73,7 +73,7 @@ release exists yet. This is the whole process.
 ### 1. Back up the signing key
 
 ```
-C:\Users\Ednyan\Desktop\atrium-updater-keys\atrium-updater.key
+C:\Users\Ednyan\Desktop\Digital_Atrium\atrium-updater-keys\atrium-updater.key
 ```
 
 Copy it somewhere safe that isn't this machine — a password manager, an
@@ -109,7 +109,7 @@ Version numbers must be `MAJOR.MINOR.PATCH` — `1.0.1`, not `v1.0.1` or `1.0.1-
 ### 3. Build, with the signing key in the environment
 
 ```bash
-export TAURI_SIGNING_PRIVATE_KEY="$(cat /c/Users/Ednyan/Desktop/atrium-updater-keys/atrium-updater.key)"
+export TAURI_SIGNING_PRIVATE_KEY="$(cat /c/Users/Ednyan/Desktop/Digital_Atrium/atrium-updater-keys/atrium-updater.key)"
 export TAURI_SIGNING_PRIVATE_KEY_PASSWORD=""
 npm run tauri:build
 ```

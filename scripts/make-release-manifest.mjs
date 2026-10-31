@@ -36,7 +36,7 @@ if (!existsSync(sigPath)) {
   console.error(`✗ Installer exists but has no .sig alongside it.`)
   console.error('  The build ran without TAURI_SIGNING_PRIVATE_KEY set, so the')
   console.error('  update would be rejected as unsigned. Re-run:')
-  console.error('    export TAURI_SIGNING_PRIVATE_KEY="$(cat /c/Users/Ednyan/Desktop/atrium-updater-keys/atrium-updater.key)"')
+  console.error('    export TAURI_SIGNING_PRIVATE_KEY="$(cat /c/Users/Ednyan/Desktop/Digital_Atrium/atrium-updater-keys/atrium-updater.key)"')
   console.error('    export TAURI_SIGNING_PRIVATE_KEY_PASSWORD=""')
   console.error('    npm run tauri:build')
   process.exit(1)

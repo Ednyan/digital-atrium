@@ -27,7 +27,7 @@ See **RELEASING.md**. Short version: bump the version, build with
 `node scripts/make-release-manifest.mjs "notes"`, attach the `.exe`, `.sig`
 and `latest.json` to a GitHub release.
 
-The signing key lives at `C:\Users\Ednyan\Desktop\atrium-updater-keys\` and is
+The signing key lives at `C:\Users\Ednyan\Desktop\Digital_Atrium\atrium-updater-keys\` and is
 gitignored. It must never be regenerated — installed apps only trust updates
 signed by the key already compiled into them.
 
