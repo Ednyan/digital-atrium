@@ -151,7 +151,12 @@ export default function LanguageToggle({ className = '', variant = 'panel' }: {
           : `cut-corner inline-flex items-center justify-center gap-2 h-[2.125rem] px-4 border border-nier-border/40 text-nier-bg/80 hover:text-nier-strong hover:border-nier-border/70 text-[11px] tracking-[0.15em] uppercase leading-none transition-colors ${className}`}
         style={variant === 'atrium' ? undefined : { backgroundColor: 'rgb(var(--c-ground) / 0.94)' }}
       >
-        ◈
+        {/* A globe: the sign for language that people look for on any site. */}
+        <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.1" aria-hidden="true" className="shrink-0">
+          <circle cx="8" cy="8" r="6.5" />
+          <ellipse cx="8" cy="8" rx="2.75" ry="6.5" />
+          <path d="M1.5 8h13" />
+        </svg>
         {/* The code, not the endonym. This button sits in a bar that is
             already full, and "Português (Brasil)" is 150px of it -- enough to
             push the nav into the Donate button on its own. The dropdown below

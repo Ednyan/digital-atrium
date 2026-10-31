@@ -161,14 +161,14 @@ export default function DonateButton({
       disabled={disabled}
       aria-label={compact ? label ?? t('landing.donate') : undefined}
       className={`donate-btn relative px-4 sm:px-5 ${compact ? 'h-[34px]' : 'py-2.5'} text-[11px] tracking-[0.18em] uppercase transition-transform hover:scale-[1.03] active:scale-[0.99] disabled:opacity-35 disabled:cursor-not-allowed disabled:hover:scale-100 ${
-        accent ? 'text-nier-black font-semibold' : 'border border-nier-border/40 text-nier-bg/85 hover:text-nier-bg'
+        accent ? 'text-nier-black font-semibold' : 'donate-quiet cut-corner border text-nier-bg/85 hover:text-nier-bg'
       } ${className}`}
       // The glow travels with the button. It is the one thing on any screen
       // asking for money, and it should be findable at a glance in a room
       // built out of thin grey lines.
       style={accent
         ? { background: '#FF8A3D', clipPath: DONATE_CUT, boxShadow: '0 0 22px rgba(255,138,61,0.30), 0 0 52px rgba(255,138,61,0.14)' }
-        : { clipPath: DONATE_CUT }}
+        : undefined}
     >
       {/* Dark hearts on the orange fill, orange ones on the dark outline: in
           both cases the hearts are the ground showing through rather than a

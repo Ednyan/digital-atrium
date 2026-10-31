@@ -1430,6 +1430,18 @@ input[type='color']::-moz-color-swatch { border: none; }
    cut corner is a clip-path, and a clip-path would have cut the tail off. */
 .donate-btn-wrap { position: relative; display: inline-flex; }
 
+/* Just a warmth, its cut corner included, so it's still the one asking for money. */
+.donate-quiet {
+  background-color: rgb(255 138 61 / 0.09);
+  border-color: rgb(255 138 61 / 0.35);
+  --cut-edge: linear-gradient(to bottom right,
+    transparent calc(50% - 1px), rgb(255 138 61 / 0.35) calc(50% - 1px),
+    rgb(255 138 61 / 0.35) calc(50% + 1px), transparent calc(50% + 1px));
+  --cut-edge-strong: linear-gradient(to bottom right,
+    transparent calc(50% - 1px), rgb(255 138 61 / 0.6) calc(50% - 1px),
+    rgb(255 138 61 / 0.6) calc(50% + 1px), transparent calc(50% + 1px));
+}
+
 /* Fixed and in the body, because the page it most needed to escape is
    fixed inset-0 overflow-hidden. Left/top come from the component, which
    measures the button and decides which side has room. */
