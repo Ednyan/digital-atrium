@@ -115,7 +115,7 @@ const NAV_HEIGHT = 56
 // what it contains along its top edge; this one does that, and keeps the rail
 // on screens wide enough to carry both.
 //
-function TopNav({ items, activeSection, onJump, onDonate }: {
+function TopNav({ items, activeSection, onJump, onDonate, onEnter }: {
   // Each item carries the index it has in `sections`, because the bar does not
   // show all of them: the title section is reached by the mark on the left, and
   // Desktop App is dropped inside the desktop build. Counting the rendered
@@ -124,6 +124,7 @@ function TopNav({ items, activeSection, onJump, onDonate }: {
   activeSection: number
   onJump: (index: number) => void
   onDonate: () => void
+  onEnter: () => void
 }) {
   const { t } = useTranslation()
   const [menuOpen, setMenuOpen] = useState(false)
@@ -323,7 +324,23 @@ function TopNav({ items, activeSection, onJump, onDonate }: {
 
             <ThemeToggle />
 
-            <DonateButton onClick={onDonate} />
+            {/* Asking, not leading: the page's one job is the way in, so that's
+                what fills with light here, at the end of the bar where the eye
+                lands. The hearts still drift, in the outline. */}
+            <DonateButton onClick={onDonate} variant="quiet" compact />
+
+            {/* Always there, as far down the page as anyone gets. "Enter" alone
+                beside the name; said in full where the bar has the room. */}
+            <button
+              type="button"
+              data-nav-enter=""
+              onClick={onEnter}
+              className="landing-cta shrink-0 px-4 sm:px-5 h-[34px] text-[11px] tracking-[0.18em] uppercase whitespace-nowrap"
+              style={{ clipPath: DONATE_CUT }}
+            >
+              <span className="min-[1700px]:hidden">{t('browser.enter')}</span>
+              <span className="hidden min-[1700px]:inline">{t('landing.enter')}</span>
+            </button>
           </div>
         </div>
       </div>
@@ -532,7 +549,7 @@ export default function LandingPage({ onGetStarted, isAuthenticated, section }: 
         {t('landing.skip')}
       </a>
 
-      <TopNav items={navItems} activeSection={activeSection} onJump={scrollToSection} onDonate={handleBarDonate} />
+      <TopNav items={navItems} activeSection={activeSection} onJump={scrollToSection} onDonate={handleBarDonate} onEnter={onGetStarted} />
 
       {showDonate && <ContributePanel onClose={() => setShowDonate(false)} />}
 

@@ -19,6 +19,8 @@ import { planFeatures, planValue, PRICE_MONTHLY, PRICE_YEARLY, YEARLY_A_MONTH, Y
 import { ChapterLabel } from './parts'
 
 const euros = (amount: number) => `€${Number.isInteger(amount) ? amount : amount.toFixed(2)}`
+// The big price always has its cents, so it keeps its width all the way through a roll.
+const bigPrice = (amount: number) => `€${amount.toFixed(2)}`
 
 // "Would you buy this plan?" Closed by its ×, Cancel, Esc or a press beside it,
 // none of which counts as an answer.
@@ -89,7 +91,7 @@ const PricingChapter = forwardRef<HTMLElement, { index: number; enter: string; o
     const el = priceRef.current
     if (!el) return
     if (!motion || shownRef.current === null) {
-      el.textContent = euros(target)
+      el.textContent = bigPrice(target)
       shownRef.current = target
       return
     }
@@ -98,8 +100,8 @@ const PricingChapter = forwardRef<HTMLElement, { index: number; enter: string; o
     const rolling = { value: shownRef.current }
     tweenRef.current = motion.gsap.to(rolling, {
       value: target, duration: 0.45, ease: 'power2.out',
-      onUpdate: () => { shownRef.current = rolling.value; el.textContent = `€${rolling.value.toFixed(2)}` },
-      onComplete: () => { shownRef.current = target; el.textContent = euros(target) },
+      onUpdate: () => { shownRef.current = rolling.value; el.textContent = bigPrice(rolling.value) },
+      onComplete: () => { shownRef.current = target; el.textContent = bigPrice(target) },
     })
   }, [target, motion])
   useEffect(() => () => tweenRef.current?.kill(), [])
@@ -147,9 +149,9 @@ const PricingChapter = forwardRef<HTMLElement, { index: number; enter: string; o
             value: 1, duration: 1.1, ease: 'power2.out', delay: 0.3,
             onUpdate: () => {
               const el = priceRef.current
-              if (el && shownRef.current !== null && !tweenRef.current) el.textContent = `€${(shownRef.current * counting.value).toFixed(2)}`
+              if (el && shownRef.current !== null && !tweenRef.current) el.textContent = bigPrice(shownRef.current * counting.value)
             },
-            onComplete: () => { if (priceRef.current && !tweenRef.current && shownRef.current !== null) priceRef.current.textContent = euros(shownRef.current) },
+            onComplete: () => { if (priceRef.current && !tweenRef.current && shownRef.current !== null) priceRef.current.textContent = bigPrice(shownRef.current) },
           })
         },
       })
