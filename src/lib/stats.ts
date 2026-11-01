@@ -3,6 +3,7 @@
 // object beside its other settings (workers/rooms SETTINGS). Reading it costs
 // nothing: it comes with one's entry, which the atrium browser already asks for.
 
+import { notePictureFrom } from './myPicture'
 import { useGameStore } from '../store/gameStore'
 import { earnedAchievements, MOST_PINNED, mergeStats, NO_STATS, onDay, type Counter, type Stats } from './achievements'
 
@@ -71,7 +72,8 @@ export async function syncStats(): Promise<Stats> {
   try {
     const [{ whoIsSignedIn }, { myEntry }] = await Promise.all([import('./signedIn'), import('./people')])
     if (!(await whoIsSignedIn())) return readStats()
-    const entry = await myEntry() as { created_at?: number; settings?: { stats?: Partial<Stats> } }
+    const entry = await myEntry() as { created_at?: number; settings?: { stats?: Partial<Stats>; picture?: unknown } }
+    notePictureFrom(entry.settings)
     if (typeof entry.created_at === 'number') joined = entry.created_at
     const there = entry.settings?.stats
     const merged = mergeStats(readStats(), there)

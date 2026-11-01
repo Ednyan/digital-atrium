@@ -17,7 +17,7 @@
 // (src/who.ts), which is how they're known to the rooms and the directory.
 
 import { goodbye } from './mail'
-import { accountKept, forgetAccount, forgetGoogleGrant, isBanned, googleGrantFor, keepGoogleGrant, link, linkedGoogleIds, linkedTo, meet, supersededBy } from './people'
+import { accountKept, dropOwnPicture, forgetAccount, forgetGoogleGrant, isBanned, googleGrantFor, keepGoogleGrant, link, linkedGoogleIds, linkedTo, meet, supersededBy } from './people'
 import { accountIdFor, fromBase64, fromUrl, keyFrom, personOf, replies, signSession, toBase64, whoIs, type Env, type Who } from './who'
 
 // A grant: Google's refresh token (none for a Google account signed in
@@ -127,6 +127,7 @@ export async function google(request: Request, env: Env, what: string): Promise<
     await giveBack(env, key, [person.sub], grant && grant !== 'sign-in' && grant.r ? [grant.r] : [])
     // Whom to say goodbye to, read before the row goes: once it has, said.
     const row = env.PEOPLE ? await env.PEOPLE.prepare('select email, username, display_name from accounts where id = ?').bind(who.id).first<{ email: string | null; username: string | null; display_name: string | null }>() : null
+    await dropOwnPicture(env, who.id)
     if (env.PEOPLE) await forgetAccount(env.PEOPLE, who.id)
     if (row?.email) await goodbye(env, row.email, row.display_name || row.username || '', asked.language)
     return answer(200, { deleted: true })

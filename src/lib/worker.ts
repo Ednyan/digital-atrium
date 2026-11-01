@@ -106,6 +106,7 @@ const CHANGES: Record<string, string[]> = {
   '/people/ask': [],
   '/people/visits': ['/people/visits'],
   '/people/me': ['/people/me'],
+  '/people/picture': ['/people/me'],
   '/people/publish': ['/people/atriums'],
   '/people/unpublish': ['/people/atriums'],
 }

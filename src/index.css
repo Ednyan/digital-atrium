@@ -1145,9 +1145,10 @@ body.dragging * {
     rgb(var(--c-line) / 0.7) calc(50% + 1px), transparent calc(50% + 1px));
 }
 
-/* Anything bordered that wears the cut. */
+/* Anything bordered that wears the cut. A pixel beyond its box but for the same
+   diagonal: a width in fractions of a pixel, cut exactly, can lose its border's edge. */
 .cut-corner {
-  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%);
+  clip-path: polygon(-1px -1px, calc(100% + 1px) -1px, calc(100% + 1px) calc(100% - 8px), calc(100% - 8px) calc(100% + 1px), -1px calc(100% + 1px));
   background-image: var(--cut-edge);
   background-repeat: no-repeat;
   background-position: right bottom;
@@ -1434,14 +1435,34 @@ input[type='color']::-moz-color-swatch { border: none; }
    unfold rather than appear; what's earned answering the pointer. */
 .profile-page { animation: enter-fade 220ms ease backwards; transition: opacity 170ms ease; }
 .profile-page[data-leaving] { opacity: 0; }
+/* One's own colour, as light around one's picture (7rem square, at the section's corner). */
 .profile-glow {
-  position: absolute; left: -8rem; top: -16rem; width: min(54rem, 100vw); height: 44rem; pointer-events: none;
-  background: radial-gradient(closest-side, rgb(255 138 61 / 0.12), rgb(255 138 61 / 0));
+  position: absolute; z-index: -1; left: calc(3.5rem - 27rem); top: calc(3.5rem - 22rem); width: 54rem; height: 44rem; pointer-events: none;
+  opacity: 0.15;
+  -webkit-mask-image: radial-gradient(closest-side, #000, transparent);
+  mask-image: radial-gradient(closest-side, #000, transparent);
+  transition: background-color 400ms ease;
   animation: profile-glow 1.4s ease backwards;
 }
 @keyframes profile-glow { from { opacity: 0; scale: 0.8; } }
 .profile-name .profile-name-pen { opacity: 0; translate: -6px 0; transition: opacity 180ms ease, translate 180ms cubic-bezier(.16, 1, .3, 1); }
 .profile-name:hover .profile-name-pen, .profile-name:focus-visible .profile-name-pen { opacity: 1; translate: 0 0; }
+.profile-picture-over { opacity: 0; background: rgb(0 0 0 / 0.45); transition: opacity 180ms ease; }
+.profile-picture:hover .profile-picture-over, .profile-picture:focus-visible .profile-picture-over { opacity: 1; }
+/* Nothing points at it on a touch screen: a mark in its corner says it can be changed. */
+@media (hover: none) {
+  .profile-picture-over { opacity: 1; background: none; align-items: flex-end; justify-content: flex-start; padding: 6px; }
+  .profile-picture-over svg { filter: drop-shadow(0 0 3px rgb(0 0 0 / 0.8)); }
+}
+/* The cropper's frame: all beyond it dimmed, thirds to place things by. */
+.picture-frame {
+  box-shadow: 0 0 0 9999px rgb(0 0 0 / 0.62);
+  outline: 1px solid rgb(255 255 255 / 0.9);
+  background-image:
+    linear-gradient(90deg, transparent calc(33.33% - 0.5px), rgb(255 255 255 / 0.25) 0 calc(33.33% + 0.5px), transparent 0 calc(66.66% - 0.5px), rgb(255 255 255 / 0.25) 0 calc(66.66% + 0.5px), transparent 0),
+    linear-gradient(transparent calc(33.33% - 0.5px), rgb(255 255 255 / 0.25) 0 calc(33.33% + 0.5px), transparent 0 calc(66.66% - 0.5px), rgb(255 255 255 / 0.25) 0 calc(66.66% + 0.5px), transparent 0);
+}
+.picture-stage:focus-visible .picture-frame { outline-width: 2px; }
 .profile-note { animation: enter-up 260ms cubic-bezier(.16, 1, .3, 1) backwards; }
 .profile-chip { animation: enter-zoom 320ms cubic-bezier(.16, 1, .3, 1) backwards; }
 .profile-back:hover span { transform: translateX(-3px); }
@@ -1452,6 +1473,7 @@ input[type='color']::-moz-color-swatch { border: none; }
 .profile-chevron[data-open] { transform: rotate(90deg); }
 .profile-fold { display: grid; grid-template-rows: 0fr; visibility: hidden; transition: grid-template-rows 300ms cubic-bezier(.16, 1, .3, 1), visibility 300ms; }
 .profile-fold[data-open] { grid-template-rows: 1fr; visibility: visible; }
+.hall-ground { background-color: rgb(var(--c-ground) / 0.96); }
 .achievement-card { transition: transform 240ms cubic-bezier(.16, 1, .3, 1), border-color 180ms ease, background-color 180ms ease, box-shadow 240ms ease; }
 .achievement-card:hover { transform: translateY(-3px); box-shadow: 0 10px 26px -14px var(--achievement); }
 .achievement-card:active { transform: translateY(-1px) scale(0.99); }
@@ -1459,6 +1481,32 @@ input[type='color']::-moz-color-swatch { border: none; }
 .achievement-card:hover .achievement-mark { rotate: 90deg; scale: 1.14; }
 .achievement-bar { transform-origin: left; animation: achievement-bar 900ms cubic-bezier(.16, 1, .3, 1) backwards; }
 @keyframes achievement-bar { from { transform: scaleX(0); } }
+
+/* The welcome screen: one's own place, arriving part by part. */
+.welcome-glow {
+  position: absolute; left: -10rem; top: -15rem; width: min(56rem, 100vw); height: 44rem; pointer-events: none;
+  background: radial-gradient(closest-side, rgb(var(--landing-light) / 0.13), rgb(var(--landing-light) / 0));
+  animation: profile-glow 1.6s ease backwards;
+}
+.welcome-hero { transition: border-color 220ms ease, box-shadow 400ms ease; }
+.welcome-hero:hover { border-color: rgb(var(--c-line) / 0.8); box-shadow: 0 24px 60px -34px rgb(var(--c-fg) / 0.5); }
+.welcome-hero-picture { transition: scale 1.1s cubic-bezier(.16, 1, .3, 1); }
+.group:hover .welcome-hero-picture { scale: 1.035; }
+.welcome-recent { transition: transform 240ms cubic-bezier(.16, 1, .3, 1), border-color 180ms ease, background-color 180ms ease; }
+.welcome-recent:hover { transform: translateX(4px); background-color: rgb(var(--c-ground)); background-image: linear-gradient(rgb(var(--c-fg) / 0.04), rgb(var(--c-fg) / 0.04)); }
+.welcome-action { transition: transform 220ms cubic-bezier(.16, 1, .3, 1), border-color 180ms ease, background-color 180ms ease; }
+.welcome-action:hover { transform: translateY(-2px); background-color: rgb(var(--c-ground)); background-image: linear-gradient(rgb(var(--c-fg) / 0.05), rgb(var(--c-fg) / 0.05)); }
+.welcome-action:active { transform: translateY(0) scale(0.985); }
+/* What's dangerous, readable on either ground. */
+.danger-word { color: rgb(var(--c-danger)) !important; }
+.welcome-next { transition: transform 240ms cubic-bezier(.16, 1, .3, 1), background-color 180ms ease; }
+.welcome-next:hover { transform: translateY(-2px); background-image: linear-gradient(rgb(255 138 61 / 0.06), rgb(255 138 61 / 0.06)); }
+.welcome-connection { transition: background-color 180ms ease; }
+.welcome-connection:hover { background: rgb(var(--c-fg) / 0.05); }
+.welcome-connect { transition: border-color 180ms ease; }
+.welcome-connection:hover .welcome-connect { border-color: rgb(var(--c-strong)); }
+.welcome-chip-mark { transition: rotate 420ms cubic-bezier(.16, 1, .3, 1); }
+.welcome-chip:hover .welcome-chip-mark { rotate: 90deg; }
 
 /* The tutorial: a light gliding to what it's about, and its card after it. */
 .tutorial-spot {
@@ -1899,6 +1947,38 @@ input[type='color']::-moz-color-swatch { border: none; }
   .trace-ticker-track { animation: none; }
 }
 
+/* The hall (components/Hall): the atrium's grid, the deepest layer, so it moves
+   least with the pointer; traces hanging in it, nearer, moving more. */
+.hall-grid {
+  position: fixed; inset: -40px; pointer-events: none; opacity: 0.12;
+  background-image: linear-gradient(rgb(var(--c-fg) / 0.2) 1px, transparent 1px), linear-gradient(90deg, rgb(var(--c-fg) / 0.2) 1px, transparent 1px);
+  background-size: 60px 60px;
+  transform: translate3d(calc(var(--px, 0) * 12px), calc(var(--py, 0) * 12px), 0);
+  transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.hall-depth {
+  position: absolute;
+  transform: translate3d(calc(var(--px, 0) * var(--depth)), calc(var(--py, 0) * var(--depth)), 0);
+  transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.hall-trace {
+  position: relative; display: flex; flex-direction: column; gap: 7px; padding: 12px;
+  border: 1px solid rgb(var(--c-line) / 0.115);
+  background: rgb(var(--c-fg) / 0.014);
+  rotate: var(--turn);
+  animation: hall-trace ease-in-out infinite alternate;
+}
+@keyframes hall-trace {
+  from { translate: 0 0; rotate: var(--turn); }
+  to { translate: var(--drift-x) var(--drift-y); rotate: calc(var(--turn) + 1.2deg); }
+}
+.hall-mark { position: absolute; width: 8px; height: 8px; border-color: rgb(var(--c-line) / 0.3); }
+.hall-line { display: block; height: 1px; background: rgb(var(--c-line) / 0.13); }
+@media (prefers-reduced-motion: reduce) {
+  .hall-trace { animation: none; }
+  .hall-grid, .hall-depth { transition: none; }
+}
+
 /* The hall's light and dust (components/Atmosphere), and the creator's corner
    signature (landing/CreatorSignature): the landing page's, and the welcome
    screen's too. */
@@ -1944,15 +2024,6 @@ input[type='color']::-moz-color-swatch { border: none; }
   .creator-signature { transition: none; }
   .landing-skylight { animation: none; }
   .landing-dust { display: none; }
-}
-
-/* A portal drawn smaller than the hall's (the welcome screen): its light faded
-   out before the canvas's top and sides instead of stopping at them. */
-.portal-soft-edge {
-  -webkit-mask-image: linear-gradient(to right, transparent, #000 14%, #000 86%, transparent), linear-gradient(to bottom, transparent, #000 16%);
-  -webkit-mask-composite: source-in;
-  mask-image: linear-gradient(to right, transparent, #000 14%, #000 86%, transparent), linear-gradient(to bottom, transparent, #000 16%);
-  mask-composite: intersect;
 }
 
 /* A diamond lit by the landing page's light: a chapter's marker, a title's. */

@@ -21,6 +21,8 @@
 
 import { supabase, isLocalData } from './supabase'
 import { exportImage, loadPicture, pictureOf } from './exportImage'
+import { rememberCard } from './atriumCards'
+import { useGameStore } from '../store/gameStore'
 import type { Layer, Trace } from '../types/database'
 import type { TraceLink } from './traceLinks'
 
@@ -153,6 +155,7 @@ export async function keepPreview(client: any, local: boolean, lobbyId: string, 
   if (previous && previous !== path) {
     void client.storage.from('traces').remove([decodeURIComponent(previous)]).then(({ error: kept }: { error: unknown }) => { if (kept) console.warn('[preview] old one not removed:', kept) })
   }
+  rememberCard(useGameStore.getState().userId, lobbyId, { preview: url })
   window.dispatchEvent(new CustomEvent<PreviewDetail>('atrium:preview', { detail: { lobbyId, url, at } }))
   return true
 }

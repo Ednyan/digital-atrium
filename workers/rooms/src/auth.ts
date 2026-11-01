@@ -27,7 +27,7 @@
 // it: a session alone, stolen, can't set a password here.
 
 import { authCode, goodbye, welcome } from './mail'
-import { forgetAccount, isBanned, meetExisting, supabaseUsername, takenInSupabase, tablesIn, USERNAME, allowedNow } from './people'
+import { dropOwnPicture, forgetAccount, isBanned, meetExisting, supabaseUsername, takenInSupabase, tablesIn, USERNAME, allowedNow } from './people'
 import { dropOwnFiles } from './store'
 import { fromBase64, fromUrl, keyFrom, replies, signSession, toBase64, whoIs, type Env, type Who } from './who'
 
@@ -50,6 +50,8 @@ const CODES_A_DAY = 8
 const DAY_MS = 24 * 60 * 60 * 1000
 // An address never confirmed: its account let go after this, its username free.
 const UNCONFIRMED_MS = 24 * 60 * 60_000
+// How long an account being deleted has to say it's done, retried as the page loads.
+const FAREWELL_MS = 7 * DAY_MS
 // The desktop app signed in by the site: how long its code holds, how many
 // links a network may ask for and how many codes an account may try, an hour.
 const LINK_MS = 10 * 60_000
@@ -375,6 +377,41 @@ export async function auth(request: Request, env: Env, what: string): Promise<Re
       return answer(200, { ok: true })
     }
 
+    // An existing account about to be deleted. Supabase's delete-account never
+    // reaches here, and once it's done there's no session to ask with: a word kept
+    // on its row, for saying so afterwards ('gone').
+    case 'farewell': {
+      const token = text('token', 4000)
+      const who = await whoIs(token, env)
+      if (!who || who.kind !== 'supabase') return answer(401, { error: 'sign-in' })
+      const row = await db.prepare('select username from accounts where id = ?').bind(who.id).first<{ username: string | null }>()
+      const username = row?.username ?? await supabaseUsername(env, who, token!)
+      if (!row || !username) return answer(200, {})
+      const word = crypto.randomUUID()
+      await db.prepare("update accounts set settings = json_patch(coalesce(settings, '{}'), ?) where id = ?")
+        .bind(JSON.stringify({ farewell: { word, username, until: Date.now() + FAREWELL_MS } }), who.id).run()
+      return answer(200, { id: who.id, word })
+    }
+
+    // It's done, says whoever holds the word, and Supabase agrees it has no such
+    // account: all it had here goes, as an email account's does. Never on the word
+    // alone: asked before the deletion, or after one that failed, nothing goes.
+    case 'gone': {
+      const id = text('id', 64), word = text('word', 64)
+      if (!id || !word) return answer(400, { error: 'body' })
+      const row = await db.prepare(`select json_extract(settings, '$.farewell.word') as word, json_extract(settings, '$.farewell.username') as username,
+        json_extract(settings, '$.farewell.until') as until from accounts where id = ? and kind = 'supabase'`).bind(id).first<{ word: string | null; username: string | null; until: number | null }>()
+      if (!row) return answer(200, { deleted: true })
+      if (!row.word || !same(row.word, word) || !row.username || !row.until || row.until < Date.now()) return answer(410, { error: 'word' })
+      const still = await takenInSupabase(env, row.username, null)
+      if (still !== false) return answer(still === null ? 503 : 409, { error: 'still there' })
+      await dropOwnFiles(env, id)
+      await dropOwnPicture(env, id)
+      await forgetLogin(db, id)
+      await forgetAccount(db, id)
+      return answer(200, { deleted: true })
+    }
+
     // An email account deleted, on its own say-so: its session, and its
     // password once more -- so a session left open somewhere can't. Its
     // directory entry, its files in the Atrium's cloud, its sign-ins: gone.
@@ -388,6 +425,7 @@ export async function auth(request: Request, env: Env, what: string): Promise<Re
       if (!found || !same(found.email_verifier, await verifierOf(fromBase64(found.seal), key))) return answer(403, { error: 'password' })
       const account = await accountOf(db, who.id)
       await dropOwnFiles(env, who.id)
+      await dropOwnPicture(env, who.id)
       await forgetLogin(db, who.id)
       await forgetAccount(db, who.id)
       if (account) await goodbyeTo(env, found.email, account, asked.language)

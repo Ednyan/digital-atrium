@@ -3,6 +3,7 @@
 // access/refresh tokens never reach the browser. The desktop connects through
 // the website, which hands it a code to link with (lib/pinterestDesktop).
 
+import { useEffect, useState } from 'react'
 import { toWorker } from './worker'
 import { workerUrl } from './rooms'
 import { showToast } from './toast'
@@ -285,6 +286,20 @@ export async function getPinterestConnectionStatus(): Promise<{ connected: boole
   if (isDesktop) return getDesktopPinterestStatus()
   const { ok, answer } = await toWorker('/pinterest/status', {}, true).catch(() => ({ ok: false, answer: null }))
   return ok ? { connected: !!answer?.connected, username: answer?.username ?? null } : { connected: false, username: null }
+}
+
+/** Whether Pinterest is connected, read again as its panel closes, where it may
+ *  have changed. Null until known. Kept with what else is read (lib/worker), so
+ *  it's asked once for however many say it. */
+export function usePinterestStatus(panelOpen = false) {
+  const [status, setStatus] = useState<{ connected: boolean; username: string | null } | null>(null)
+  useEffect(() => {
+    if (panelOpen) return
+    let left = false
+    void getPinterestConnectionStatus().then(now => { if (!left) setStatus(now) })
+    return () => { left = true }
+  }, [panelOpen])
+  return status
 }
 
 export async function disconnectPinterest(): Promise<void> {

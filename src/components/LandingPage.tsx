@@ -31,6 +31,7 @@ import SplitText from './reactbits/SplitText'
 import { Brackets, ChapterLabel, Headline } from './landing/parts'
 import CreatorSignature from './landing/CreatorSignature'
 import Atmosphere from './Atmosphere'
+import { usePointerDepth } from './Hall'
 import FilmChapter from './landing/FilmChapter'
 import InsideChapter from './landing/InsideChapter'
 import TraceRibbon from './landing/TraceRibbon'
@@ -396,24 +397,7 @@ export default function LandingPage({ onGetStarted, isAuthenticated, section }: 
   // Pointer parallax, published as CSS custom properties instead of React
   // state: each layer picks its own depth, for no render cost. Coalesced into
   // one rAF so a burst of pointer events writes style once a frame.
-  useEffect(() => {
-    const el = containerRef.current
-    if (!el) return
-    let frame = 0
-    const handleMouseMove = (e: MouseEvent) => {
-      if (frame) return
-      frame = window.requestAnimationFrame(() => {
-        frame = 0
-        el.style.setProperty('--px', ((e.clientX / window.innerWidth) * 2 - 1).toFixed(4))
-        el.style.setProperty('--py', ((e.clientY / window.innerHeight) * 2 - 1).toFixed(4))
-      })
-    }
-    window.addEventListener('mousemove', handleMouseMove, { passive: true })
-    return () => {
-      window.removeEventListener('mousemove', handleMouseMove)
-      if (frame) window.cancelAnimationFrame(frame)
-    }
-  }, [])
+  usePointerDepth(containerRef)
 
   // Smooth scrolling (Lenis), on GSAP's clock, so what's tied to the scroll is
   // drawn where the page is. Scrollers inside it -- the bar's menu, the
@@ -560,18 +544,8 @@ export default function LandingPage({ onGetStarted, isAuthenticated, section }: 
         className="fixed inset-0 pointer-events-none opacity-[0.02] z-50"
         style={{ backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgb(var(--c-fg) / 0.1) 2px, rgb(var(--c-fg) / 0.1) 4px)' }}
       />
-      {/* The atrium's grid, the floor of the hall -- the deepest layer, so it
-          moves least with the pointer. */}
-      <div
-        className="fixed pointer-events-none opacity-[0.12]"
-        style={{
-          inset: '-40px',
-          backgroundImage: 'linear-gradient(rgb(var(--c-fg) / 0.2) 1px, transparent 1px), linear-gradient(90deg, rgb(var(--c-fg) / 0.2) 1px, transparent 1px)',
-          backgroundSize: '60px 60px',
-          transform: 'translate3d(calc(var(--px, 0) * 12px), calc(var(--py, 0) * 12px), 0)',
-          transition: 'transform 0.45s cubic-bezier(0.22, 1, 0.36, 1)',
-        }}
-      />
+      {/* The atrium's grid, the floor of the hall. */}
+      <div className="hall-grid" />
       {/* The light from above, over the whole hall, and the dust in it. */}
       <Atmosphere />
 

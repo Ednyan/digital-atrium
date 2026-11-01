@@ -217,6 +217,14 @@ const LISTED = 'd/atriums.json'
 const pictureKey = (lobby: string, at: number) => `p/${lobby}-${at}.webp`
 const PICTURE = { contentType: 'image/webp', cacheControl: 'public, max-age=31536000, immutable' }
 const MOST_PREVIEW_BYTES = 300 * 1024
+// One's profile picture (src/lib/myPicture), small and made so on the device: a public
+// file at an address nobody can guess, a new one each time, cached for good.
+const MOST_OWN_PICTURE_BYTES = 64 * 1024
+const ownPictureKind = (bytes: Uint8Array) => {
+  if (bytes.length >= 12 && String.fromCharCode(...bytes.slice(0, 4)) === 'RIFF' && String.fromCharCode(...bytes.slice(8, 12)) === 'WEBP') return { end: 'webp', contentType: 'image/webp' }
+  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return { end: 'jpg', contentType: 'image/jpeg' }
+  return null
+}
 // An ask to be let in, kept this long.
 const ASK_KEEP_MS = 14 * DAY_MS
 // A roster's file: a Drive file's id, or the hosted store's (`h.` and its own, src/store.ts).
@@ -326,6 +334,12 @@ async function cloudMember(env: Env, token: string, from: string, lobby: string,
 /** A Google account, gone from the directory: its row, the invitations to
  *  and from it, its Pinterest -- or, `unfinished`, only while it has no
  *  username (one chosen meanwhile keeps it). */
+/** One's profile picture gone from where anyone could read it. */
+export async function dropOwnPicture(env: Env, id: string): Promise<void> {
+  const row = await env.PEOPLE?.prepare("select json_extract(settings, '$.picture') as picture from accounts where id = ?").bind(id).first<{ picture: string | null }>()
+  if (row?.picture) await dropPublic(env, [row.picture])
+}
+
 export async function forgetAccount(db: D1Database, id: string, unfinished = false): Promise<void> {
   await tablesIn(db)
   await db.batch([
@@ -655,6 +669,26 @@ export async function people(request: Request, env: Env, what: string): Promise<
         coalesce(a.display_name, a.username) as from_name from invites i left join accounts a on a.id = i.from_user
         where i.to_user = ? order by i.created_at desc`).bind(who.id).all()
       return answer(200, results)
+    }
+
+    // One's picture, or (none sent) none. Only ever set here, never as a setting:
+    // the address is the worker's to choose.
+    case 'picture': {
+      if (who.kind === 'supabase') await meetExisting(env, db, who, asked.token as string)
+      else if (!await accountKept(db, who.id)) return answer(401, { error: 'gone' })
+      if (!await allowedNow(db, `picture:${who.id}`, 30)) return answer(429, { error: 'too many' })
+      let key: string | null = null
+      if (asked.picture !== undefined) {
+        let bytes: Uint8Array
+        try { bytes = fromBase64(asked.picture as string) } catch { return answer(400, { error: 'picture' }) }
+        const kind = ownPictureKind(bytes)
+        if (!kind || bytes.length > MOST_OWN_PICTURE_BYTES) return answer(400, { error: 'picture' })
+        key = `a/${crypto.randomUUID()}.${kind.end}`
+        await putPublic(env, key, bytes, { contentType: kind.contentType, cacheControl: PICTURE.cacheControl })
+      }
+      await dropOwnPicture(env, who.id)
+      await db.prepare("update accounts set settings = json_patch(coalesce(settings, '{}'), ?) where id = ?").bind(JSON.stringify({ picture: key }), who.id).run()
+      return answer(200, { picture: key })
     }
 
     // One's Drive atrium listed as public, or its listing brought up to date

@@ -308,6 +308,7 @@
 <ul>
   <li><strong>An account with an email address</strong> needs your email address, a username and a password. <strong>Your password never leaves your device</strong>: your browser turns it into a key (600,000 rounds of PBKDF2), and only that key is sent. Our server keeps a salted hash of the key, never the password itself. We email a code to confirm your address and to reset a forgotten password.</li>
   <li><strong>Signing in with Google</strong> gives us your name, your email address and your Google account's ID, as Google states them. We never see your Google password.</li>
+  <li><strong>A profile picture</strong>, if you add one, is made into a small square on your device and kept as a file at an address nobody can guess; anyone given that address can see it. You can remove it from your Profile at any time, and it's deleted with your account. On the desktop app it stays on your device.</li>
   <li>Accounts made before October 2026 were created with Supabase, a backend provider. Until each one is moved over, Supabase still holds its sign-in.</li>
 </ul>
 <p>On the desktop app, no account is needed: your username and preferences are stored on your device. You can sign the desktop app in to your account to open atriums shared with you; it then keeps a sign-in for that account.</p>

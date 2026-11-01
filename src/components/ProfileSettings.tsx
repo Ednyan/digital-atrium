@@ -20,6 +20,9 @@ import { AchievementsGrid, ProfileTop } from './ProfileAchievements'
 import { adopt, changePassword, deleteEmailAccount } from '../lib/emailAccount'
 import GoogleButton from './GoogleButton'
 import { LanguageList } from './LanguageToggle'
+import { usePinterestStatus } from '../lib/pinterest'
+import { forgetMyPicture } from '../lib/myPicture'
+import Hall from './Hall'
 import { useMenuGlide } from './MenuGlide'
 
 // The same five the in-atrium panel offers, from the palette the rest of the
@@ -30,6 +33,8 @@ interface ProfileSettingsProps {
   onClose: () => void
   // What's the screen behind's to do: none, where there's nothing of the kind.
   onPinterest?: () => void
+  // Whether Pinterest's own panel is open over this.
+  pinterestOpen?: boolean
   onLogOut?: () => void
 }
 
@@ -52,7 +57,7 @@ function SettingRow({ id, label, value, open = false, danger = false, go = false
         aria-expanded={go ? undefined : open}
         data-danger={danger || undefined}
         onClick={() => onToggle(id)}
-        className={`profile-row relative w-full min-h-[2.9rem] px-3.5 flex items-center justify-between gap-3 text-left text-xs ${danger ? 'text-[#ff8585]' : 'text-nier-bg/95'}`}
+        className={`profile-row relative w-full min-h-[2.9rem] px-3.5 flex items-center justify-between gap-3 text-left text-xs ${danger ? 'danger-word' : 'text-nier-bg/95'}`}
       >
         <span>{label}</span>
         <span className="flex items-center gap-2 min-w-0 text-[11px] text-nier-bg/75">
@@ -69,9 +74,13 @@ function SettingRow({ id, label, value, open = false, danger = false, go = false
   )
 }
 
-export default function ProfileSettings({ onClose, onPinterest, onLogOut }: ProfileSettingsProps) {
+export default function ProfileSettings({ onClose, onPinterest, pinterestOpen = false, onLogOut }: ProfileSettingsProps) {
   const { t, language, languages } = useTranslation()
   const { userId, username, setUsername, playerColor, setPlayerColor } = useGamePick('userId', 'username', 'setUsername', 'playerColor', 'setPlayerColor')
+  const pinterest = usePinterestStatus(pinterestOpen)
+  const pinterestSaid = !pinterest ? undefined
+    : !pinterest.connected ? t('profile.pinterestNotConnected')
+    : pinterest.username ? `@${pinterest.username}` : t('profile.pinterestConnectedPlain')
   // One's name, at the top of the page, where it's changed.
   const [savedName, setSavedName] = useState(username)
   // The one of the rows open: they're compact until pressed.
@@ -88,13 +97,14 @@ export default function ProfileSettings({ onClose, onPinterest, onLogOut }: Prof
   const leaveRef = useRef(leave)
   leaveRef.current = leave
   useEffect(() => {
+    if (pinterestOpen) return
     const key = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement | null)?.tagName
       if (e.key === 'Escape' && tag !== 'INPUT' && tag !== 'TEXTAREA') leaveRef.current()
     }
     window.addEventListener('keydown', key)
     return () => window.removeEventListener('keydown', key)
-  }, [])
+  }, [pinterestOpen])
   // One's achievements and how far one's come (lib/stats), and when one began: what the
   // account says, what the sign-in says, or the first day seen here. Nothing new
   // is asked for: one's entry is already read.
@@ -185,8 +195,12 @@ export default function ProfileSettings({ onClose, onPinterest, onLogOut }: Prof
     setActualUsername(profile.username)
     setSavedName(profile.displayName)
     if (profile.color) {
-      setSelectedColor(profile.color)
-      setPlayerColor(profile.color)
+      keptColour.current = profile.color
+      // Not over one just chosen, still on its way.
+      if (!colourWaiting.current) {
+        setSelectedColor(profile.color)
+        setPlayerColor(profile.color)
+      }
     }
     const days = daysUntilNameChange(profile.nameChangedAt)
     setCanChange(days === 0)
@@ -196,20 +210,42 @@ export default function ProfileSettings({ onClose, onPinterest, onLogOut }: Prof
   // Saved on click rather than with the name form: that form's button is
   // disabled while the name is unchanged, so a colour picked on its own could
   // never be submitted through it.
-  const handleColorChange = async (color: string) => {
-    setSelectedColor(color)
+  // A colour shows at once, and is kept once it's settled on: the system's picker
+  // reports every shade it's dragged through, and one's account needn't hear each.
+  // Back to the one already kept, as a cancelled picker is, nothing's sent.
+  const keptColour = useRef(playerColor)
+  const colourWaiting = useRef<{ colour: string; timer: number } | null>(null)
+  const keepColour = async (color: string) => {
+    colourWaiting.current = null
+    if (color.toLowerCase() === keptColour.current.toLowerCase()) return
     setPlayerColor(color)
-    setColorSaved(false)
     if (!userId) return
     try {
       await saveMyProfile(userId, { color })
-    } catch (updateError: any) {
-      setError(updateError?.message || t('profile.errCursorColour'))
+    } catch {
+      setError(t('profile.errCursorColour'))
       return
     }
+    keptColour.current = color
     setColorSaved(true)
     setTimeout(() => setColorSaved(false), 1600)
   }
+  const handleColorChange = (color: string) => {
+    setSelectedColor(color)
+    setColorSaved(false)
+    setError('')
+    if (colourWaiting.current) window.clearTimeout(colourWaiting.current.timer)
+    colourWaiting.current = { colour: color, timer: window.setTimeout(() => void keepColour(color), 500) }
+  }
+  // Leaving before it's settled still keeps it.
+  const keepColourRef = useRef(keepColour)
+  keepColourRef.current = keepColour
+  useEffect(() => () => {
+    const waiting = colourWaiting.current
+    if (!waiting) return
+    window.clearTimeout(waiting.timer)
+    void keepColourRef.current(waiting.colour)
+  }, [])
 
   // One row open at a time; what was half-typed in one goes as it closes.
   const toggleRow = (id: string) => {
@@ -481,6 +517,7 @@ export default function ProfileSettings({ onClose, onPinterest, onLogOut }: Prof
   // where it's said, with thanks (App's FarewellNotice).
   const leaveAfterDeletion = () => {
     markFarewell()
+    forgetMyPicture()
     localStorage.removeItem('lobby_hasEntered')
     localStorage.removeItem('lobby_currentLobbyId')
     localStorage.removeItem('lobby_showBrowser')
@@ -493,7 +530,7 @@ export default function ProfileSettings({ onClose, onPinterest, onLogOut }: Prof
       ref={pageRef}
       data-profile=""
       data-leaving={leaving || undefined}
-      className="profile-page fixed inset-0 bg-nier-black z-[10000] overflow-y-auto"
+      className="profile-page fixed inset-0 bg-nier-black z-[10000] overflow-y-auto overflow-x-hidden"
       style={{ touchAction: 'pan-y', overscrollBehavior: 'contain' }}
       onTouchMove={(e) => e.stopPropagation()}
       onTouchStart={(e) => e.stopPropagation()}
@@ -503,7 +540,7 @@ export default function ProfileSettings({ onClose, onPinterest, onLogOut }: Prof
       // omitted so that no ancestor added later can quietly make it a dismissal.
       onClick={(e) => e.stopPropagation()}
     >
-      <div aria-hidden="true" className="profile-glow" />
+      <Hall />
       {/* A page of its own: who one is and one's achievements, one's settings beside them. */}
       <div className="relative max-w-[82rem] mx-auto px-5 sm:px-10 xl:px-16 py-7">
         <div className="enter-down flex items-center justify-between gap-4 mb-8">
@@ -532,7 +569,7 @@ export default function ProfileSettings({ onClose, onPinterest, onLogOut }: Prof
           <AchievementsGrid stats={stats} onToggle={id => setStats(togglePinned(id))} />
           <aside data-profile-settings="" aria-labelledby="profile-settings-title" className="enter-up" style={{ '--i': 3 } as CSSProperties}>
             <h2 id="profile-settings-title" className="text-xs font-medium tracking-[0.24em] uppercase text-nier-strong">{t('profile.yours')}</h2>
-            <div {...glide.host} className="menu-glide-host relative mt-3.5 border border-nier-border/30">
+            <div {...glide.host} className="menu-glide-host hall-ground relative mt-3.5 border border-nier-border/30">
               {glide.light}
               <div data-setting="colour" className="relative p-3.5 border-b border-nier-border/20">
                 <p className="text-[10px] tracking-[0.16em] uppercase text-nier-bg/75">
@@ -569,7 +606,7 @@ export default function ProfileSettings({ onClose, onPinterest, onLogOut }: Prof
                     />
                   ))}
                 </div>
-                {error && <p className="profile-note mt-2 text-xs text-[#ff8585]">{error}</p>}
+                {error && <p className="profile-note danger-word mt-2 text-xs">{error}</p>}
               </div>
 
               <SettingRow id="undo" label={t('profile.undoLabel')} value={String(undoDepth)} open={openRow === 'undo'} onToggle={toggleRow}>
@@ -607,7 +644,7 @@ export default function ProfileSettings({ onClose, onPinterest, onLogOut }: Prof
                 <div className="-mx-3.5 -mb-3.5"><LanguageList onChosen={() => setOpenRow(null)} /></div>
               </SettingRow>
 
-              {onPinterest && <SettingRow id="pinterest" label={t('profile.pinterest')} onToggle={onPinterest} go />}
+              {onPinterest && <SettingRow id="pinterest" label={t('profile.pinterest')} value={pinterestSaid} onToggle={onPinterest} go />}
 
               {!isDesktop && !google && (
                 <SettingRow id="password" label={t('profile.changePassword')} open={openRow === 'password'} onToggle={toggleRow}>

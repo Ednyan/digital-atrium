@@ -24,7 +24,7 @@ interface Shown { id: string; kind: string; email: string | null; username: stri
 interface Answer {
   session?: string; until?: number; refresh?: string; account?: Shown
   verified?: boolean; error?: string; email?: string; ok?: boolean; deleted?: boolean
-  device?: string; code?: string; grant?: string
+  device?: string; code?: string; grant?: string; id?: string; word?: string
 }
 
 // A plain request (a string body, no headers of its own): no preflight.
@@ -214,6 +214,17 @@ export async function deleteEmailAccount(password: string): Promise<void> {
 /** An existing account deleted (Supabase's way): its credential at the worker goes too. */
 export async function forgetCopy(supabaseToken: string): Promise<void> {
   await ask('forget', { token: supabaseToken }).catch(() => {})
+}
+
+/** The word for saying an existing account's deletion is done (lib/account), or null. */
+export async function farewellWord(supabaseToken: string): Promise<{ id: string; word: string } | null> {
+  const { body } = await ask('farewell', { token: supabaseToken })
+  return body.id && body.word ? { id: body.id, word: body.word } : null
+}
+/** Said: whether that's the end of it, one way or the other. */
+export async function sayGone(said: { id: string; word: string }): Promise<boolean> {
+  const { status } = await ask('gone', said)
+  return status === 200 || status === 410
 }
 
 /** This page's session for the worker -- renewed from the token kept here,

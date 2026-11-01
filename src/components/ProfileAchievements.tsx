@@ -3,6 +3,7 @@
 
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { useTranslation, type LanguageCode } from '../lib/i18n'
+import ProfilePicture from './ProfilePicture'
 import { earnedAchievements, isEarned, MOST_PINNED, ACHIEVEMENTS, progressOf, type Achievement, type Stats } from '../lib/achievements'
 import type { TranslationKey } from '../locales/en'
 
@@ -149,13 +150,8 @@ export function ProfileTop({ name, username, colour, joined, stats, canEdit, loc
   ]
   return (
     <section data-profile-top="" className="relative flex flex-wrap items-center gap-x-7 gap-y-5">
-      <span
-        aria-hidden="true"
-        className="enter-zoom w-28 h-28 shrink-0 flex items-center justify-center text-[2.9rem] font-bold uppercase transition-colors duration-300"
-        style={{ background: colour, color: '#191919', clipPath: 'polygon(0 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%)' }}
-      >
-        {(name || username || '?').slice(0, 1)}
-      </span>
+      <span aria-hidden="true" data-profile-light="" className="profile-glow" style={{ backgroundColor: colour }} />
+      <ProfilePicture colour={colour} initial={(name || username || '?').slice(0, 1)} />
       <div className="enter-up flex-1 min-w-[14rem]" style={{ '--i': 1 } as CSSProperties}>
         <NameAtTop
           name={name || username}
@@ -182,7 +178,7 @@ export function ProfileTop({ name, username, colour, joined, stats, canEdit, loc
           </div>
         )}
       </div>
-      <dl className="enter-up grid grid-cols-2 sm:grid-cols-4 border border-nier-border/30 w-full lg:w-auto" style={{ '--i': 2 } as CSSProperties}>
+      <dl className="enter-up hall-ground grid grid-cols-2 sm:grid-cols-4 border border-nier-border/30 w-full lg:w-auto" style={{ '--i': 2 } as CSSProperties}>
         {figures.map(([label, value]) => (
           <div key={label} className="px-4 py-3.5 min-w-[7.4rem] sm:border-r last:border-r-0 border-nier-border/20">
             <dd className="text-2xl font-extralight text-nier-strong tabular-nums"><CountUp value={value} language={language} /></dd>
@@ -225,7 +221,7 @@ export function AchievementsGrid({ stats, onToggle }: { stats: Stats; onToggle: 
                   type="button"
                   aria-pressed={chosen}
                   onClick={() => onToggle(one.id)}
-                  className={`achievement-card w-full h-full min-h-[9.25rem] flex flex-col items-start text-left p-3.5 pt-4 border ${chosen ? 'border-nier-bg bg-nier-bg/10' : 'border-nier-border/45 bg-nier-bg/5 hover:border-nier-border/80'}`}
+                  className={`achievement-card hall-ground w-full h-full min-h-[9.25rem] flex flex-col items-start text-left p-3.5 pt-4 border ${chosen ? 'border-nier-bg bg-[linear-gradient(rgb(var(--c-fg)/0.1),rgb(var(--c-fg)/0.1))]' : 'border-nier-border/45 bg-[linear-gradient(rgb(var(--c-fg)/0.05),rgb(var(--c-fg)/0.05))] hover:border-nier-border/80'}`}
                   style={{ '--achievement': FAMILY_COLOUR[one.family] } as CSSProperties}
                 >
                   {mark}

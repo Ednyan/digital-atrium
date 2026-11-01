@@ -65,6 +65,12 @@ export const isEarned = (one: Achievement, stats: Stats) => reached(stats, one.c
 export const earnedAchievements = (stats: Stats) => ACHIEVEMENTS.filter(one => isEarned(one, stats))
 export const progressOf = (one: Achievement, stats: Stats) => Math.min(1, reached(stats, one.counter) / one.goal)
 
+// The nearest one still to earn: what's closest to done, or the first with none begun.
+export function nextAchievement(stats: Stats): Achievement | null {
+  const left = ACHIEVEMENTS.filter(one => !isEarned(one, stats))
+  return left.reduce<Achievement | null>((best, one) => (!best || progressOf(one, stats) > progressOf(best, stats) ? one : best), null)
+}
+
 const dayNumber = (day: string) => {
   const [y, m, d] = day.split('-').map(Number)
   return Date.UTC(y, m - 1, d) / 86_400_000

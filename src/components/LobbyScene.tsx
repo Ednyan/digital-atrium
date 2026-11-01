@@ -72,6 +72,7 @@ import type { PresentationFormat } from '../lib/presentationExport'
 import QuickBar, { EmptyCanvasHint, HistoryButtons, QUICK_ORDER, ToolHint, type PlaceTool, type QuickAction, QuickBarEditor, ViewBarEditor } from './QuickBar'
 import { inTutorial, tutorialFinished } from '../lib/tutorial'
 import { count, noteToday, ACHIEVEMENT_EVENT } from '../lib/stats'
+import { rememberCard } from '../lib/atriumCards'
 import type { TranslationKey } from '../locales/en'
 import { isBoxShape, type BoxShape } from '../lib/shapeStyle'
 import { roundedPolygonPath, shapePolygon } from '../lib/traceGeometry'
@@ -1039,6 +1040,8 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
   const tutorialRef = useRef(false)
   const leaveWithTransition = useCallback(() => {
     setLeaving(true)
+    // For the welcome screen: what it was as it was left (lib/atriumCards).
+    if (!tutorialRef.current && currentLobby?.name) rememberCard(useGameStore.getState().userId, lobbyId, { name: currentLobby.name, traces: useGameStore.getState().traces.length })
     // Its picture for the atrium browser, from what's on screen now -- by its
     // owner alone, the same for everyone (lib/atriumPreview), made after leaving.
     if (isLobbyOwner && !tutorialRef.current) {

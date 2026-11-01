@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { takeFarewell } from '../lib/account'
+import { finishLeaving, takeFarewell } from '../lib/account'
 import { useTranslation } from '../lib/i18n'
 import NoticeCard from './NoticeCard'
 
@@ -11,7 +11,10 @@ import NoticeCard from './NoticeCard'
 export default function FarewellNotice() {
   const { t } = useTranslation()
   const [due, setDue] = useState(false)
-  useEffect(() => { if (takeFarewell()) setDue(true) }, [])
+  useEffect(() => {
+    if (takeFarewell()) setDue(true)
+    void finishLeaving()
+  }, [])
   if (!due) return null
   return (
     <NoticeCard title={t('farewell.title')} onDismiss={() => setDue(false)}>

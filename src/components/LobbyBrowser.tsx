@@ -1,7 +1,7 @@
 import { useEffect, useId, useState, useMemo, useRef, lazy, Suspense, type CSSProperties, type ReactNode } from 'react'
 import { flushSync } from 'react-dom'
 import { supabase, isDesktop } from '../lib/supabase'
-import { toggleFullscreen, useFullscreen } from '../lib/fullscreen'
+import FullscreenButton from './FullscreenButton'
 import DesktopAccount from './DesktopAccount'
 import { copyLobbyId } from '../lib/clipboard'
 import VaultRecoveryPanel from './VaultRecoveryPanel'
@@ -16,7 +16,7 @@ import { formatSize } from '../lib/size'
 import { HOSTED_MARK, hostedStore, isHostedId } from '../lib/hostedStore'
 import { askAhead, holdReads } from '../lib/worker'
 import { anotherAccountsDriveAtrium, askToJoin, isLeftHere, ownElsewhere, replaceContents, watchSending, driveHasEverything, lookAtDriveAtrium, leaveDriveAtrium, makeWorkingCopy, createDriveAtrium, declineInvitation, deleteDriveAtrium, driveProblem, ensureSignedIn, inviteIn, driveCard, isDriveAtrium, isDriveOwner, isDriveViewer, isHostedAtrium, joinDriveAtrium, keepInDrive, moveHostedToDrive, myInvitations, readInvite, rowFromRoster, viewPublicAtrium, type Invitation, type JoinStep } from '../lib/driveSync'
-import { previewFromWorker, publicAtriums, publicPreviewUrl } from '../lib/people'
+import { publicAtriums, publicPreviewUrl } from '../lib/people'
 import DriveSettings from './DriveSettings'
 import { LobbyManagement } from './LobbyManagement'
 const HelpPanel = lazy(() => import('./HelpPanel'))
@@ -25,7 +25,6 @@ import ContributePanel from './ContributePanel'
 import DonateButton, { DONATE_CUT } from './DonateButton'
 import ThemeToggle from './ThemeToggle'
 import Atmosphere from './Atmosphere'
-import { MENU_ICONS, MenuIcon } from './AtriumMenu'
 import { startingAtriumTheme } from '../lib/atriumThemePresets'
 import { themeOf } from '../lib/customThemes'
 import { defaultPresetFor } from '../lib/tracePresets'
@@ -40,7 +39,9 @@ const DriveSpike = lazy(() => import('./DriveSpike'))
 import type { Lobby } from '../types/database'
 import { sortByLastVisited, mergeRemoteVisits } from '../lib/recentAtriums'
 import { noteToday, syncStats } from '../lib/stats'
-import { cameBefore, markTutorialSeen, tutorialFinished, tutorialSeen, tutorialStarted, unfinishedTutorial } from '../lib/tutorial'
+import { forgetCard, rememberCards } from '../lib/atriumCards'
+import AtriumPicture from './AtriumPicture'
+import { cameBefore, markTutorialSeen, takeBrowserAsk, tutorialFinished, tutorialSeen, tutorialStarted, unfinishedTutorial } from '../lib/tutorial'
 import { browserAtriumIds, browserEngine, clientFor, forgetBrowserAtrium, leaveBrowserAtrium, rememberBrowserAtrium, vaultProblem } from '../lib/browserAtriums'
 import { checkPlatformAdmin } from '../lib/platformAdmin'
 import { Check } from './ShapeStyleControls'
@@ -116,30 +117,9 @@ const VIEW_ICONS: Record<BrowserView, ReactNode> = {
 // first, on desktop -- and the atrium's mark on its grid where there isn't
 // one yet. Edge to edge across the top of the card.
 function AtriumPreview({ url, small = false, name }: { url?: string | null; small?: boolean; name: string }) {
-  const [src, setSrc] = useState<string | null>(null)
-  useEffect(() => {
-    if (!url) { setSrc(null); return }
-    if (!url.startsWith('local://')) { setSrc(url); return }
-    let live = true
-    void import('../lib/localDb').then(m => m.resolveLocalUrl(url)).then(resolved => { if (live) setSrc(resolved.startsWith('local://') ? null : resolved) })
-    return () => { live = false }
-  }, [url])
   return (
     <div className={`morph relative aspect-[16/10] overflow-hidden bg-nier-blackLight ${small ? 'w-24 sm:w-28 shrink-0 border border-nier-border/20' : '-mx-4 -mt-4 mb-3 border-b border-nier-border/20'}`} style={morphed(name)}>
-      {src ? (
-        <img src={src} alt="" loading="lazy" decoding="async" className="absolute inset-0 w-full h-full object-cover" onError={() => setSrc(previewFromWorker(src))} />
-      ) : (
-        <div
-          aria-hidden="true"
-          className="absolute inset-0 grid place-items-center"
-          style={{ backgroundImage: 'linear-gradient(rgb(var(--c-fg) / 0.06) 1px, transparent 1px), linear-gradient(90deg, rgb(var(--c-fg) / 0.06) 1px, transparent 1px)', backgroundSize: '24px 24px' }}
-        >
-          <span
-            className="w-10 h-10 bg-nier-bg/20"
-            style={{ WebkitMaskImage: 'url(/atrium-mark.png)', maskImage: 'url(/atrium-mark.png)', WebkitMaskSize: 'contain', maskSize: 'contain', WebkitMaskRepeat: 'no-repeat', maskRepeat: 'no-repeat', WebkitMaskPosition: 'center', maskPosition: 'center' }}
-          />
-        </div>
-      )}
+      <AtriumPicture url={url} />
     </div>
   )
 }
@@ -367,7 +347,6 @@ export function LobbyBrowser({ onJoinLobby, onClose, guest = false, onSignIn }: 
   // A cloud atrium moved to its owner's Drive (lib/moveToDrive): asked first,
   // as a deletion is -- it ends with one.
   const [moveConfirmId, setMoveConfirmId] = useState<string | null>(null)
-  const isFullscreen = useFullscreen()
   const landingTheme = useLandingTheme()
   const [view, setView] = useState<BrowserView>(() => { try { return localStorage.getItem(VIEW_KEY) === 'list' ? 'list' : 'grid' } catch { return 'grid' } })
   const chooseView = (next: BrowserView) => {
@@ -885,6 +864,7 @@ export function LobbyBrowser({ onJoinLobby, onClose, guest = false, onSignIn }: 
         console.warn('The tutorial atrium left behind:', err)
       }
       forgetBrowserAtrium(left)
+      forgetCard(useGameStore.getState().userId, left)
       tutorialFinished()
     }
     const browserRead = loadBrowserLobbies()
@@ -1104,6 +1084,19 @@ export function LobbyBrowser({ onJoinLobby, onClose, guest = false, onSignIn }: 
       ?? themeOf(`preset:${defaultPresetFor(light).id}`, null, []) ?? startingAtriumTheme(light)
   }
 
+  // One's atriums, kept for the welcome screen to show with no asking (lib/atriumCards).
+  useEffect(() => {
+    if (!listsRead) return
+    const known = [...yours, ...(isDesktop ? lobbies : [])]
+    rememberCards(useGameStore.getState().userId, known.map(lobby => ({ id: lobby.id, name: lobby.name, preview: lobby.previewUrl ?? null })))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [listsRead, yours, lobbies])
+
+  const openCreate = () => {
+    setNewWhere(canDrive && withGoogle ? 'drive' : canHost && canCreateMore ? 'cloud' : 'browser')
+    setShowCreateLobby(true)
+  }
+
   // The tutorial, in an atrium of its own (lib/tutorial).
   const startTutorial = async () => {
     if (!supabase || creatingNow.current) return
@@ -1135,7 +1128,12 @@ export function LobbyBrowser({ onJoinLobby, onClose, guest = false, onSignIn }: 
   // atriums listed, and none of an account's history elsewhere. Couldn't tell, as
   // with a failed load, and nothing's decided: it's asked again on the next visit.
   useEffect(() => {
-    if (!listsRead || error || tutorialSeen()) return
+    if (!listsRead) return
+    // What the welcome screen came here for, before anything else.
+    const asked = takeBrowserAsk()
+    if (asked === 'tutorial') { void startTutorial(); return }
+    if (asked === 'create') { openCreate(); return }
+    if (error || tutorialSeen()) return
     const own = yours.length + (isDesktop ? lobbies.length + adminLobbies.length : 0)
     if (own > 0) { markTutorialSeen(); return }
     let left = false
@@ -1384,6 +1382,7 @@ export function LobbyBrowser({ onJoinLobby, onClose, guest = false, onSignIn }: 
         if (error) throw error
         forgetBrowserAtrium(lobbyId)
       }
+      forgetCard(useGameStore.getState().userId, lobbyId)
       // Left, it's under "Shared with you" again.
       lookForInvitations()
 
@@ -1612,15 +1611,7 @@ export function LobbyBrowser({ onJoinLobby, onClose, guest = false, onSignIn }: 
           <button onClick={() => { loadLobbies(); lookForInvitations() }} disabled={loading} title={t('browser.refresh')} aria-label={t('browser.refresh')} className={ICON_BUTTON}>
             <span className={loading ? 'animate-spin' : ''}>↻</span>
           </button>
-          {/* The atrium's own, its state the app's (lib/fullscreen). */}
-          <button
-            onClick={() => void toggleFullscreen()}
-            title={isFullscreen ? t('browser.exitFullscreen') : t('atrium.fullscreen')}
-            aria-label={isFullscreen ? t('browser.exitFullscreen') : t('atrium.fullscreen')}
-            className={ICON_BUTTON}
-          >
-            <MenuIcon d={isFullscreen ? MENU_ICONS.minimize : MENU_ICONS.maximize} size={16} />
-          </button>
+          <FullscreenButton className={ICON_BUTTON} />
         </div>
       </header>
 
@@ -1652,10 +1643,7 @@ export function LobbyBrowser({ onJoinLobby, onClose, guest = false, onSignIn }: 
               default for whoever's signed in with Google (phase 9), in the
               Atrium's cloud otherwise, within its three -- in the browser past them. */}
           <button
-            onClick={() => {
-              setNewWhere(canDrive && withGoogle ? 'drive' : canHost && canCreateMore ? 'cloud' : 'browser')
-              setShowCreateLobby(open => !open)
-            }}
+            onClick={() => (showCreateLobby ? setShowCreateLobby(false) : openCreate())}
             aria-expanded={showCreateLobby}
             className="px-6 py-3 bg-nier-bg text-nier-black text-xs tracking-[0.18em] uppercase font-medium hover:bg-nier-strong transition-colors whitespace-nowrap"
             style={{ clipPath: DONATE_CUT }}
@@ -2186,12 +2174,7 @@ export function LobbyBrowser({ onJoinLobby, onClose, guest = false, onSignIn }: 
           90% { opacity: 0.1; transform: translateY(-10px) translateX(5px); }
           100% { opacity: 0; transform: translateY(0px) translateX(0px); }
         }
-        
-        @keyframes rectFloat {
-          0%, 100% { opacity: 0.6; transform: rotate(var(--rotation, 0deg)) translateY(0px); }
-          50% { opacity: 0.9; transform: rotate(var(--rotation, 0deg)) translateY(-10px); }
-        }
-      `}</style>
+              `}</style>
     </div>
   )
 }

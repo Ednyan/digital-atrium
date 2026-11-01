@@ -78,12 +78,16 @@ export async function deleteMyAccount(code: string): Promise<DeleteAccountResult
     // deletion doesn't go through.
     const { data: { session } } = await cloudClient.auth.getSession()
     if (session) await (await import('./emailAccount')).forgetCopy(session.access_token)
+    // What's kept of it at the worker goes after the deletion, which doesn't reach
+    // there, and leaves no session to ask with: by a word asked for now.
+    if (session) keepLeaving(await (await import('./emailAccount')).farewellWord(session.access_token).catch(() => null))
 
     const { data, error } = await cloudClient.functions.invoke('delete-account', {
       body: { code },
     })
 
     if (error || data?.error) {
+      keepLeaving(null)
       return {
         success: false,
         code: await reasonFrom(error, data),
@@ -91,11 +95,29 @@ export async function deleteMyAccount(code: string): Promise<DeleteAccountResult
       }
     }
 
+    await finishLeaving()
     await cloudClient.auth.signOut()
     return { success: true }
   } catch (err: any) {
     return { success: false, error: err?.message || t('profile.errDeleteAccount') }
   }
+}
+
+// An existing account's deletion, to tell the worker of: kept until it's heard,
+// so it's tried again as the page next loads if it can't be now.
+const LEAVING = 'atrium.leaving'
+function keepLeaving(said: { id: string; word: string } | null) {
+  try {
+    if (said) localStorage.setItem(LEAVING, JSON.stringify(said))
+    else localStorage.removeItem(LEAVING)
+  } catch { /* said now, or not at all */ }
+}
+export async function finishLeaving(): Promise<void> {
+  let said: { id: string; word: string } | null = null
+  try { said = JSON.parse(localStorage.getItem(LEAVING) ?? 'null') } catch { /* nothing to say */ }
+  if (!said) return
+  const heard = await (await import('./emailAccount')).sayGone(said).catch(() => false)
+  if (heard) keepLeaving(null)
 }
 
 // After a deletion the page goes back to the start, from scratch: what's to be

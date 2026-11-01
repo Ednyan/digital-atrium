@@ -27,7 +27,7 @@ import { ops } from './ops'
 import { held } from './held'
 import { themes } from './themes'
 import { relay } from './relay'
-import { replies, whoIs, type Env } from './who'
+import { publicFile, replies, whoIs, type Env } from './who'
 
 // What each socket keeps through hibernation (2 KB at most).
 interface Seat { user: string; ref: string; meta: unknown }
@@ -98,6 +98,8 @@ async function handle(request: Request, env: Env): Promise<Response> {
   // addressed (people.ts, pictureKey), for one not there yet.
   const picture = url.pathname.match(/^\/public\/([\w-]{1,64})\.webp$/)?.[1] ?? url.pathname.match(/^\/p\/([\w-]{1,64})-\d+\.webp$/)?.[1]
   if (picture && request.method === 'GET') return publicPreview(env, picture)
+  // One's profile picture, where a local worker has no public domain.
+  if (/^\/a\/[\w-]{36}\.(webp|jpg)$/.test(url.pathname) && request.method === 'GET') return await publicFile(env, url.pathname.slice(1)) ?? new Response('Not found', { status: 404 })
   // What the account calls on (phase 6, step 6): its relay pass, the report
   // form, a Google account's Pinterest.
   if (url.pathname === '/relay') return relay(request, env)

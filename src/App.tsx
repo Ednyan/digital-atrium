@@ -2273,7 +2273,7 @@ function AppInner() {
   }
 
   if (currentPage === 'welcome') {
-    return <Suspense fallback={<PageLoading />}><WelcomeScreen onEnter={handleEnter} onBackToLanding={handleBackToLanding} onAbout={() => navigate('/about')} onDevelopers={() => navigate('/developers')} /></Suspense>
+    return <Suspense fallback={<PageLoading />}><WelcomeScreen onEnter={handleEnter} onOpenAtrium={lobbyId => void handleJoinLobby(lobbyId)} onBackToLanding={handleBackToLanding} onAbout={() => navigate('/about')} onDevelopers={() => navigate('/developers')} /></Suspense>
   }
 
   
