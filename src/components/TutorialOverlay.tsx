@@ -18,6 +18,9 @@ const CARD_WIDTH = 300
 const GAP = 14
 
 const isPath = (trace: Trace) => trace.type === 'shape' && trace.shapeType === 'path'
+const isShape = (trace: Trace) => trace.type === 'shape' && !isPath(trace)
+// The shape they made, for the steps about what can be done with it.
+const theirShape = (traces: Trace[]) => traces.filter(isShape).slice(-1)[0] ?? null
 const typing = () => {
   const now = document.activeElement as HTMLElement | null
   return !!now && (now.tagName === 'TEXTAREA' || now.tagName === 'INPUT' || now.isContentEditable)
@@ -25,7 +28,7 @@ const typing = () => {
 
 interface View { x: number; y: number; zoom: number }
 interface Step {
-  id: 'welcome' | 'move' | 'bar' | 'view' | 'menu' | 'text' | 'shape' | 'draw' | 'path' | 'connect' | 'finish'
+  id: 'welcome' | 'move' | 'bar' | 'view' | 'text' | 'shape' | 'arrange' | 'style' | 'draw' | 'path' | 'own' | 'connect' | 'finish'
   // What it points at: the first of these on the screen.
   target?: string[]
   // A pop-up about the interface: the rest is dimmed while it's read.
@@ -34,6 +37,14 @@ interface Step {
   count?: (traces: Trace[]) => Trace[]
   // Done, by anything other than `count` finding one.
   done?: (made: Trace[]) => boolean
+  // About their shape: done when this of it has changed. It's what's pointed at.
+  ofShape?: (shape: Trace) => unknown
+  // Not asked of anyone: Next is there beside it, and doing it moves on as well.
+  optional?: boolean
+  // Passed by, with nothing yet to do it with.
+  needs?: (traces: Trace[]) => boolean
+  // How long what's been done stays to be seen. A colour being chosen is still in hand.
+  doneMs?: number
 }
 
 const STEPS: Step[] = [
@@ -41,22 +52,24 @@ const STEPS: Step[] = [
   { id: 'move' },
   { id: 'bar', target: ['[data-quick-bar]'], dim: true },
   { id: 'view', target: ['[data-view-bar]', '[data-atrium-menu]'], dim: true },
-  { id: 'menu', target: ['[data-atrium-menu]'], dim: true },
   { id: 'text', target: ['[data-quick="text"]', '[data-quick="more"]'], count: ts => ts.filter(t => t.type === 'text' && !!t.content?.trim()), done: made => made.length > 0 && !typing() },
-  { id: 'shape', target: ['[data-quick="shape"]', '[data-quick="more"]'], count: ts => ts.filter(t => t.type === 'shape' && !isPath(t)) },
+  { id: 'shape', target: ['[data-quick="shape"]', '[data-quick="more"]'], count: ts => ts.filter(isShape) },
+  { id: 'arrange', needs: ts => !!theirShape(ts), ofShape: shape => `${shape.x},${shape.y}` },
+  { id: 'style', needs: ts => !!theirShape(ts), ofShape: shape => JSON.stringify([shape.shapeColor, shape.shapeOpacity, shape.shapeNoFill, shape.shapeOutlineColor, shape.shapeOutlineWidth, shape.borderColor, shape.fillColor]), doneMs: 1200 },
   { id: 'draw', target: ['[data-quick="draw"]', '[data-quick="more"]'], count: ts => ts.filter(isDrawingTrace) },
   { id: 'path', target: ['[data-quick="path"]', '[data-quick="more"]'], count: ts => ts.filter(isPath), done: made => made.some(t => (t.shapePoints?.length ?? 0) >= 3) },
-  { id: 'connect', target: ['[data-quick="connect"]', '[data-quick="more"]'] },
+  { id: 'own', target: ['[data-quick="image"]', '[data-quick="more"]'], optional: true, count: ts => ts.filter(t => !['text', 'shape', 'frame'].includes(t.type) && !isDrawingTrace(t)) },
+  { id: 'connect', target: ['[data-quick="connect"]', '[data-quick="more"]'], needs: ts => ts.length >= 2 },
   { id: 'finish', dim: true },
 ]
 
 const TITLE = {
-  welcome: 'tutorial.welcome.title', move: 'tutorial.move.title', bar: 'tutorial.bar.title', view: 'tutorial.view.title', menu: 'tutorial.menu.title',
-  text: 'tutorial.text.title', shape: 'tutorial.shape.title', draw: 'tutorial.draw.title', path: 'tutorial.path.title', connect: 'tutorial.connect.title', finish: 'tutorial.finish.title',
+  welcome: 'tutorial.welcome.title', move: 'tutorial.move.title', bar: 'tutorial.bar.title', view: 'tutorial.view.title',
+  text: 'tutorial.text.title', shape: 'tutorial.shape.title', arrange: 'tutorial.arrange.title', style: 'tutorial.style.title', draw: 'tutorial.draw.title', path: 'tutorial.path.title', own: 'tutorial.own.title', connect: 'tutorial.connect.title', finish: 'tutorial.finish.title',
 } as const satisfies Record<Step['id'], TranslationKey>
 const BODY = {
-  welcome: 'tutorial.welcome.body', move: 'tutorial.move.body', bar: 'tutorial.bar.body', view: 'tutorial.view.body', menu: 'tutorial.menu.body',
-  text: 'tutorial.text.body', shape: 'tutorial.shape.body', draw: 'tutorial.draw.body', path: 'tutorial.path.body', connect: 'tutorial.connect.body', finish: 'tutorial.finish.body',
+  welcome: 'tutorial.welcome.body', move: 'tutorial.move.body', bar: 'tutorial.bar.body', view: 'tutorial.view.body',
+  text: 'tutorial.text.body', shape: 'tutorial.shape.body', arrange: 'tutorial.arrange.body', style: 'tutorial.style.body', draw: 'tutorial.draw.body', path: 'tutorial.path.body', own: 'tutorial.own.body', connect: 'tutorial.connect.body', finish: 'tutorial.finish.body',
 } as const satisfies Record<Step['id'], TranslationKey>
 
 type Box = { left: number; top: number; width: number; height: number }
@@ -105,13 +118,14 @@ export default function TutorialOverlay({ view, onToolDown, onStay, onExit }: {
   const cardRef = useRef<HTMLDivElement>(null)
   const step = STEPS[index]
 
-  // On to the next, past any there's nothing yet to do with: joining needs two.
+  // On to the next, past any there's nothing yet to do with.
   const next = () => {
     setDone(false)
     setIndex(now => {
-      const after = now + 1
       const traces = useGameStore.getState().traces
-      return STEPS[after]?.id === 'connect' && traces.length < 2 ? after + 1 : after
+      let after = now + 1
+      while (STEPS[after]?.needs && !STEPS[after].needs!(traces)) after++
+      return after
     })
   }
   const nextRef = useRef(next)
@@ -127,9 +141,13 @@ export default function TutorialOverlay({ view, onToolDown, onStay, onExit }: {
     const before = new Set((step.count?.(started.traces) ?? []).map(trace => trace.id))
     const links = started.links.length
     const from = view()
+    const shapeId = step.ofShape ? theirShape(started.traces)?.id : null
+    const shape = () => useGameStore.getState().traces.find(trace => trace.id === shapeId)
+    const shapeWas = step.ofShape && shape() ? step.ofShape(shape()!) : null
+    const target = shapeId ? [`[data-trace-element][data-trace-id="${shapeId}"]`] : step.target
     let finished = false
     const look = () => {
-      const measured = boxOf(step.target)
+      const measured = boxOf(target)
       setBox(now => (JSON.stringify(now) === JSON.stringify(measured) ? now : measured))
       if (finished) return
       const state = useGameStore.getState()
@@ -138,6 +156,9 @@ export default function TutorialOverlay({ view, onToolDown, onStay, onExit }: {
       else if (step.id === 'move') {
         const here = view()
         reached = !!from && !!here && (Math.hypot(here.x - from.x, here.y - from.y) > 60 || Math.abs(here.zoom - from.zoom) > 0.05)
+      } else if (step.ofShape) {
+        const now = shape()
+        reached = !!now && step.ofShape(now) !== shapeWas
       } else if (step.count) {
         const made = step.count(state.traces).filter(trace => !before.has(trace.id))
         reached = step.done ? step.done(made) : made.length > 0
@@ -148,7 +169,7 @@ export default function TutorialOverlay({ view, onToolDown, onStay, onExit }: {
       window.setTimeout(() => {
         onToolDown()
         nextRef.current()
-      }, DONE_MS)
+      }, step.doneMs ?? DONE_MS)
     }
     look()
     const timer = window.setInterval(look, 120)
@@ -156,7 +177,7 @@ export default function TutorialOverlay({ view, onToolDown, onStay, onExit }: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [index])
 
-  const hasSomethingToDo = !!step.count || step.id === 'connect' || step.id === 'move'
+  const hasSomethingToDo = !step.optional && (!!step.count || !!step.ofShape || step.id === 'connect' || step.id === 'move')
   const place = cardPlace(box, step, cardHeight)
   // With nothing to point at, the light's shut to a point in the middle of the card.
   const spot: Box = box ?? { left: place.left + place.width / 2, top: place.top + cardHeight / 2, width: 0, height: 0 }
@@ -184,7 +205,7 @@ export default function TutorialOverlay({ view, onToolDown, onStay, onExit }: {
             {done && <span aria-hidden="true" className="mr-2" style={{ color: 'rgb(var(--c-emerald))' }}>✓</span>}
             {t(TITLE[step.id])}
           </p>
-          <p className="mt-2 text-xs leading-relaxed tracking-wide opacity-85">{t(BODY[step.id])}</p>
+          <p className="mt-2 text-xs leading-relaxed tracking-wide opacity-85">{t(BODY[step.id], { customize: t('atrium.menu.customize'), image: t('atrium.trace.type.image') })}</p>
           <div className="mt-3 flex items-center justify-end gap-3">
             {step.id === 'finish' ? (
               <>
