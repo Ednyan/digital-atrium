@@ -44,6 +44,10 @@
 //   Selection -- a drag on the canvas selects what its box reaches, as
 //     Shift+drag does, or (Lasso) what's drawn round; added to what's
 //     already selected. M takes it up and puts it down.
+//
+// Connect joins traces with a thread: a drag from one to another, or a click on
+// each (TraceOverlay). It stays in hand for the next, and C takes it up and puts
+// it down. It has no number, so the numbers stay where hands know them.
 
 import { PAN_ICON } from './AtriumInfo'
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
@@ -61,9 +65,9 @@ export type PlaceTool = 'text' | BoxShape | 'path' | 'frame' | 'embed'
 export type OtherTrace = 'sound' | 'video' | 'document' | 'sheet'
 const OTHER_TRACES: OtherTrace[] = ['sound', 'video', 'document', 'sheet']
 // What the bar does: take a tool up, or act.
-export type QuickAction = 'select' | 'marquee' | 'pan' | PlaceTool | 'draw' | 'image' | 'laser' | 'pinterest' | OtherTrace
+export type QuickAction = 'select' | 'marquee' | 'pan' | 'connect' | PlaceTool | 'draw' | 'image' | 'laser' | 'pinterest' | OtherTrace
 // What the bar shows: a button each. Shapes and Other each hold several.
-export type QuickButton = 'select' | 'marquee' | 'pan' | 'text' | 'shape' | 'path' | 'draw' | 'image' | 'embed' | 'frame' | 'other' | 'laser' | 'pinterest'
+export type QuickButton = 'select' | 'marquee' | 'pan' | 'text' | 'shape' | 'connect' | 'path' | 'draw' | 'image' | 'embed' | 'frame' | 'other' | 'laser' | 'pinterest'
 
 // Drawn in a 24 box, stroked in the current colour.
 const ICONS: Record<QuickAction | 'other', ReactNode> = {
@@ -72,6 +76,14 @@ const ICONS: Record<QuickAction | 'other', ReactNode> = {
   marquee: <path d="M4 4h3M10 4h4M17 4h3v3M20 10v4M20 17v3h-3M14 20h-4M7 20h-3v-3M4 14v-4M4 7v-3" strokeLinecap="round" strokeLinejoin="round" />,
   // Move the view: four arrows (AtriumInfo's PAN_ICON).
   pan: <path d={PAN_ICON} strokeLinecap="round" strokeLinejoin="round" />,
+  // Connect: two boxes, a thread between them.
+  connect: (
+    <>
+      <rect x="3.5" y="3.5" width="7" height="7" />
+      <rect x="13.5" y="13.5" width="7" height="7" />
+      <path d="M10.5 10.5 L13.5 13.5" strokeLinecap="round" />
+    </>
+  ),
   text: <path d="M5 6 V4.5 H19 V6 M12 4.5 V19.5 M9 19.5 H15" strokeLinecap="round" strokeLinejoin="round" />,
   rectangle: <rect x="4.5" y="5.5" width="15" height="13" />,
   triangle: <path d="M12 4.5 L20 19 H4 Z" strokeLinejoin="round" />,
@@ -160,7 +172,7 @@ const BOX_TEXT_ICON = (
 // The numbered tools, 1 to 9 in this order. Move sits after Select on the
 // bar with H for its key, so the numbers stayed where hands know them.
 export const QUICK_ORDER: QuickButton[] = ['select', 'text', 'shape', 'path', 'draw', 'image', 'embed', 'frame', 'other', 'laser', 'pinterest']
-const ON_THE_BAR: QuickButton[] = ['select', 'marquee', 'pan', ...QUICK_ORDER.slice(1)]
+const ON_THE_BAR: QuickButton[] = ['select', 'marquee', 'pan', 'text', 'shape', 'connect', ...QUICK_ORDER.slice(3)]
 
 // The bar's order: as chosen (Customize), with any tool the choice predates
 // at the end -- or as it comes, with none chosen.
@@ -174,6 +186,7 @@ const keyOf = (action: QuickButton): string | null => {
   if (action === 'other') return null
   if (action === 'pan') return 'H'
   if (action === 'marquee') return 'M'
+  if (action === 'connect') return 'C'
   if (action === 'laser') return 'K'
   const number = QUICK_ORDER.indexOf(action)
   return number >= 0 && number < 9 ? String(number + 1) : null
@@ -236,7 +249,7 @@ export function HistoryButtons({ onStep }: { onStep: (direction: 'undo' | 'redo'
   )
 }
 
-export default function QuickBar({ armed, drawing, laser, panning, selecting, laserSettings, kinds, shapeKind, onAction, onKind, onShapeKind, onLaserSettings, onCustomize, horizontal = false }: {
+export default function QuickBar({ armed, drawing, laser, panning, selecting, connecting, laserSettings, kinds, shapeKind, onAction, onKind, onShapeKind, onLaserSettings, onCustomize, horizontal = false }: {
   armed: PlaceTool | null
   drawing: boolean
   laser: boolean
@@ -244,6 +257,8 @@ export default function QuickBar({ armed, drawing, laser, panning, selecting, la
   panning: boolean
   // Selection taken up (LobbyScene).
   selecting: boolean
+  // Connect taken up (LobbyScene).
+  connecting: boolean
   laserSettings: LaserSettings
   kinds: ToolKinds
   onAction: (action: QuickAction) => void
@@ -353,6 +368,7 @@ export default function QuickBar({ armed, drawing, laser, panning, selecting, la
     select: kindOf('select').name,
     marquee: kindOf('marquee').name,
     pan: t('atrium.hud.panTool'),
+    connect: t('atrium.tools.connect'),
     text: kindOf('text').name,
     shape: t(`atrium.trace.shape.${shapeKind}` as const),
     rectangle: t('atrium.trace.shape.rectangle'),
@@ -434,8 +450,9 @@ export default function QuickBar({ armed, drawing, laser, panning, selecting, la
   // on the bar, or in More's panel (inPanel: named by its title there, a
   // sliding name crossing the tools beside it).
   function renderTool(action: QuickButton, i: number, inPanel = false) {
-        const on = action === 'select' ? !armed && !drawing && !laser && !panning && !selecting
+        const on = action === 'select' ? !armed && !drawing && !laser && !panning && !selecting && !connecting
           : action === 'marquee' ? selecting
+          : action === 'connect' ? connecting
           : action === 'pan' ? panning
           : action === 'shape' ? isBoxShape(armed)
           : action === 'other' ? false
@@ -680,6 +697,7 @@ const TOOL_NAME: Record<QuickButton, TranslationKey> = {
   pan: 'atrium.hud.panTool',
   text: 'atrium.tools.textBox',
   shape: 'atrium.tools.shapes',
+  connect: 'atrium.tools.connect',
   path: 'atrium.trace.shape.path',
   draw: 'atrium.draw.button',
   image: 'atrium.trace.type.image',
@@ -768,10 +786,11 @@ export function QuickBarEditor({ onClose }: { onClose: () => void }) {
 
 // What the tool in hand does with the canvas, at the foot of the screen in
 // the middle (LobbyScene) while it's in hand.
-export function ToolHint({ armed, laser, drawing, panning, selecting }: { armed: PlaceTool | null; laser: boolean; drawing: boolean; panning: boolean; selecting?: 'area' | 'lasso' | null }) {
+export function ToolHint({ armed, laser, drawing, panning, selecting, connecting }: { armed: PlaceTool | null; laser: boolean; drawing: boolean; panning: boolean; selecting?: 'area' | 'lasso' | null; connecting?: boolean }) {
   const { t } = useTranslation()
   const text = drawing ? t('atrium.draw.hint')
     : panning ? t('atrium.tools.hintPan')
+    : connecting ? t('atrium.tools.hintConnect')
     : selecting === 'lasso' ? t('atrium.tools.hintLasso')
     : selecting ? t('atrium.tools.hintArea')
     : laser ? t('atrium.tools.hintLaser')
@@ -789,5 +808,46 @@ export function ToolHint({ armed, laser, drawing, panning, selecting }: { armed:
     >
       {text}
     </p>
+  )
+}
+
+// What's said on a canvas with nothing on it, until there's something: where to
+// start, in the middle of the view. Nothing in the way of the canvas under it.
+export function EmptyCanvasHint({ ink, localFiles, onTemplates, onHelp }: { ink: string; localFiles: boolean; onTemplates: () => void; onHelp: () => void }) {
+  const { t } = useTranslation()
+  const { traces } = useGamePick('traces')
+  if (traces.length > 0) return null
+  const link = 'pointer-events-auto underline underline-offset-4 opacity-80 hover:opacity-100 transition-opacity'
+  return (
+    <div data-hud="true" data-empty-hint="" className="panel-in fixed inset-0 z-[9998] pointer-events-none flex items-center justify-center p-8">
+      <div className="max-w-md text-center font-mono" style={{ color: ink }}>
+        <p className="text-sm tracking-[0.2em] uppercase opacity-70">{t('atrium.empty.title')}</p>
+        <p className="mt-3 text-xs leading-relaxed tracking-wide opacity-60">{t('atrium.empty.tools')}</p>
+        <p className="mt-1 text-xs leading-relaxed tracking-wide opacity-60">{t(localFiles ? 'atrium.empty.local' : 'atrium.empty.web')}</p>
+        <p className="mt-4 flex items-center justify-center gap-5 text-xs tracking-wide">
+          <button type="button" data-ui-element="true" data-empty-templates="" onClick={onTemplates} className={link}>{t('templates.title')}</button>
+          <button type="button" data-ui-element="true" data-empty-help="" onClick={onHelp} className={link}>{t('help.title')}</button>
+        </p>
+      </div>
+    </div>
+  )
+}
+
+// Clear the guide: as long as any of it is still on the canvas (lib/guide).
+export function ClearGuide({ ids, onClear }: { ids: string[]; onClear: (remaining: string[]) => void }) {
+  const { t } = useTranslation()
+  const { traces } = useGamePick('traces')
+  const remaining = ids.length > 0 ? traces.filter(trace => ids.includes(trace.id)).map(trace => trace.id) : []
+  if (remaining.length === 0) return null
+  return (
+    <button
+      type="button"
+      data-clear-guide=""
+      onClick={() => onClear(remaining)}
+      className="pointer-events-auto px-3 py-1.5 border font-mono text-[11px] tracking-wider whitespace-nowrap transition-colors hover:bg-nier-bg/10"
+      style={{ color: 'rgb(var(--c-fg))', background: 'rgb(var(--c-ground) / 0.92)', borderColor: 'rgb(var(--c-fg) / 0.3)' }}
+    >
+      {t('atrium.guide.clear')}
+    </button>
   )
 }

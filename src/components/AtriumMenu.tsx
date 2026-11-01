@@ -306,7 +306,7 @@ export function ViewBar({ items }: { items: MenuItem[] }) {
 // full-width colon in Chinese and Japanese), shown as the two sides of a row.
 const CONTROLS = [
   'atrium.controls.pan', 'atrium.controls.panTool', 'atrium.controls.zoom', 'atrium.controls.zoomReset', 'atrium.controls.recenter', 'atrium.controls.fullscreen',
-  'atrium.controls.quickBar', 'atrium.controls.leaveTrace', 'atrium.controls.draw', 'atrium.controls.laser', 'atrium.controls.palette', 'atrium.controls.cancel', 'atrium.controls.finishPath',
+  'atrium.controls.quickBar', 'atrium.controls.connect', 'atrium.controls.leaveTrace', 'atrium.controls.draw', 'atrium.controls.laser', 'atrium.controls.palette', 'atrium.controls.cancel', 'atrium.controls.finishPath',
   'atrium.controls.editTrace', 'atrium.controls.multiSelect', 'atrium.controls.directSelect', 'atrium.controls.groupUngroup',
   'atrium.controls.copyPaste', 'atrium.controls.copyPasteStyle', 'atrium.controls.deleteSelected', 'atrium.controls.undoRedo',
   'atrium.controls.saveChanges', 'atrium.controls.export', 'atrium.controls.presenting', 'atrium.controls.help',

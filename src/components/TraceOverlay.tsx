@@ -192,6 +192,11 @@ interface TraceOverlayProps {
   hideCursor?: boolean
   // Move the view is taken up (LobbyScene): the cursor says so.
   panning?: boolean
+  // The quick bar's Connect in hand: a trace pressed starts a thread, a drag or
+  // a second click ends it, and the tool stays for the next.
+  connectTool?: boolean
+  // These to go, as the Delete key has them go: one undo step.
+  deleteRequest?: string[] | null
   // Edit Drawing, handed up; and the strokes of the drawing being drawn, kept
   // off the canvas while they're in the drawing layer instead (LobbyScene).
   onEditDrawing?: (traceId: string) => void
@@ -684,7 +689,7 @@ const TraceSlot = React.memo(
 // runs before it has to be laid out again.
 export const CULL_MARGIN = 500
 
-export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackground, gridLineSpacing, zoom, worldOffset, worldLayerRef, onEdgePan, lobbyId, selectedTraceId, setSelectedTraceId, multiSelectRequest, areaSelectRequest, lassoSelectRequest, selecting = false, customizeRequest, newPathRequest, newTextRequest, directSelect = false, frameRequest, isDrawingMode, hideCursor, panning = false, placing = false, onEditDrawing, hiddenTraceIds, toolSwitch = 0, onMultiSelectionChange, onExport, onCustomizeOpen, canEdit = true }: TraceOverlayProps) {
+export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackground, gridLineSpacing, zoom, worldOffset, worldLayerRef, onEdgePan, lobbyId, selectedTraceId, setSelectedTraceId, multiSelectRequest, areaSelectRequest, lassoSelectRequest, selecting = false, customizeRequest, newPathRequest, newTextRequest, directSelect = false, frameRequest, isDrawingMode, hideCursor, panning = false, connectTool = false, deleteRequest = null, placing = false, onEditDrawing, hiddenTraceIds, toolSwitch = 0, onMultiSelectionChange, onExport, onCustomizeOpen, canEdit = true }: TraceOverlayProps) {
   const { t, language } = useTranslation()
   // A crop under way: the trace as cropped so far, in place of the store's,
   // and into the store as it ends (handleMouseUp). Written on every step,
@@ -2773,6 +2778,12 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
   const [connectFrom, setConnectFrom] = useState<string[] | null>(null)
   const connectFromRef = useRef<string[] | null>(null)
   connectFromRef.current = connectFrom
+  // A frame's inside is left to the canvas, but for joining it to something.
+  const connecting = connectTool || !!connectFrom
+  const connectToolRef = useRef(connectTool)
+  connectToolRef.current = connectTool
+  // Where a press with Connect in hand began: let go elsewhere, that's a drag.
+  const connectPressRef = useRef<{ x: number; y: number } | null>(null)
 
   // A tool picked in the quick bar ends whatever was under way here (the
   // bar always wins; Esc isn't the only way out).
@@ -2787,6 +2798,16 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
     setColorPickerCallback(null)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [toolSwitch])
+  // Connect taken up with something selected: it's what's being connected, so
+  // the next trace pressed is joined to it.
+  useEffect(() => {
+    if (!connectTool) return
+    const chosen = multiSelectedIds.size > 0 ? Array.from(multiSelectedIds) : selectedTraceId ? [selectedTraceId] : null
+    if (chosen) setConnectFrom(chosen)
+    setSelectedTraceId(null)
+    setMultiSelectedIds(new Set())
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connectTool])
   // A tool taken in hand puts the selection down, as Excalidraw's do: the
   // Customization panel is then the tool's (LobbyScene).
   useEffect(() => {
@@ -3005,12 +3026,30 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
         setConnectPointer(null)
       }
     }
+    // Dragged from a trace with Connect in hand: whichever trace it's let go
+    // on, or none. Let go where it was pressed, it was a click: the next press
+    // says where it goes.
+    const release = (e: PointerEvent) => {
+      const start = connectPressRef.current
+      connectPressRef.current = null
+      if (!start || Math.hypot(e.clientX - start.x, e.clientY - start.y) < 6) return
+      const target = document.elementFromPoint(e.clientX, e.clientY)?.closest('[data-trace-element="true"][data-trace-id]')?.getAttribute('data-trace-id')
+      if (target) {
+        finishConnect(target)
+      } else {
+        setConnectFrom(null)
+        setConnectPointer(null)
+      }
+    }
     window.addEventListener('pointermove', move)
     window.addEventListener('pointerdown', press, true)
+    window.addEventListener('pointerup', release)
     return () => {
       window.removeEventListener('pointermove', move)
       window.removeEventListener('pointerdown', press, true)
+      window.removeEventListener('pointerup', release)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [connectFrom])
 
   // Selected threads let go when anything else is pressed (their menu and
@@ -3275,6 +3314,11 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
     // Execute deletion
     executeDelete(traceIds, linkIds)
   }
+
+  useEffect(() => {
+    if (deleteRequest) executeDelete(deleteRequest)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deleteRequest])
 
   const executeDelete = (traceIds: string[], linkIds: string[] = []) => {
     setContextMenu(null)
@@ -3615,6 +3659,15 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
       e.stopPropagation()
       e.preventDefault()
       finishConnect(trace.id)
+      return
+    }
+    // Connect in hand: this trace is where the thread starts, not one to move.
+    if (connectToolRef.current && e.button === 0) {
+      e.stopPropagation()
+      e.preventDefault()
+      connectPressRef.current = { x: e.clientX, y: e.clientY }
+      setConnectPointer({ x: e.clientX, y: e.clientY })
+      setConnectFrom([trace.id])
       return
     }
     // A right press is the menu's (onContextMenu). It ran as a left press
@@ -6269,6 +6322,7 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
     const editing = inlineEditingTraceId === id
     const page = documentPage[id] ?? 1
     return [
+      isFrame(trace) && connecting,
       // The view, and what every trace is drawn with. `t` is one function
       // whatever the language, so the language stands in for it.
       zoom, worldOffset, atriumBackground, canEdit, language, showTraceTypeLabels, traceFloat, fontsVersion,
@@ -6629,7 +6683,7 @@ return (
         cursor: trace.isClickable && trace.linkUrl ? 'pointer' : undefined,
         // A frame is taken hold of by its edge and title (below); its inside
         // is left to what it holds, and to the canvas under it.
-        pointerEvents: isFrame(trace) || hitStrokes ? 'none' : 'auto',
+        pointerEvents: (isFrame(trace) && !connecting) || hitStrokes ? 'none' : 'auto',
       }}
       onMouseEnter={() => setCursorState('pointer')}
       onMouseLeave={() => setCursorState('default')}
@@ -6639,6 +6693,11 @@ return (
         // Adding a path's points: left to go on to handleClickOutside, which
         // puts a point here.
         if (pathCreationModeRef.current && trace.id !== pathIdRef.current) return
+        // Connect's: where a thread starts or ends, not a trace to select.
+        if (connectToolRef.current) {
+          e.stopPropagation()
+          return
+        }
         // Don't handle clicks if we're in a transform mode (e.g., dragging a point).
         // From the ref: a mode change isn't in the trace's signature, so this
         // handler can be one from before it (see TraceSlot).
@@ -6947,7 +7006,7 @@ return (
             padding: '0px',
             // A frame is taken hold of by its edge and title (below); its inside
             // is left to what it holds, and to the canvas under it.
-            pointerEvents: isFrame(trace) || hitStrokes ? 'none' : 'auto',
+            pointerEvents: (isFrame(trace) && !connecting) || hitStrokes ? 'none' : 'auto',
             // No backgroundImage scanline texture here -- a fine 2-3px
             // repeating-linear-gradient on a container whose pixel size
             // varies continuously with zoom caused visible moire/
@@ -8455,7 +8514,7 @@ return (
         )}
 
         {/* While connecting: what to do next, and how not to. */}
-        {connectFrom && (
+        {connectFrom && !connectTool && (
           <div
             className="fixed left-1/2 bottom-10 -translate-x-1/2 z-[10000050] pointer-events-none font-mono border px-5 py-3 text-center"
             style={{ background: 'rgb(var(--c-ground) / 0.94)', borderColor: 'rgb(var(--c-line) / 0.7)' }}

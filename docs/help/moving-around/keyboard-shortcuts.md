@@ -40,6 +40,7 @@ The number keys stay with their tool even if you reorder the bar.
 | **7** | Embed |
 | **8** | Frame |
 | **M** | Selection (area or lasso), on or off |
+| **C** | Connect, on or off |
 | **K** | Laser pointer, on or off |
 | **D** | Draw, on or off |
 | **T** | Paste a link where the pointer is |
