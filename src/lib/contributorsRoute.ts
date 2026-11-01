@@ -11,7 +11,7 @@
 import { goTo } from './route'
 
 const RETURN_KEY = 'atrium_contributors_return'
-const DEFAULT_RETURN = '/welcome'
+const DEFAULT_RETURN = '/home'
 
 export function rememberContributorsReturn(from: string) {
   try {

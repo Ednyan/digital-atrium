@@ -318,7 +318,7 @@ export default function ContributePanel({ onClose, onStarted }: ContributePanelP
                 type="button"
                 onClick={() => {
                   onClose()
-                  openContributors(currentRoutePath() || '/welcome')
+                  openContributors(currentRoutePath() || '/home')
                 }}
                 className="landing-link mt-1 text-xs tracking-[0.18em] uppercase"
               >

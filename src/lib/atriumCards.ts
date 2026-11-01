@@ -39,6 +39,11 @@ export function rememberCard(userId: string, id: string, part: Partial<Omit<Atri
 }
 
 // A list read: only written if it says something new.
+/** Whether this device has been told of one's atriums yet. */
+export function cardsKnown(userId: string) {
+  try { return localStorage.getItem(keyOf(userId)) !== null } catch { return true }
+}
+
 export function rememberCards(userId: string, list: { id: string; name: string; preview: string | null }[]) {
   const cards = readCards(userId)
   let changed = false
@@ -48,7 +53,8 @@ export function rememberCards(userId: string, list: { id: string; name: string; 
     cards[id] = merged(was, id, { name, preview })
     changed = true
   }
-  if (changed) keep(userId, trimmed(cards))
+  // Kept even with nothing in it: the device has now been told (cardsKnown).
+  if (changed || !cardsKnown(userId)) keep(userId, trimmed(cards))
 }
 
 export function forgetCard(userId: string, id: string) {

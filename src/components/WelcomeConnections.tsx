@@ -1,11 +1,11 @@
-// What this account is connected to, on the welcome screen: said, and connected
-// from here where it isn't. Nothing new is asked for: Drive's is known on the device,
+// What this account is connected to, on the welcome screen: said, and connected or
+// given back from here. Nothing new is asked for: Drive's is known on the device,
 // Pinterest's goes along with the screen's other reads.
 
-import type { CSSProperties, ReactNode } from 'react'
+import { useState, type CSSProperties, type ReactNode } from 'react'
 import { googleOpen } from '../lib/drive'
 import { useTranslation } from '../lib/i18n'
-import { initiatePinterestConnect, isPinterestConfigured, usePinterestStatus } from '../lib/pinterest'
+import { disconnectPinterest, initiatePinterestConnect, isPinterestConfigured, usePinterestStatus } from '../lib/pinterest'
 import { isDesktop } from '../lib/supabase'
 import { showToast } from '../lib/toast'
 import { useDriveConnection } from './DriveConnection'
@@ -19,20 +19,20 @@ function DriveMark({ className = '' }: { className?: string }) {
   )
 }
 
-function Row({ id, mark, name, connected, said, busy, onPress }: {
+function Row({ id, mark, name, connected, said, busy, onConnect, onDisconnect }: {
   id: string
   mark: ReactNode
   name: string
   // Null: not known yet.
   connected: boolean | null
   said: string
-  busy?: boolean
-  // Nothing to press, where there's nothing to do here.
-  onPress?: () => void
+  busy: boolean
+  onConnect: () => void
+  onDisconnect: () => void
 }) {
   const { t } = useTranslation()
-  const inside = (
-    <>
+  return (
+    <div data-welcome-connection={id} data-connected={connected ?? undefined} className="flex items-center gap-3 min-h-[2.75rem] px-3 py-1.5">
       <span className="w-4 h-4 shrink-0 text-nier-bg/85">{mark}</span>
       <span translate="no" className="flex-1 min-w-0 truncate text-[12px] text-nier-strong">{name}</span>
       {connected === true && (
@@ -41,29 +41,25 @@ function Row({ id, mark, name, connected, said, busy, onPress }: {
           <span className="truncate">{said}</span>
         </span>
       )}
-      {connected === false && (
-        <span className="welcome-connect shrink-0 px-2.5 py-1 border border-nier-border/50 text-[10px] tracking-[0.14em] uppercase text-nier-strong">{t('browser.drive.connect')}</span>
-      )}
-    </>
-  )
-  const row = 'flex items-center gap-3 w-full min-h-[2.75rem] px-3 py-1.5 text-left'
-  if (!onPress) return <div data-welcome-connection={id} data-connected={connected ?? undefined} className={row}>{inside}</div>
-  return (
-    <button type="button" data-welcome-connection={id} data-connected={connected ?? undefined} disabled={busy} onClick={onPress} className={`welcome-connection ${row} disabled:opacity-50`}>
-      {inside}
-    </button>
+      {connected === true && <button type="button" data-welcome-disconnect={id} disabled={busy} onClick={onDisconnect} className="welcome-disconnect shrink-0 text-[10px] tracking-[0.1em] uppercase text-nier-bg/70 disabled:opacity-40">{t('browser.drive.disconnect')}</button>}
+      {connected === false && <button type="button" data-welcome-connect={id} disabled={busy} onClick={onConnect} className="welcome-connect shrink-0 px-2.5 py-1 border border-nier-border/50 text-[10px] tracking-[0.14em] uppercase text-nier-strong disabled:opacity-40">{t('browser.drive.connect')}</button>}
+    </div>
   )
 }
 
 export default function WelcomeConnections({ onPinterest, pinterestOpen, style }: {
-  // Pinterest's own panel: to give it back, and how the desktop connects.
+  // Pinterest's own panel: how the desktop connects.
   onPinterest: () => void
   pinterestOpen: boolean
   style?: CSSProperties
 }) {
   const { t } = useTranslation()
   const drive = useDriveConnection()
-  const pinterest = usePinterestStatus(pinterestOpen)
+  const said = (problem: string) => { if (problem) showToast(problem) }
+  // Looked at again once it's been given back.
+  const [lookAgain, setLookAgain] = useState(0)
+  const [leaving, setLeaving] = useState(false)
+  const pinterest = usePinterestStatus(pinterestOpen, lookAgain)
   const showDrive = googleOpen
   const showPinterest = isDesktop || isPinterestConfigured()
   if (!showDrive && !showPinterest) return null
@@ -79,7 +75,8 @@ export default function WelcomeConnections({ onPinterest, pinterestOpen, style }
             connected={drive.connected}
             said={t('profile.pinterestConnectedPlain')}
             busy={drive.busy}
-            onPress={drive.connected ? undefined : () => void drive.connect().then(problem => { if (problem) showToast(problem) })}
+            onConnect={() => void drive.connect().then(said)}
+            onDisconnect={() => void drive.disconnect().then(said)}
           />
         )}
         {showPinterest && (
@@ -89,7 +86,14 @@ export default function WelcomeConnections({ onPinterest, pinterestOpen, style }
             name={t('profile.pinterest')}
             connected={pinterest && pinterest.connected}
             said={pinterest?.username ? `@${pinterest.username}` : t('profile.pinterestConnectedPlain')}
-            onPress={pinterest && !pinterest.connected && !isDesktop ? initiatePinterestConnect : onPinterest}
+            busy={leaving}
+            onConnect={isDesktop ? onPinterest : initiatePinterestConnect}
+            onDisconnect={() => {
+              setLeaving(true)
+              void disconnectPinterest()
+                .catch((error: unknown) => said(error instanceof Error ? error.message : String(error)))
+                .finally(() => { setLeaving(false); setLookAgain(now => now + 1) })
+            }}
           />
         )}
       </div>

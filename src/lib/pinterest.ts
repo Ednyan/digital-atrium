@@ -36,7 +36,7 @@ export function isPinterestConfigured(): boolean {
 // One fixed URI, so there is one thing to register.
 //
 // This was origin + pathname, which is whatever route the user happened to be
-// on when they pressed Connect -- /welcome, /login, or / -- and Pinterest
+// on when they pressed Connect -- /home, /login, or / -- and Pinterest
 // requires a byte-for-byte match against a registered value. That meant every
 // route somebody might connect from had to be registered separately, and the
 // first one that was not failed with an OAuth error that says nothing useful.
@@ -65,7 +65,7 @@ const DESKTOP_CODE_KEY = 'atrium_pinterest_desktop_code'
 export const DESKTOP_CODE_EVENT = 'atrium-pinterest-desktop-code'
 
 const RETURN_KEY = 'atrium_pinterest_return'
-const DEFAULT_RETURN = '/welcome'
+const DEFAULT_RETURN = '/home'
 
 function rememberPinterestReturn() {
   try {
@@ -289,16 +289,16 @@ export async function getPinterestConnectionStatus(): Promise<{ connected: boole
 }
 
 /** Whether Pinterest is connected, read again as its panel closes, where it may
- *  have changed. Null until known. Kept with what else is read (lib/worker), so
- *  it's asked once for however many say it. */
-export function usePinterestStatus(panelOpen = false) {
+ *  have changed, or as `lookAgain` moves on. Null until known. Kept with what else
+ *  is read (lib/worker), so it's asked once for however many say it. */
+export function usePinterestStatus(panelOpen = false, lookAgain = 0) {
   const [status, setStatus] = useState<{ connected: boolean; username: string | null } | null>(null)
   useEffect(() => {
     if (panelOpen) return
     let left = false
     void getPinterestConnectionStatus().then(now => { if (!left) setStatus(now) })
     return () => { left = true }
-  }, [panelOpen])
+  }, [panelOpen, lookAgain])
   return status
 }
 

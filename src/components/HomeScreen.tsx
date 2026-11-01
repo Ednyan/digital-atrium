@@ -1,10 +1,11 @@
-// The first screen after signing in: one's own place. Who's here, the atrium they
-// were last in, ready to carry on, what else is recent, and how near the next
-// achievement is. It asks the server for nothing to say so: all of it is kept on
-// the device (lib/atriumCards, lib/stats, lib/recentAtriums). Everything that isn't
-// that is a quiet row along the foot, or in Profile.
+// Home and Atriums: two walls of one room under one top bar (lib/homeSlide). Home is
+// what one came for: the atrium one was last in, ready to carry on, what else is
+// recent, how near the next achievement is. It asks the server for nothing to say so:
+// all of it is kept on the device (lib/atriumCards, lib/stats, lib/recentAtriums).
+// Atriums is every one of them (LobbyBrowser), there only once it's wanted, so
+// someone who just carries on costs no lists. A guest has that wall alone.
 
-import { lazy, Suspense, useEffect, useMemo, useState, type CSSProperties } from 'react'
+import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { useGamePick } from '../store/gameStore'
 import ProfileSettings from './ProfileSettings'
 import PinterestConnectionPanel from './PinterestConnectionPanel'
@@ -28,23 +29,30 @@ import { gaugeFigures } from '../lib/monthlyGauge'
 import Hall from './Hall'
 import { supabase, isDesktop } from '../lib/supabase'
 import { goTo } from '../lib/route'
-import { notePictureFrom, useMyPicture } from '../lib/myPicture'
-import { myEntry } from '../lib/people'
+import { useMyPicture } from '../lib/myPicture'
+import { slideBetween } from '../lib/homeSlide'
+import type { AtriumsApi } from './LobbyBrowser'
 import { checkPlatformAdmin, knownPlatformAdmin } from '../lib/platformAdmin'
-import { agoOf, readCards, recentCards, type AtriumCard } from '../lib/atriumCards'
+import { agoOf, cardsKnown, readCards, recentCards, type AtriumCard } from '../lib/atriumCards'
 import { atriumVisitedAt } from '../lib/recentAtriums'
 import { ACHIEVEMENTS, isEarned, nextAchievement, progressOf } from '../lib/achievements'
-import { noteToday, readStats } from '../lib/stats'
-import { askBrowserTo, unfinishedTutorial } from '../lib/tutorial'
+import { noteToday, readStats, syncStats } from '../lib/stats'
+import { unfinishedTutorial } from '../lib/tutorial'
 import { isBrowserAtrium } from '../lib/browserAtriums'
 import { hasDriveToken } from '../lib/drive'
 import { isDriveAtrium, isHostedAtrium } from '../lib/driveSync'
 import type { TranslationKey } from '../locales/en'
 
-interface WelcomeScreenProps {
-  onEnter: () => void
-  // Into this atrium, as the atrium browser's Enter does.
-  onOpenAtrium: (lobbyId: string) => void
+export type HomeView = 'home' | 'atriums'
+
+interface HomeScreenProps {
+  view: HomeView
+  onGo: (view: HomeView) => void
+  // Into this atrium, as Enter on its card does.
+  onOpenAtrium: (lobbyId: string, password?: string) => void
+  // Without an account: this browser's atriums only, and no Home.
+  guest?: boolean
+  onSignIn?: () => void
   onBackToLanding?: () => void
   // The desktop app's About page (AboutPage).
   onAbout?: () => void
@@ -53,6 +61,10 @@ interface WelcomeScreenProps {
 }
 
 const HelpPanel = lazy(() => import('./HelpPanel'))
+// Fetched ahead and not by lazy(), which takes a frame to mount even a module it has:
+// the first slide has to find its cards there, for the pictures to fly to.
+let LobbyBrowser: typeof import('./LobbyBrowser').LobbyBrowser | null = null
+const fetchLobbyBrowser = () => import('./LobbyBrowser').then(module => { LobbyBrowser = module.LobbyBrowser })
 
 const FAMILY_COLOUR = { start: '#FF8A3D', placed: '#E8C15A', deleted: '#C77DFF', days: '#9AD4C4', other: '#A8B6D9' } as const
 
@@ -61,7 +73,7 @@ const MARK: CSSProperties = { WebkitMaskImage: 'url(/atrium-mark.png)', maskImag
 
 const footLink = 'text-[11px] tracking-[0.1em] uppercase text-nier-bg/80 hover:text-nier-strong transition-colors whitespace-nowrap'
 
-export default function WelcomeScreen({ onEnter, onOpenAtrium, onBackToLanding, onAbout, onDevelopers }: WelcomeScreenProps) {
+export default function HomeScreen({ view, onGo, onOpenAtrium, guest = false, onSignIn, onBackToLanding, onAbout, onDevelopers }: HomeScreenProps) {
   const { t, language } = useTranslation()
   const { userId, username, playerColor } = useGamePick('userId', 'username', 'playerColor')
   const [showSettings, setShowSettings] = useState(false)
@@ -75,10 +87,41 @@ export default function WelcomeScreen({ onEnter, onOpenAtrium, onBackToLanding, 
     return () => window.clearTimeout(timer)
   }, [showSettings])
   const [isDeveloper, setIsDeveloper] = useState(knownPlatformAdmin)
-  useEffect(() => { void checkPlatformAdmin().then(setIsDeveloper) }, [])
-  // One's picture, this device's until told otherwise: told by a read made anyway.
+  useEffect(() => { if (!guest) void checkPlatformAdmin().then(setIsDeveloper) }, [guest])
   const picture = useMyPicture()
-  useEffect(() => { if (!isDesktop) void myEntry().then(entry => notePictureFrom(entry.settings), () => {}) }, [])
+
+  // The two walls. Atriums is there from when it's first wanted, and stays.
+  const room = useRef<HTMLDivElement>(null)
+  const homeWall = useRef<HTMLDivElement>(null)
+  const atriumsWall = useRef<HTMLDivElement>(null)
+  const [atriumsWanted, setAtriumsWanted] = useState(false)
+  const atriumsThere = atriumsWanted || view === 'atriums'
+  const [, noteFetched] = useState(false)
+  useEffect(() => { if (!LobbyBrowser) void fetchLobbyBrowser().then(() => noteFetched(true)) }, [])
+  useEffect(() => { if (view === 'atriums') setAtriumsWanted(true) }, [view])
+  const wasOn = useRef(view)
+  useLayoutEffect(() => {
+    const from = wasOn.current
+    wasOn.current = view
+    if (homeWall.current) homeWall.current.inert = view !== 'home'
+    if (atriumsWall.current) atriumsWall.current.inert = view !== 'atriums'
+    if (from === view || !room.current || !homeWall.current || !atriumsWall.current) return
+    if (view === 'atriums') slideBetween(room.current, homeWall.current, atriumsWall.current, 1)
+    else slideBetween(room.current, atriumsWall.current, homeWall.current, -1)
+  }, [view, atriumsThere])
+  // Asked of Atriums: at once if it's there, as soon as it is if not.
+  const atriums = useRef<AtriumsApi | null>(null)
+  const askedOfAtriums = useRef<((api: AtriumsApi) => void) | null>(null)
+  const askAtriums = (task: (api: AtriumsApi) => void) => {
+    if (atriums.current) { task(atriums.current); return }
+    askedOfAtriums.current = task
+    setAtriumsWanted(true)
+  }
+  const atriumsReady = (api: AtriumsApi) => {
+    atriums.current = api
+    askedOfAtriums.current?.(api)
+    askedOfAtriums.current = null
+  }
 
   // Stepping back, just before the next screen is asked for. Two screens on the
   // same ground, one receding as the other rises, reads as going a layer deeper.
@@ -92,7 +135,7 @@ export default function WelcomeScreen({ onEnter, onOpenAtrium, onBackToLanding, 
   // Asked once, on mount, and shouldShowAppeal itself only answers true once per
   // launch -- coming back here after leaving an atrium is not a new launch.
   const [showAppeal, setShowAppeal] = useState(false)
-  useEffect(() => { void shouldShowAppeal().then(show => { if (show) setShowAppeal(true) }) }, [])
+  useEffect(() => { if (!guest) void shouldShowAppeal().then(show => { if (show) setShowAppeal(true) }) }, [guest])
   const [showFeedback, setShowFeedback] = useState(false)
   const [showHelp, setShowHelp] = useState(false)
   // Read from cache on mount and refreshed behind the screen, so it's there on
@@ -104,19 +147,30 @@ export default function WelcomeScreen({ onEnter, onOpenAtrium, onBackToLanding, 
   // One's atriums and achievements, as this device has them. Read again as
   // Profile closes: what's chosen there shows here.
   const [stats, setStats] = useState(readStats)
-  useEffect(() => { noteToday() }, [])
+  // And the account's word on them, and on one's picture: at most a write a day.
+  useEffect(() => {
+    noteToday()
+    if (!guest) void syncStats().then(setStats)
+  }, [guest])
   useEffect(() => { if (!showSettings) setStats(readStats()) }, [showSettings])
-  const recent = useMemo<AtriumCard[]>(() => recentCards(readCards(userId), atriumVisitedAt, unfinishedTutorial()), [userId])
+  // Anew on coming back from Atriums, which may have told the device more.
+  const [cardsTold, setCardsTold] = useState(0)
+  const recent = useMemo<AtriumCard[]>(() => recentCards(readCards(userId), atriumVisitedAt, unfinishedTutorial()), [userId, view, cardsTold])
+  // A device that's never been told of one's atriums: their lists read behind this
+  // once, for it to have something to show. Never again after: Home asks for nothing.
+  useEffect(() => { if (!guest && !cardsKnown(userId)) setAtriumsWanted(true) }, [guest, userId])
   const [last, ...others] = recent
   const next = nextAchievement(stats)
   const pinned = stats.pinned.flatMap(id => ACHIEVEMENTS.find(one => one.id === id && isEarned(one, stats)) ?? [])
 
-  // Straight in, where nothing has to be asked first; otherwise by the atrium
-  // browser, which knows how to ask (a password, Google's window for Drive).
+  // Straight in, where nothing has to be asked first; otherwise over on Atriums, which
+  // knows how to ask (a password). Google's window takes a click of its own: there,
+  // on its card.
   const openCard = (card: AtriumCard) => {
     const needsAsking = isDriveAtrium(card.id) && !isHostedAtrium(card.id) && !hasDriveToken()
-    const direct = (isDesktop || isBrowserAtrium(card.id)) && !needsAsking
-    leaveTo(direct ? () => onOpenAtrium(card.id) : onEnter)
+    if ((isDesktop || isBrowserAtrium(card.id)) && !needsAsking) { leaveTo(() => onOpenAtrium(card.id)); return }
+    onGo('atriums')
+    if (!needsAsking) askAtriums(api => api.enter(card.id))
   }
   const whenOf = (id: string) => {
     const [value, unit] = agoOf(atriumVisitedAt(id), Date.now())
@@ -163,24 +217,37 @@ export default function WelcomeScreen({ onEnter, onOpenAtrium, onBackToLanding, 
 
   return (
     <>
-      <div data-welcome="" className={`relative w-full h-full bg-nier-black overflow-y-auto overflow-x-hidden ${leaving ? 'screen-recede' : 'screen-rise'} ${covered ? 'hidden' : ''}`}>
+      <div ref={room} data-welcome="" data-view={view} className={`relative w-full h-full flex flex-col bg-nier-black overflow-hidden ${leaving ? 'screen-recede' : 'screen-rise'} ${covered ? 'hidden' : ''}`}>
         {/* The landing page's hall, so the app's first screen and the website's are
-            one room. */}
-        <Hall />
+            one room, and panning across it. */}
+        <Hall pan={view === 'atriums'} />
         <div aria-hidden="true" className="welcome-glow" />
 
-        <div className="relative min-h-full max-w-[90rem] mx-auto flex flex-col px-5 sm:px-10 xl:px-16 pt-6 pb-5">
-          <header className="enter-down relative z-20 flex items-center justify-between gap-4">
-            {/* Web only: the desktop has no website behind it to go back to. */}
-            {onBackToLanding && !isDesktop ? (
-              <button type="button" data-welcome-brand="" onClick={() => leaveTo(onBackToLanding)} title={t('common.back')} className="flex items-center gap-3 transition-opacity hover:opacity-80">{brand}</button>
+        <header className="enter-down home-top relative z-30">
+          {/* Web only: the desktop has no website behind it to go back to. */}
+          {onBackToLanding && !isDesktop ? (
+            <button type="button" data-welcome-brand="" onClick={() => leaveTo(onBackToLanding)} title={t('common.back')} className="flex items-center gap-3 justify-self-start transition-opacity hover:opacity-80">{brand}</button>
+          ) : (
+            <div className="flex items-center gap-3 justify-self-start">{brand}</div>
+          )}
+          {!guest && (
+            <nav aria-label={t('welcome.more')} data-home-nav="" data-on={view} className="home-nav">
+              <span aria-hidden="true" className="home-nav-light" />
+              <button type="button" data-go="home" aria-current={view === 'home' ? 'page' : undefined} onClick={() => onGo('home')}>{t('nav.home')}</button>
+              <button type="button" data-go="atriums" aria-current={view === 'atriums' ? 'page' : undefined} onClick={() => onGo('atriums')}>{t('nav.atriums')}</button>
+            </nav>
+          )}
+          <div className="home-tools flex items-center gap-2.5">
+            <button type="button" data-home-help="" onClick={() => setShowHelp(true)} title={t('help.title')} aria-label={t('help.title')} className="cut-corner inline-flex items-center justify-center gap-2 h-[2.125rem] px-3 border border-nier-border/60 text-nier-strong hover:border-nier-border text-[11px] tracking-[0.15em] uppercase leading-none transition-colors" style={{ backgroundColor: 'rgb(var(--c-ground) / 0.94)' }}>
+              <span aria-hidden="true" className="text-[13px] leading-none">?</span>
+              <span className="hidden sm:inline">{t('help.title')}</span>
+            </button>
+            <FullscreenButton className="cut-corner inline-flex items-center justify-center w-[2.625rem] h-[2.125rem] border border-nier-border/40 text-nier-bg/80 hover:text-nier-strong hover:border-nier-border/70 transition-colors" style={{ backgroundColor: 'rgb(var(--c-ground) / 0.94)' }} />
+            <ThemeToggle />
+            <DonateButton onClick={() => setShowContribute(true)} variant="quiet" compact className="h-[2.125rem] !py-0" />
+            {guest ? (
+              onSignIn && <button type="button" onClick={onSignIn} className="cut-corner inline-flex items-center h-[2.125rem] px-3 border border-nier-border/40 text-nier-strong hover:border-nier-border/80 text-[11px] tracking-[0.15em] uppercase transition-colors" style={{ backgroundColor: 'rgb(var(--c-ground) / 0.94)' }}>{t('auth.logIn')}</button>
             ) : (
-              <div className="flex items-center gap-3">{brand}</div>
-            )}
-            <div className="flex items-center gap-2.5">
-              <FullscreenButton className="cut-corner inline-flex items-center justify-center w-[2.625rem] h-[2.125rem] border border-nier-border/40 text-nier-bg/80 hover:text-nier-strong hover:border-nier-border/70 transition-colors" style={{ backgroundColor: 'rgb(var(--c-ground) / 0.94)' }} />
-              <ThemeToggle />
-              <DonateButton onClick={() => setShowContribute(true)} variant="quiet" compact className="h-[2.125rem] !py-0" />
               <AccountMenu
                 chipClass="welcome-chip flex items-center gap-2.5 h-[2.125rem] pl-1 pr-3 border border-nier-border/40 hover:border-nier-border/80 transition-colors"
                 chipStyle={{ backgroundColor: 'rgb(var(--c-ground) / 0.94)' }}
@@ -195,13 +262,18 @@ export default function WelcomeScreen({ onEnter, onOpenAtrium, onBackToLanding, 
                   </span>
                 )}
               </AccountMenu>
-            </div>
-          </header>
+            )}
+          </div>
+        </header>
 
-          <main className="relative flex-1 flex flex-col mt-8 lg:mt-10 min-h-0">
-            <p className="enter-up text-[11px] tracking-[0.3em] uppercase text-nier-bg/80" style={{ '--i': 1 } as CSSProperties}>{t(last ? 'welcome.back' : 'welcome.hello')}</p>
-            <h1 data-welcome-name="" className="enter-up mt-2 text-4xl sm:text-[3.6rem] font-extralight leading-[1.05] tracking-[0.02em] text-nier-strong break-words" style={{ '--i': 2 } as CSSProperties}>{username}</h1>
-            <p data-welcome-line="" className="enter-up mt-3 text-[13px] tracking-[0.04em] text-nier-bg/85" style={{ '--i': 3 } as CSSProperties}>
+        <div className="relative flex-1 min-h-0 overflow-hidden">
+        {!guest && (
+        <div ref={homeWall} data-home-wall="" data-away={view !== 'home' || undefined} className="home-wall">
+        <div className="relative min-h-full max-w-[90rem] mx-auto flex flex-col px-5 sm:px-10 xl:px-16 pt-2 pb-5">
+          <main className="relative flex-1 flex flex-col min-h-0">
+            {/* What this is, not who's here: the name's at the top, and first days aren't "back". */}
+            <h1 data-welcome-title="" data-rise="" className="enter-up text-2xl sm:text-[2rem] font-extralight leading-tight tracking-[0.01em] text-nier-strong" style={{ '--i': 1 } as CSSProperties}>{t(last ? 'welcome.pickUp' : stats.daysHere > 1 ? 'browser.yours' : 'welcome.firstTitle')}</h1>
+            <p data-welcome-line="" data-rise="" className="enter-up mt-2 text-[13px] tracking-[0.04em] text-nier-bg/85" style={{ '--i': 2 } as CSSProperties}>
               {last
                 ? (stats.streak >= 2 ? t('welcome.streak', { n: number(stats.streak) }) : t('welcome.asLeft'))
                 : t('welcome.firstLine')}
@@ -212,15 +284,15 @@ export default function WelcomeScreen({ onEnter, onOpenAtrium, onBackToLanding, 
               {last ? (
                 <section
                   data-welcome-hero=""
+                  data-fly={last.id}
                   onClick={() => openCard(last)}
                   className="welcome-hero enter-up group relative min-h-[18rem] lg:min-h-[24rem] overflow-hidden border border-nier-border/40 bg-nier-blackLight cursor-pointer"
                   style={{ '--i': 4 } as CSSProperties}
                 >
                   <AtriumPicture url={last.preview} className="welcome-hero-picture" />
-                  <div className="absolute inset-x-0 bottom-0 flex flex-wrap items-end justify-between gap-5 p-5 sm:p-7 pt-24" style={{ background: 'linear-gradient(transparent, rgb(var(--c-ground) / 0.96) 38%)' }}>
+                  <div className="welcome-hero-words absolute inset-x-0 bottom-0 flex flex-wrap items-end justify-between gap-5 p-5 sm:p-7 !pt-44">
                     <div className="min-w-0">
-                      <p className="text-[10px] tracking-[0.26em] uppercase text-nier-bg/85">{t('welcome.pickUp')}</p>
-                      <h2 data-welcome-last="" className="mt-1.5 text-[1.75rem] font-normal text-nier-strong break-words">{last.name}</h2>
+                      <h2 data-welcome-last="" className="text-[1.75rem] font-normal text-nier-strong break-words">{last.name}</h2>
                       <p className="mt-1.5 text-xs text-nier-bg/85">
                         {t('welcome.lastHere', { when: whenOf(last.id) })}
                         {last.traces !== null && <span>{' · '}{t('welcome.traces', { n: number(last.traces) })}</span>}
@@ -243,7 +315,7 @@ export default function WelcomeScreen({ onEnter, onOpenAtrium, onBackToLanding, 
                   <button
                     type="button"
                     data-welcome-continue=""
-                    onClick={() => leaveTo(onEnter)}
+                    onClick={() => onGo('atriums')}
                     className="sheen relative h-[3.25rem] px-10 text-[13px] font-medium tracking-[0.2em] uppercase transition-transform duration-300 hover:scale-[1.03] active:scale-[0.99]"
                     style={{ background: 'rgb(var(--c-accent))', color: 'rgb(var(--c-ground))', clipPath: DONATE_CUT }}
                   >
@@ -252,13 +324,13 @@ export default function WelcomeScreen({ onEnter, onOpenAtrium, onBackToLanding, 
                 </section>
               )}
 
-              <aside className="flex flex-col gap-3 min-h-0">
+              <aside data-rise="" className="flex flex-col gap-3 min-h-0">
                 {others.length > 0 && <p className="enter-fade text-[10px] tracking-[0.26em] uppercase text-nier-bg/80" style={{ '--i': 5 } as CSSProperties}>{t('welcome.alsoRecent')}</p>}
                 {others.length > 0 && (
                   <div className="enter-cards flex flex-col gap-2.5" style={{ '--base': '300ms' } as CSSProperties}>
                     {others.slice(0, 3).map(card => (
                       <button key={card.id} type="button" data-welcome-recent={card.id} onClick={() => openCard(card)} className="welcome-recent hall-ground group flex items-center gap-3.5 w-full p-2 text-left border border-nier-border/30 hover:border-nier-border/70">
-                        <span className="relative block w-[5.25rem] h-[3.4rem] shrink-0 overflow-hidden bg-nier-blackLight"><AtriumPicture url={card.preview} className="welcome-hero-picture" /></span>
+                        <span data-fly={card.id} className="relative block w-[5.25rem] h-[3.4rem] shrink-0 overflow-hidden bg-nier-blackLight"><AtriumPicture url={card.preview} className="welcome-hero-picture" /></span>
                         <span className="min-w-0">
                           <span className="block truncate text-[13px] text-nier-strong">{card.name}</span>
                           <span className="block mt-1 text-[11px] text-nier-bg/80">{whenOf(card.id)}</span>
@@ -268,8 +340,8 @@ export default function WelcomeScreen({ onEnter, onOpenAtrium, onBackToLanding, 
                   </div>
                 )}
                 <div className="enter-up grid grid-cols-2 gap-2.5" style={{ '--i': 7 } as CSSProperties}>
-                  <button type="button" data-welcome-all="" onClick={() => leaveTo(onEnter)} className="welcome-action hall-ground h-[2.9rem] border border-nier-border/50 hover:border-nier-border/90 text-[11px] tracking-[0.14em] uppercase text-nier-strong">{t('welcome.allAtriums')}</button>
-                  <button type="button" data-welcome-new="" onClick={() => { askBrowserTo('create'); leaveTo(onEnter) }} className="welcome-action hall-ground h-[2.9rem] border border-nier-border/50 hover:border-nier-border/90 text-[11px] tracking-[0.14em] uppercase text-nier-strong">+ {t('welcome.newAtrium')}</button>
+                  <button type="button" data-welcome-all="" onClick={() => onGo('atriums')} className="welcome-action hall-ground h-[2.9rem] border border-nier-border/50 hover:border-nier-border/90 text-[11px] tracking-[0.14em] uppercase text-nier-strong">{t('welcome.allAtriums')}</button>
+                  <button type="button" data-welcome-new="" onClick={event => { const from = event.currentTarget.getBoundingClientRect(); askAtriums(api => api.openNew(from)) }} className="welcome-action hall-ground h-[2.9rem] border border-nier-border/50 hover:border-nier-border/90 text-[11px] tracking-[0.14em] uppercase text-nier-strong">+ {t('welcome.newAtrium')}</button>
                 </div>
                 {next && (
                   <button
@@ -295,9 +367,8 @@ export default function WelcomeScreen({ onEnter, onOpenAtrium, onBackToLanding, 
 
           <footer className="enter-fade mt-5 flex flex-wrap items-center justify-between gap-x-6 gap-y-3" style={{ '--i': 10 } as CSSProperties}>
             <nav aria-label={t('welcome.more')} data-welcome-foot="" className="flex flex-wrap items-center gap-x-6 gap-y-2">
-              <button type="button" data-welcome-help="" onClick={() => setShowHelp(true)} className={footLink}>{t('help.title')}</button>
-              <button type="button" data-welcome-tutorial="" onClick={() => { askBrowserTo('tutorial'); leaveTo(onEnter) }} className={footLink}>{t('tutorial.button')}</button>
-              <button type="button" onClick={() => openContributors('/welcome')} className={footLink}>{t('welcome.contributors')}</button>
+              <button type="button" data-welcome-tutorial="" onClick={() => askAtriums(api => api.startTutorial())} className={footLink}>{t('tutorial.button')}</button>
+              <button type="button" onClick={() => openContributors('/home')} className={footLink}>{t('welcome.contributors')}</button>
               {isDeveloper && onDevelopers && <button type="button" data-welcome-developers="" onClick={onDevelopers} className={footLink}>{t('welcome.developers')}</button>}
               {isDesktop && onAbout && <button type="button" onClick={onAbout} className={footLink}>{t('welcome.about')}</button>}
               {/* Handed to the system's browser: the webview has no address bar to come back from. */}
@@ -316,12 +387,22 @@ export default function WelcomeScreen({ onEnter, onOpenAtrium, onBackToLanding, 
               )}
             </nav>
             {funded && (
-              <button type="button" data-welcome-funded="" onClick={() => openContributors('/welcome')} title={t('goal.seeWho')} className="flex items-center gap-3 text-[11px] tracking-[0.1em] uppercase text-nier-bg/80 hover:text-nier-strong transition-colors">
+              <button type="button" data-welcome-funded="" onClick={() => openContributors('/home')} title={t('goal.seeWho')} className="flex items-center gap-3 text-[11px] tracking-[0.1em] uppercase text-nier-bg/80 hover:text-nier-strong transition-colors">
                 <span>{t('goal.funded', { percent: funded.percent })}</span>
                 <span aria-hidden="true" className="block w-28 h-[3px] bg-nier-border/25 overflow-hidden"><span className="achievement-bar block h-full" style={{ width: `${funded.percent}%`, background: 'rgb(255 138 61)', animationDelay: '800ms' }} /></span>
               </button>
             )}
           </footer>
+        </div>
+        </div>
+        )}
+        {atriumsThere && (
+          <div ref={atriumsWall} data-atriums-wall="" data-away={view !== 'atriums' || undefined} className="home-wall">
+            <div className="relative max-w-[90rem] mx-auto px-5 sm:px-10 xl:px-16 pt-2">
+              {LobbyBrowser && <LobbyBrowser onJoinLobby={onOpenAtrium} onReady={atriumsReady} inSight={view === 'atriums'} onCardsKnown={() => setCardsTold(told => told + 1)} guest={guest} onSignIn={onSignIn} />}
+            </div>
+          </div>
+        )}
         </div>
       </div>
 

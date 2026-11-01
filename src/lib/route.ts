@@ -16,17 +16,22 @@ import { isDesktop } from './supabase'
 // popstate covers Back and Forward.
 const ROUTE_EVENT = 'atrium:routechange'
 
-/** The current route, e.g. "/", "/welcome", "/atrium/<id>". */
+// What the two pages of Home were called: bookmarks, and returns kept in storage.
+const RENAMED: Record<string, string> = { '/welcome': '/home', '/browse': '/atriums' }
+
+/** The current route, e.g. "/", "/home", "/atrium/<id>". */
 export function currentRoutePath(): string {
-  if (isDesktop) return window.location.hash.slice(1) || '/'
+  if (isDesktop) { const at = window.location.hash.slice(1) || '/'; return RENAMED[at] ?? at }
   const path = window.location.pathname
   if (path === '' || path === '/' || path === '/index.html') return '/'
-  // "/welcome/" is "/welcome": a trailing slash is a typing habit, not a page.
-  return path.length > 1 && path.endsWith('/') ? path.slice(0, -1) : path
+  // "/home/" is "/home": a trailing slash is a typing habit, not a page.
+  const at = path.length > 1 && path.endsWith('/') ? path.slice(0, -1) : path
+  return RENAMED[at] ?? at
 }
 
 /** Move to a route. Records history, so Back returns. */
-export function goTo(path: string) {
+export function goTo(to: string) {
+  const path = RENAMED[to] ?? to
   if (isDesktop) {
     window.location.hash = path
     return
@@ -75,7 +80,11 @@ export function onRouteChange(listener: () => void): () => void {
 export function adoptLegacyHashRoute() {
   if (isDesktop) return
   const hash = window.location.hash
-  if (!hash.startsWith('#/')) return
-  const target = hash.slice(1)
-  window.history.replaceState(null, '', target.includes('?') ? target : target + window.location.search)
+  if (hash.startsWith('#/')) {
+    const target = hash.slice(1)
+    window.history.replaceState(null, '', target.includes('?') ? target : target + window.location.search)
+  }
+  // And the old names of Home's two pages, to what they're called now.
+  const renamed = RENAMED[window.location.pathname.replace(/(.)\/$/, '$1')]
+  if (renamed) window.history.replaceState(null, '', renamed + window.location.search + window.location.hash)
 }

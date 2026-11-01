@@ -33,12 +33,11 @@ const DevelopersPage = lazy(() => import('./components/DevelopersPage'))
 const loadLobbyScene = () => import('./components/LobbyScene')
 const LobbyScene = lazy(loadLobbyScene)
 // The pages past the landing page, the same way: none is the landing page's.
-const WelcomeScreen = lazy(() => import('./components/WelcomeScreen'))
+const HomeScreen = lazy(() => import('./components/HomeScreen'))
 // Only ever shown inside a Drive atrium (lib/driveSync).
 const DriveStatus = lazy(() => import('./components/DriveStatus'))
-const LobbyBrowser = lazy(() => import('./components/LobbyBrowser').then(m => ({ default: m.LobbyBrowser })))
 const ContributorsAtrium = lazy(() => import('./components/ContributorsAtrium'))
-const loadPagesAhead = () => Promise.all([loadLobbyScene(), import('./components/WelcomeScreen'), import('./components/LobbyBrowser')])
+const loadPagesAhead = () => Promise.all([loadLobbyScene(), import('./components/HomeScreen'), import('./components/LobbyBrowser')])
 import { consumeSignInIntent } from './lib/signInIntent'
 import ThemeToggle from './components/ThemeToggle'
 import LanguageToggle from './components/LanguageToggle'
@@ -730,7 +729,7 @@ const STORAGE_KEYS = {
 const ACCOUNT_FREE_ROUTES = new Set(['landing', 'login', 'contributors', 'contributed', 'link-pinterest', 'link-desktop'])
 // And for somebody going on without an account (lib/browserAtriums): the
 // browser, and the atriums kept in it.
-const GUEST_ROUTES = new Set(['browse', 'atrium'])
+const GUEST_ROUTES = new Set(['atriums', 'atrium'])
 
 // Whether there may be a session to restore -- one kept from before, or one
 // arriving now from a sign-in elsewhere (an OAuth return). Without either, a
@@ -760,10 +759,10 @@ function parseRoute(): { page: string; lobbyId?: string; section?: string } {
       return { page: 'landing' }
     case '/login':
       return { page: 'login' }
-    case '/welcome':
-      return { page: 'welcome' }
-    case '/browse':
-      return { page: 'browse' }
+    case '/home':
+      return { page: 'home' }
+    case '/atriums':
+      return { page: 'atriums' }
     // Where Stripe returns a contributor after checkout. A real route rather
     // than a query flag, so arriving here can't be confused with a normal
     // visit, and so a reload shows the same page instead of a stale banner.
@@ -808,7 +807,7 @@ function parseRoute(): { page: string; lobbyId?: string; section?: string } {
 
 // Where a sign-in ends: the welcome screen -- or the page it was asked
 // from (components/DesktopLink), once.
-const signedInTo = () => afterSignIn() ?? '/welcome'
+const signedInTo = () => afterSignIn() ?? '/home'
 
 // Navigation helper - updates both URL and route state
 let setRouteCallback: ((route: { page: string; lobbyId?: string }) => void) | null = null
@@ -958,7 +957,7 @@ function MovedNotice() {
 // (NotFoundPage).
 const HOME_TITLE = document.title
 const SCREEN_TITLES: Record<string, TranslationKey> = {
-  browse: 'browser.title', contributors: 'wall.title', contributed: 'wall.title',
+  home: 'nav.home', atriums: 'nav.atriums', contributors: 'wall.title', contributed: 'wall.title',
   developers: 'developers.title', about: 'welcome.about', login: 'auth.logIn',
 }
 
@@ -1115,7 +1114,7 @@ function AppInner() {
     // before they opened the wall at all.
     const origin = currentRoutePath()
     if (origin !== '/contributors' && origin !== '/contributed') {
-      rememberContributorsReturn(origin || '/welcome')
+      rememberContributorsReturn(origin || '/home')
     }
     navigate('/contributed')
   }, [contributionConfirmed, route.page])
@@ -1694,7 +1693,7 @@ function AppInner() {
               // which is why the thank-you never appeared: the app navigated
               // away from it before it could be seen.
               const explicitRoute = urlRoute.page === 'landing'
-                || urlRoute.page === 'browse'
+                || urlRoute.page === 'atriums'
                 || urlRoute.page === 'contributors'
                 || urlRoute.page === 'contributed'
                 // Someone signed in here can still be linking a desktop app,
@@ -1726,7 +1725,7 @@ function AppInner() {
                   // Lobby was deleted, clear persisted state and go to browse
                   localStorage.removeItem(STORAGE_KEYS.CURRENT_LOBBY)
                   setCurrentLobbyId(null)
-                  navigate('/browse')
+                  navigate('/atriums')
                 } else {
                   // Lobby exists - restore active_lobby_id and set current lobby
                   setCurrentLobbyId(lobbyIdToRestore)
@@ -1758,7 +1757,7 @@ function AppInner() {
                 // Continue to Atrium still resumes it on demand.
               } else if (!storedLobbyId) {
                 // No lobby stored, go to welcome
-                navigate('/welcome')
+                navigate('/home')
               }
             }
             setLoading(false)
@@ -2005,15 +2004,6 @@ function AppInner() {
     navigate('/login')
   }
 
-  const handleEnter = () => {
-    // If no active lobby, show lobby browser
-    if (currentLobbyId) {
-      navigate(`/atrium/${currentLobbyId}`)
-    } else {
-      navigate('/browse')
-    }
-  }
-
   const handleJoinLobby = async (lobbyId: string, password?: string) => {
     // Kept in this browser: nobody's access to check (verifyLobbyAccess opens it).
     if (isBrowserAtrium(lobbyId)) {
@@ -2065,7 +2055,7 @@ function AppInner() {
 
   // To the atrium browser, or -- back from looking around in a theme being
   // made -- to Developers.
-  const handleLeaveLobby = async (to = '/browse') => {
+  const handleLeaveLobby = async (to = '/atriums') => {
     // Clear active_lobby_id in database so player count updates correctly
     if (supabase) {
       const { data: { user } } = await supabase.auth.getUser()
@@ -2166,7 +2156,7 @@ function AppInner() {
     return <PinterestDesktopLink />
   }
   if (currentPage === 'notfound') {
-    return <NotFoundPage onHome={() => navigate('/')} onAtriums={() => navigate('/browse')} />
+    return <NotFoundPage onHome={() => navigate('/')} onAtriums={() => navigate('/atriums')} />
   }
   if (currentPage === 'link-desktop') {
     return <DesktopLink onSignIn={() => navigate('/login')} />
@@ -2211,7 +2201,7 @@ function AppInner() {
           onBackToLanding={handleBackToLanding}
           onGuest={() => {
             setIsGuest(true)
-            navigate('/browse')
+            navigate('/atriums')
           }}
           initialError={oauthError ?? undefined}
         />
@@ -2224,7 +2214,7 @@ function AppInner() {
   // Authenticated user routing
   // In desktop mode, skip login page — go straight to welcome/browse
   if (isDesktop && currentPage === 'login') {
-    setTimeout(() => navigate('/welcome'), 0)
+    setTimeout(() => navigate('/home'), 0)
   }
 
   // On desktop the landing page is a marketing page for a product the user has
@@ -2236,12 +2226,12 @@ function AppInner() {
   // About entry, which is also how you get back out of an atrium).
   if (currentPage === 'landing' && isDesktop && !hasSeenDesktopLandingRef.current) {
     hasSeenDesktopLandingRef.current = true
-    setTimeout(() => navigate('/welcome'), 0)
+    setTimeout(() => navigate('/home'), 0)
   }
 
   // Allow authenticated users to see landing page (for logout/info)
   if (currentPage === 'landing') {
-    return <LandingPage onGetStarted={() => navigate('/welcome')} isAuthenticated={true} section={route.section} />
+    return <LandingPage onGetStarted={() => navigate('/home')} isAuthenticated={true} section={route.section} />
   }
   
   if (currentPage === 'login') {
@@ -2265,34 +2255,34 @@ function AppInner() {
   }
   
   if (currentPage === 'about') {
-    return <AboutPage onBack={() => navigate('/welcome')} />
+    return <AboutPage onBack={() => navigate('/home')} />
   }
 
   if (currentPage === 'developers') {
-    return <Suspense fallback={<PageLoading />}><DevelopersPage onBack={() => navigate('/welcome')} onEnterAtrium={lobbyId => { void handleJoinLobby(lobbyId) }} /></Suspense>
+    return <Suspense fallback={<PageLoading />}><DevelopersPage onBack={() => navigate('/home')} onEnterAtrium={lobbyId => { void handleJoinLobby(lobbyId) }} /></Suspense>
   }
 
-  if (currentPage === 'welcome') {
-    return <Suspense fallback={<PageLoading />}><WelcomeScreen onEnter={handleEnter} onOpenAtrium={lobbyId => void handleJoinLobby(lobbyId)} onBackToLanding={handleBackToLanding} onAbout={() => navigate('/about')} onDevelopers={() => navigate('/developers')} /></Suspense>
-  }
-
-  
-  if (currentPage === 'browse') {
+  // One screen, two addresses: it stays as one moves between them (components/HomeScreen).
+  if (currentPage === 'home' || currentPage === 'atriums') {
     return (
       <>
         <Suspense fallback={<PageLoading />}>
-          <LobbyBrowser
-            onJoinLobby={handleJoinLobby}
-            onClose={() => navigate(isAuthenticated ? '/welcome' : '/')}
+          <HomeScreen
+            view={currentPage}
+            onGo={to => navigate(`/${to}`)}
+            onOpenAtrium={handleJoinLobby}
             guest={!isAuthenticated}
             onSignIn={() => navigate('/login')}
+            onBackToLanding={isAuthenticated ? handleBackToLanding : () => navigate('/')}
+            onAbout={() => navigate('/about')}
+            onDevelopers={() => navigate('/developers')}
           />
         </Suspense>
         <KickedNotice notice={kickedNotice} onDismiss={() => setKickedNotice(null)} />
       </>
     )
   }
-  
+
   if (currentPage === 'atrium' && route.lobbyId) {
     // Show loading while verifying access
     if (verifyingAccess) {
@@ -2362,12 +2352,12 @@ function AppInner() {
             <button
               onClick={() => {
                 setLobbyAccessError(null)
-                navigate('/browse')
+                navigate('/atriums')
               }}
               className="cut-corner w-full mt-7 inline-flex items-center justify-center h-[2.375rem] text-[11px] tracking-[0.18em] uppercase font-medium transition-transform hover:scale-[1.02] active:scale-[0.99]"
               style={{ background: 'rgb(var(--c-accent))', color: 'rgb(var(--c-ground))' }}
             >
-              {isPasswordError ? `◇ ${t('locked.enterPassword')}` : `◇ ${t('locked.toBrowser')}`}
+              {isPasswordError ? `◇ ${t('locked.enterPassword')}` : `◇ ${t('nav.atriums')}`}
             </button>
           </div>
         </div>
@@ -2431,7 +2421,7 @@ function AppInner() {
   }
   
   // Default - no valid route, go to welcome
-  setTimeout(() => navigate('/welcome'), 0)
+  setTimeout(() => navigate('/home'), 0)
   return (
     <div className="fixed inset-0 bg-nier-black flex items-center justify-center font-mono px-4">
       <div className="relative px-[5vw] sm:px-10 py-[3vw] sm:py-6">

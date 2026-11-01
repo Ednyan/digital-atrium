@@ -1,13 +1,11 @@
-import { useEffect, useId, useState, useMemo, useRef, lazy, Suspense, type CSSProperties, type ReactNode } from 'react'
-import { flushSync } from 'react-dom'
+import { useEffect, useId, useLayoutEffect, useState, useMemo, useRef, lazy, Suspense, type CSSProperties, type ReactNode } from 'react'
+import { createPortal, flushSync } from 'react-dom'
 import { supabase, isDesktop } from '../lib/supabase'
-import FullscreenButton from './FullscreenButton'
 import DesktopAccount from './DesktopAccount'
 import { copyLobbyId } from '../lib/clipboard'
 import VaultRecoveryPanel from './VaultRecoveryPanel'
 import { useGameStore, useGamePick } from '../store/gameStore'
 import { showToast } from '../lib/toast'
-import DriveConnection from './DriveConnection'
 import ImportAtrium from './ImportAtrium'
 import ConfirmBox, { ConfirmButtons } from './ConfirmBox'
 import KeptWhere, { type Where } from './KeptWhere'
@@ -19,17 +17,13 @@ import { anotherAccountsDriveAtrium, askToJoin, isLeftHere, ownElsewhere, replac
 import { publicAtriums, publicPreviewUrl } from '../lib/people'
 import DriveSettings from './DriveSettings'
 import { LobbyManagement } from './LobbyManagement'
-const HelpPanel = lazy(() => import('./HelpPanel'))
 import DownloadAtriumPanel, { type DownloadableAtrium } from './DownloadAtriumPanel'
-import ContributePanel from './ContributePanel'
-import DonateButton, { DONATE_CUT } from './DonateButton'
-import ThemeToggle from './ThemeToggle'
-import Atmosphere from './Atmosphere'
+import { DONATE_CUT } from './DonateButton'
 import { startingAtriumTheme } from '../lib/atriumThemePresets'
 import { themeOf } from '../lib/customThemes'
 import { defaultPresetFor } from '../lib/tracePresets'
 import { seasonalThemeNow } from '../lib/specialThemes'
-import { resolveThemeNow, useLandingTheme } from '../lib/useLandingTheme'
+import { resolveThemeNow } from '../lib/useLandingTheme'
 import type { TranslationKey } from '../locales/en'
 import { useTranslation } from '../lib/i18n'
 
@@ -37,11 +31,11 @@ const ExportDatabase = lazy(() => import('./ExportDatabase'))
 // Phase 4's Drive test (components/DriveSpike): the platform operator's alone.
 const DriveSpike = lazy(() => import('./DriveSpike'))
 import type { Lobby } from '../types/database'
-import { sortByLastVisited, mergeRemoteVisits } from '../lib/recentAtriums'
+import { atriumVisitedAt, sortByLastVisited, mergeRemoteVisits } from '../lib/recentAtriums'
 import { noteToday, syncStats } from '../lib/stats'
-import { forgetCard, rememberCards } from '../lib/atriumCards'
+import { forgetCard, readCards, recentCards, rememberCards } from '../lib/atriumCards'
 import AtriumPicture from './AtriumPicture'
-import { cameBefore, markTutorialSeen, takeBrowserAsk, tutorialFinished, tutorialSeen, tutorialStarted, unfinishedTutorial } from '../lib/tutorial'
+import { cameBefore, markTutorialSeen, tutorialFinished, tutorialSeen, tutorialStarted, unfinishedTutorial } from '../lib/tutorial'
 import { browserAtriumIds, browserEngine, clientFor, forgetBrowserAtrium, leaveBrowserAtrium, rememberBrowserAtrium, vaultProblem } from '../lib/browserAtriums'
 import { checkPlatformAdmin } from '../lib/platformAdmin'
 import { Check } from './ShapeStyleControls'
@@ -116,9 +110,9 @@ const VIEW_ICONS: Record<BrowserView, ReactNode> = {
 // An atrium's picture on its card (lib/atriumPreview) -- read from the vault
 // first, on desktop -- and the atrium's mark on its grid where there isn't
 // one yet. Edge to edge across the top of the card.
-function AtriumPreview({ url, small = false, name }: { url?: string | null; small?: boolean; name: string }) {
+function AtriumPreview({ url, small = false, name, fly }: { url?: string | null; small?: boolean; name: string; fly?: string }) {
   return (
-    <div className={`morph relative aspect-[16/10] overflow-hidden bg-nier-blackLight ${small ? 'w-24 sm:w-28 shrink-0 border border-nier-border/20' : '-mx-4 -mt-4 mb-3 border-b border-nier-border/20'}`} style={morphed(name)}>
+    <div data-fly={fly} className={`morph relative aspect-[16/10] overflow-hidden bg-nier-blackLight ${small ? 'w-24 sm:w-28 shrink-0 border border-nier-border/20' : '-mx-4 -mt-4 mb-3 border-b border-nier-border/20'}`} style={morphed(name)}>
       <AtriumPicture url={url} />
     </div>
   )
@@ -133,8 +127,9 @@ const TAG = 'px-1.5 py-0.5 border text-[10px] tracking-[0.12em] uppercase'
 // An atrium on the browser's lists, the same card in each: its picture, its
 // name, what it is as tags, Enter and at most one other thing in sight (its
 // settings), the rest under ⋯.
-function AtriumCard({ view, name, renaming, preview, tags, busy, onEnter, enterLabel, enterDisabled, side, menu, moreLabel }: {
+function AtriumCard({ view, fly, name, renaming, preview, tags, busy, onEnter, enterLabel, enterDisabled, side, menu, moreLabel }: {
   view: BrowserView
+  fly?: string
   name: string
   renaming?: ReactNode
   preview?: string | null
@@ -151,7 +146,7 @@ function AtriumCard({ view, name, renaming, preview, tags, busy, onEnter, enterL
   const morphName = useMorphName()
   return (
     <div className={`${ROW} morph morph-card group ${list ? 'flex items-center gap-4 py-3' : ''}`} style={{ ...ROW_FILL, ...morphed(morphName) }}>
-      <AtriumPreview url={preview} small={list} name={`${morphName}-picture`} />
+      <AtriumPreview url={preview} small={list} name={`${morphName}-picture`} fly={fly} />
       <div className={list ? 'flex-1 min-w-0 flex flex-col sm:flex-row sm:items-center gap-3' : 'flex flex-col gap-3'}>
         <div className="min-w-0 flex-1">
           {renaming ?? <h4 className="morph text-nier-bg text-sm tracking-wide break-words w-fit" style={morphed(`${morphName}-name`)}>{name}</h4>}
@@ -241,15 +236,27 @@ const asLobby = (lobby: any): LobbyWithOwner => ({
   previewAt: lobby.preview_at ?? null,
 })
 
+/** What Home asks of this wall, once it's there. `from`: the button that asked, for
+ *  the window to grow out of. */
+export interface AtriumsApi {
+  openNew: (from?: DOMRect) => void
+  startTutorial: () => void
+  enter: (lobbyId: string) => void
+}
+
 interface LobbyBrowserProps {
   onJoinLobby: (lobbyId: string, password?: string) => void
-  onClose: () => void
+  onReady?: (api: AtriumsApi) => void
+  // Whether this is what's on screen: read behind Home, it decides nothing for anyone.
+  inSight?: boolean
+  // The device has been told of the atriums on these lists (lib/atriumCards).
+  onCardsKnown?: () => void
   /** Without an account: this browser's atriums only. */
   guest?: boolean
   onSignIn?: () => void
 }
 
-export function LobbyBrowser({ onJoinLobby, onClose, guest = false, onSignIn }: LobbyBrowserProps) {
+export function LobbyBrowser({ onJoinLobby, onReady, inSight = true, onCardsKnown, guest = false, onSignIn }: LobbyBrowserProps) {
   const { t, language } = useTranslation()
   const [lobbies, setLobbies] = useState<LobbyWithOwner[]>([])
   // Everyone's public Drive atriums (phase 8), shown to anyone, a guest too.
@@ -277,6 +284,8 @@ export function LobbyBrowser({ onJoinLobby, onClose, guest = false, onSignIn }: 
     return () => window.removeEventListener('atrium:preview', landed)
   }, [])
   const [loading, setLoading] = useState(true)
+  // What stands in for the lists till they're read: the device's memory of them.
+  const [remembered] = useState(() => recentCards(readCards(useGameStore.getState().userId), atriumVisitedAt, unfinishedTutorial()))
   // Every list here read, once: enough to tell whether this person has any atriums.
   const [listsRead, setListsRead] = useState(false)
   const [showCreateLobby, setShowCreateLobby] = useState(false)
@@ -342,12 +351,10 @@ export function LobbyBrowser({ onJoinLobby, onClose, guest = false, onSignIn }: 
   // through a folder picker rather than the browser's download machinery.
   const [showExport, setShowExport] = useState(false)
   const [showVaultRecovery, setShowVaultRecovery] = useState(false)
-  const [showContribute, setShowContribute] = useState(false)
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
   // A cloud atrium moved to its owner's Drive (lib/moveToDrive): asked first,
   // as a deletion is -- it ends with one.
   const [moveConfirmId, setMoveConfirmId] = useState<string | null>(null)
-  const landingTheme = useLandingTheme()
   const [view, setView] = useState<BrowserView>(() => { try { return localStorage.getItem(VIEW_KEY) === 'list' ? 'list' : 'grid' } catch { return 'grid' } })
   const chooseView = (next: BrowserView) => {
     if (next === view) return
@@ -355,7 +362,6 @@ export function LobbyBrowser({ onJoinLobby, onClose, guest = false, onSignIn }: 
     morph(() => flushSync(() => setView(next)))
   }
   const [vaultPath, setVaultPath] = useState<string | null>(null)
-  const [showHelp, setShowHelp] = useState(false)
   const { username } = useGamePick('username')
   const [vaultBusy, setVaultBusy] = useState(false)
   const [vaultError, setVaultError] = useState<string | null>(null)
@@ -1089,13 +1095,37 @@ export function LobbyBrowser({ onJoinLobby, onClose, guest = false, onSignIn }: 
     if (!listsRead) return
     const known = [...yours, ...(isDesktop ? lobbies : [])]
     rememberCards(useGameStore.getState().userId, known.map(lobby => ({ id: lobby.id, name: lobby.name, preview: lobby.previewUrl ?? null })))
+    onCardsKnown?.()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [listsRead, yours, lobbies])
 
-  const openCreate = () => {
-    setNewWhere(canDrive && withGoogle ? 'drive' : canHost && canCreateMore ? 'cloud' : 'browser')
+  const whereNew = () => setNewWhere(canDrive && withGoogle ? 'drive' : canHost && canCreateMore ? 'cloud' : 'browser')
+  const createSheet = useRef<HTMLDivElement>(null)
+  const createFrom = useRef<DOMRect>()
+  // Whether what's in `error` is this form's, not the lists'.
+  const createTried = useRef(false)
+  const openCreate = (from?: DOMRect) => {
+    createFrom.current = from
+    createTried.current = false
+    whereNew()
     setShowCreateLobby(true)
   }
+  // Grown out of the button that asked for it; gone on Escape.
+  useLayoutEffect(() => {
+    const sheet = createSheet.current, from = createFrom.current
+    if (!showCreateLobby || !sheet || !from || matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    const to = sheet.getBoundingClientRect()
+    sheet.animate([
+      { transform: `translate(${from.left + from.width / 2 - to.left - to.width / 2}px, ${from.top + from.height / 2 - to.top - to.height / 2}px) scale(${from.width / to.width}, ${from.height / to.height})`, opacity: 0.2 },
+      { transform: 'none', opacity: 1 },
+    ], { duration: 420, easing: 'cubic-bezier(.22, 1, .36, 1)' })
+  }, [showCreateLobby])
+  useEffect(() => {
+    if (!showCreateLobby) return
+    const key = (event: KeyboardEvent) => { if (event.key === 'Escape' && !creatingNow.current) setShowCreateLobby(false) }
+    window.addEventListener('keydown', key)
+    return () => window.removeEventListener('keydown', key)
+  }, [showCreateLobby])
 
   // The tutorial, in an atrium of its own (lib/tutorial).
   const startTutorial = async () => {
@@ -1124,15 +1154,40 @@ export function LobbyBrowser({ onJoinLobby, onClose, guest = false, onSignIn }: 
     }
   }
 
+  // Home's asks: by what's current each time, through what stays the same.
+  const homeAsked = useRef(false)
+  const enterOnceRead = useRef<string | null>(null)
+  const enterLobby = (lobby: LobbyWithOwner) => (lobby.publicRoster ? void viewPublic(lobby) : lobby.inBrowser ? void enterBrowserLobby(lobby) : void handleJoinClick(lobby))
+  const api = useRef<AtriumsApi>()
+  api.current = {
+    openNew: from => { homeAsked.current = true; openCreate(from) },
+    startTutorial: () => { homeAsked.current = true; void startTutorial() },
+    enter: id => {
+      homeAsked.current = true
+      const lobby = listsRead && [...yours, ...lobbies, ...adminLobbies, ...publicDrive].find(one => one.id === id)
+      if (lobby) enterLobby(lobby)
+      else if (!listsRead) enterOnceRead.current = id
+    },
+  }
+  useEffect(() => {
+    onReady?.({ openNew: from => api.current!.openNew(from), startTutorial: () => api.current!.startTutorial(), enter: id => api.current!.enter(id) })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   // Someone new, the first time: straight into it. Only when that's certain: no
   // atriums listed, and none of an account's history elsewhere. Couldn't tell, as
   // with a failed load, and nothing's decided: it's asked again on the next visit.
   useEffect(() => {
     if (!listsRead) return
-    // What the welcome screen came here for, before anything else.
-    const asked = takeBrowserAsk()
-    if (asked === 'tutorial') { void startTutorial(); return }
-    if (asked === 'create') { openCreate(); return }
+    // The form opened before the lists were in: where it goes, now that's known.
+    if (showCreateLobby) whereNew()
+    // What Home came here for, before anything else.
+    if (enterOnceRead.current) {
+      const lobby = [...yours, ...lobbies, ...adminLobbies, ...publicDrive].find(one => one.id === enterOnceRead.current)
+      enterOnceRead.current = null
+      if (lobby) enterLobby(lobby)
+    }
+    if (homeAsked.current || !inSight) return
     if (error || tutorialSeen()) return
     const own = yours.length + (isDesktop ? lobbies.length + adminLobbies.length : 0)
     if (own > 0) { markTutorialSeen(); return }
@@ -1144,10 +1199,11 @@ export function LobbyBrowser({ onJoinLobby, onClose, guest = false, onSignIn }: 
     })
     return () => { left = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [listsRead])
+  }, [listsRead, inSight])
 
   const createLobby = async () => {
     if (!supabase || creatingNow.current) return
+    createTried.current = true
     if (newLobbyName.length < 3) {
       setError(t('browser.errNameLength'))
       return
@@ -1495,12 +1551,13 @@ export function LobbyBrowser({ onJoinLobby, onClose, guest = false, onSignIn }: 
       <AtriumCard
         key={lobby.id}
         view={view}
+        fly={lobby.id}
         name={lobby.name}
         renaming={renaming}
         preview={lobby.previewUrl}
         tags={tags}
         busy={converting === lobby.id ? t(lobby.inBrowser ? 'browser.drive.converting' : 'browser.drive.moving') : null}
-        onEnter={() => (lobby.publicRoster ? void viewPublic(lobby) : lobby.inBrowser ? void enterBrowserLobby(lobby) : handleJoinClick(lobby))}
+        onEnter={() => enterLobby(lobby)}
         enterLabel={openingPublic === lobby.id ? t('browser.drive.opening') : t('browser.enter')}
         enterDisabled={!!lobby.publicRoster && openingPublic !== null}
         side={side}
@@ -1554,77 +1611,29 @@ export function LobbyBrowser({ onJoinLobby, onClose, guest = false, onSignIn }: 
     }
   }
 
-  if (loading) {
-    return (
-      <div className="screen-rise fixed inset-0 bg-nier-black flex items-center justify-center z-50 font-mono px-4">
-        <div className="relative px-[5vw] sm:px-10 py-[3vw] sm:py-6">
-          <div className="absolute top-0 left-0 w-[2vw] sm:w-4 h-[2vw] sm:h-4 border-t border-l border-nier-bg/40" />
-          <div className="absolute top-0 right-0 w-[2vw] sm:w-4 h-[2vw] sm:h-4 border-t border-r border-nier-bg/40" />
-          <div className="absolute bottom-0 left-0 w-[2vw] sm:w-4 h-[2vw] sm:h-4 border-b border-l border-nier-bg/40" />
-          <div className="absolute bottom-0 right-0 w-[2vw] sm:w-4 h-[2vw] sm:h-4 border-b border-r border-nier-bg/40" />
-          <p className="text-nier-strong text-[clamp(9px,2.5vw,13px)] tracking-[0.25em] uppercase mb-4 text-center">{t('browser.loadingTitle')}</p>
-          <div className="w-[40vw] sm:w-48 h-[3px] bg-nier-bg/15 overflow-hidden mx-auto">
-            <div className="h-full bg-nier-bg/80 animate-nier-slide" />
+  const waiting = (
+    <div data-atriums-waiting="" role="status" aria-label={t('common.pleaseWait')}>
+      <div className="h-[2px] mb-6 bg-nier-bg/10 overflow-hidden"><div className="h-full bg-nier-bg/70 animate-nier-slide" /></div>
+      <div className={view === 'grid' ? 'grid gap-4 sm:grid-cols-2 lg:grid-cols-3' : ROW_LIST}>
+        {remembered.map(card => (
+          <div key={card.id} className={`${ROW} morph-card ${view === 'list' ? 'flex items-center gap-4 py-3' : ''}`} style={ROW_FILL}>
+            <AtriumPreview url={card.preview} small={view === 'list'} name={`waiting-${card.id}`} fly={card.id} />
+            <h4 className="mt-3 text-nier-bg text-sm tracking-wide break-words">{card.name}</h4>
           </div>
-          <p className="text-nier-bg/75 text-[clamp(7px,1.8vw,10px)] tracking-[0.2em] uppercase mt-3 text-center">◇ {t('common.pleaseWait')}</p>
-        </div>
+        ))}
       </div>
-    )
-  }
+    </div>
+  )
 
   return (
-    <div data-landing-theme={landingTheme.resolved} className="screen-rise fixed inset-0 z-50 overflow-y-auto text-nier-bg font-mono" style={{ backgroundColor: 'rgb(var(--c-ground))' }}>
-      <Atmosphere />
+    <div className="relative text-nier-bg font-mono">
 
-      <header className="sticky top-0 z-30 flex items-center justify-between gap-3 px-5 sm:px-8 h-16" style={{ backgroundColor: 'rgb(var(--c-ground) / 0.85)', backdropFilter: 'blur(6px)' }}>
-        <button onClick={onClose} className="landing-link text-xs tracking-[0.2em] uppercase">◁ {t('common.back')}</button>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            data-browser-help=""
-            onClick={() => setShowHelp(true)}
-            title={t('help.title')}
-            aria-label={t('help.title')}
-            className="cut-corner inline-flex items-center justify-center h-[2.125rem] px-4 border border-nier-border/40 text-nier-bg/80 hover:text-nier-strong hover:border-nier-border/80 text-xs transition-colors"
-            style={{ backgroundColor: 'rgb(var(--c-ground) / 0.94)' }}
-          >
-            ?
-          </button>
-          <ThemeToggle />
-          <DonateButton onClick={() => setShowContribute(true)} className="mr-1" />
-          {/* The lists as cards or as rows: the one in use lit, the light sliding to it. */}
-          <div role="group" aria-label={t('browser.view.label')} className="relative flex border border-nier-border/30">
-            <span aria-hidden="true" className="absolute inset-y-0 left-0 w-1/2 bg-nier-bg/10 border border-nier-border/60 transition-transform duration-300 ease-[cubic-bezier(.2,.8,.2,1)] motion-reduce:transition-none" style={{ transform: view === 'list' ? 'translateX(100%)' : undefined }} />
-            {(['grid', 'list'] as const).map(kind => (
-              <button
-                key={kind}
-                onClick={() => chooseView(kind)}
-                aria-pressed={view === kind}
-                title={t(kind === 'grid' ? 'browser.view.grid' : 'browser.view.list')}
-                aria-label={t(kind === 'grid' ? 'browser.view.grid' : 'browser.view.list')}
-                className={`relative w-9 h-[30px] flex items-center justify-center transition-colors ${view === kind ? 'text-nier-strong' : 'text-nier-bg/60 hover:text-nier-bg'}`}
-              >
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" aria-hidden="true">{VIEW_ICONS[kind]}</svg>
-              </button>
-            ))}
-          </div>
-          <button onClick={() => { loadLobbies(); lookForInvitations() }} disabled={loading} title={t('browser.refresh')} aria-label={t('browser.refresh')} className={ICON_BUTTON}>
-            <span className={loading ? 'animate-spin' : ''}>↻</span>
-          </button>
-          <FullscreenButton className={ICON_BUTTON} />
-        </div>
-      </header>
-
-      <main className="relative z-10 max-w-6xl mx-auto px-5 sm:px-10 pb-24">
-        <div className="flex flex-col items-center text-center pt-2 sm:pt-4 mb-8">
-          <span aria-hidden="true" className="landing-orb w-3 h-3 rounded-full mb-5" />
-          <p className="text-[11px] tracking-[0.35em] uppercase text-nier-bg/60">{t('browser.title')}</p>
-          <h1 className="mt-3 text-2xl sm:text-4xl font-extralight tracking-[0.1em] uppercase text-nier-strong text-balance">{t('browser.selectDestination')}</h1>
-        </div>
+      <main data-atriums="" className="relative pb-16">
+        <h1 data-rise="" className="text-2xl sm:text-[2rem] font-extralight leading-tight tracking-[0.01em] text-nier-strong">{t('browser.yours')}</h1>
 
         {/* One search, for every list below -- and beside it, a new one. */}
-        <div className="flex flex-col sm:flex-row gap-3 max-w-3xl mx-auto mb-10">
-        <div className="relative flex-1">
+        <div data-rise="" className="mt-5 mb-8 flex flex-wrap items-stretch gap-3">
+        <div className="relative flex-1 min-w-[min(100%,14rem)]">
           <input
             type="text"
             value={searchQuery}
@@ -1643,7 +1652,7 @@ export function LobbyBrowser({ onJoinLobby, onClose, guest = false, onSignIn }: 
               default for whoever's signed in with Google (phase 9), in the
               Atrium's cloud otherwise, within its three -- in the browser past them. */}
           <button
-            onClick={() => (showCreateLobby ? setShowCreateLobby(false) : openCreate())}
+            onClick={event => openCreate(event.currentTarget.getBoundingClientRect())}
             aria-expanded={showCreateLobby}
             className="px-6 py-3 bg-nier-bg text-nier-black text-xs tracking-[0.18em] uppercase font-medium hover:bg-nier-strong transition-colors whitespace-nowrap"
             style={{ clipPath: DONATE_CUT }}
@@ -1658,6 +1667,25 @@ export function LobbyBrowser({ onJoinLobby, onClose, guest = false, onSignIn }: 
             className="px-4 py-3 border border-nier-border/40 text-nier-bg/80 text-xs tracking-[0.18em] uppercase hover:text-nier-bg hover:border-nier-border/70 transition-colors disabled:opacity-40"
           >
             {t('tutorial.button')}
+          </button>
+          {/* The lists as cards or as rows: the one in use lit, the light sliding to it. */}
+          <div role="group" aria-label={t('browser.view.label')} className="relative flex border border-nier-border/30">
+            <span aria-hidden="true" className="absolute inset-y-0 left-0 w-1/2 bg-nier-bg/10 border border-nier-border/60 transition-transform duration-300 ease-[cubic-bezier(.2,.8,.2,1)] motion-reduce:transition-none" style={{ transform: view === 'list' ? 'translateX(100%)' : undefined }} />
+            {(['grid', 'list'] as const).map(kind => (
+              <button
+                key={kind}
+                onClick={() => chooseView(kind)}
+                aria-pressed={view === kind}
+                title={t(kind === 'grid' ? 'browser.view.grid' : 'browser.view.list')}
+                aria-label={t(kind === 'grid' ? 'browser.view.grid' : 'browser.view.list')}
+                className={`relative w-9 h-[30px] flex items-center justify-center transition-colors ${view === kind ? 'text-nier-strong' : 'text-nier-bg/60 hover:text-nier-bg'}`}
+              >
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" aria-hidden="true">{VIEW_ICONS[kind]}</svg>
+              </button>
+            ))}
+          </div>
+          <button onClick={() => { loadLobbies(); lookForInvitations() }} disabled={loading} title={t('browser.refresh')} aria-label={t('browser.refresh')} className={ICON_BUTTON}>
+            <span className={loading ? 'animate-spin' : ''}>↻</span>
           </button>
         </div>
 
@@ -1712,12 +1740,17 @@ export function LobbyBrowser({ onJoinLobby, onClose, guest = false, onSignIn }: 
               )}
             </section>
           )}
-          {/* Google Drive: connected or not, and the way to change it. */}
-          {canDrive && myId && <DriveConnection buttonClass={`${ROW_BUTTON} disabled:opacity-40`} />}
           {/* A new atrium: its form, opened by the button beside the search. */}
-          {showCreateLobby && (
-          <section>
-              <div className="max-w-3xl mx-auto border border-nier-border/30 p-5 space-y-4" style={ROW_FILL}>
+          {showCreateLobby && createPortal(
+            <div
+              data-new-atrium=""
+              data-ui-element="true"
+              className="modal-backdrop fixed inset-0 z-[10000] bg-nier-black/80 flex items-center justify-center p-4 overflow-y-auto font-mono text-nier-bg"
+              onMouseDown={event => { if (event.target === event.currentTarget && !creating) setShowCreateLobby(false) }}
+            >
+              <div ref={createSheet} role="dialog" aria-modal="true" aria-labelledby="new-atrium-title" className="w-full max-w-lg border border-nier-border/40 p-5 space-y-4" style={{ backgroundColor: 'rgb(var(--c-ground))', boxShadow: '0 24px 60px rgb(var(--c-shadow) / 0.5)' }}>
+                <h2 id="new-atrium-title" className="text-sm tracking-[0.15em] uppercase text-nier-strong">{t('welcome.newAtrium')}</h2>
+                {error && createTried.current && <p role="alert" className="danger-word text-xs tracking-wide">{error}</p>}
                 <div>
                   <label className="block text-nier-bg/80 text-xs tracking-[0.15em] uppercase mb-2">{t('browser.nameLabel')}</label>
                   <input
@@ -1780,7 +1813,8 @@ export function LobbyBrowser({ onJoinLobby, onClose, guest = false, onSignIn }: 
                   </button>
                 </div>
               </div>
-          </section>
+            </div>,
+            document.body,
           )}
 
           {/* Held for one, not back yet: why, and what it can do instead */}
@@ -1815,7 +1849,7 @@ export function LobbyBrowser({ onJoinLobby, onClose, guest = false, onSignIn }: 
             </section>
           )}
 
-          {(() => {
+          {!listsRead ? waiting : (() => {
             // The sections, numbered as they're shown. Each only with
             // something in it -- but one's own always, where a new one goes.
             let index = 0
@@ -1936,7 +1970,7 @@ export function LobbyBrowser({ onJoinLobby, onClose, guest = false, onSignIn }: 
       {/* Putting one of the vault's online: where, and -- one of one's own
           there by its name -- replacing it or not. */}
       {online && (
-        <div className="modal-backdrop fixed inset-0 bg-nier-black/80 flex items-center justify-center z-[100]" data-landing-theme={landingTheme.resolved}>
+        <div className="modal-backdrop fixed inset-0 bg-nier-black/80 flex items-center justify-center z-[100]">
           <div className="relative max-w-md w-full mx-4 border border-nier-border/40 p-6" style={{ backgroundColor: 'rgb(var(--c-ground))' }}>
             <h3 className="text-nier-strong tracking-[0.15em] uppercase text-sm mb-3">◇ {t('browser.putOnline.title', { name: online.lobby.name })}</h3>
             {online.busy ? (
@@ -2119,8 +2153,6 @@ export function LobbyBrowser({ onJoinLobby, onClose, guest = false, onSignIn }: 
         />
       )}
 
-      {showContribute && <ContributePanel onClose={() => setShowContribute(false)} />}
-
       {showVaultRecovery && (
         <VaultRecoveryPanel
           onClose={() => setShowVaultRecovery(false)}
@@ -2161,20 +2193,6 @@ export function LobbyBrowser({ onJoinLobby, onClose, guest = false, onSignIn }: 
         />
       )}
 
-      {showHelp && <Suspense fallback={null}><HelpPanel onClose={() => setShowHelp(false)} username={username} /></Suspense>}
-
-      {/* CSS for animations */}
-      <style>{`
-        @keyframes firefly {
-          0% { opacity: 0; transform: translateY(0px) translateX(0px); }
-          10% { opacity: 0.15; }
-          30% { opacity: 0.3; transform: translateY(-20px) translateX(15px); }
-          50% { opacity: 0.25; transform: translateY(-50px) translateX(-10px); }
-          70% { opacity: 0.35; transform: translateY(-30px) translateX(25px); }
-          90% { opacity: 0.1; transform: translateY(-10px) translateX(5px); }
-          100% { opacity: 0; transform: translateY(0px) translateX(0px); }
-        }
-              `}</style>
     </div>
   )
 }

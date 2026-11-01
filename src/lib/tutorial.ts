@@ -26,15 +26,6 @@ export const tutorialFinished = () => write(RUNNING, null)
 // The atrium of a tutorial left unfinished, if there is one.
 export const unfinishedTutorial = () => read(RUNNING)
 
-// Asked of the atrium browser as it opens, from the welcome screen: to start the
-// tutorial, or to open its New Atrium form. Once.
-let asked: 'tutorial' | 'create' | null = null
-export const askBrowserTo = (what: 'tutorial' | 'create') => { asked = what }
-export function takeBrowserAsk() {
-  const what = asked
-  asked = null
-  return what
-}
 
 // Lists that look empty don't say someone's new: their atriums on other devices
 // arrive after the lists do, or not at all if that look fails. What the directory

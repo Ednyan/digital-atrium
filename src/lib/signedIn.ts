@@ -41,7 +41,7 @@ export function keepAccount(account: WorkerAccount | null, reason?: SignedOutRea
   } catch { /* this visit only */ }
   // Said only when who's signed in changes (or why they were signed out):
   // the same account kept again -- its Drive connected, say -- isn't a
-  // sign-in, and the app mustn't take it for one (App moves to /welcome).
+  // sign-in, and the app mustn't take it for one (App moves to /home).
   if ((account?.id ?? null) !== was || reason) window.dispatchEvent(new CustomEvent(ACCOUNT_EVENT, { detail: { reason } }))
 }
 

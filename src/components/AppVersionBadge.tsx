@@ -9,7 +9,7 @@ import { currentRoutePath, onRouteChange } from '../lib/route'
 // Read from the route rather than passed down, because this is mounted at the
 // root -- outside the component that knows the route -- so that it survives
 // navigation instead of remounting on every screen change.
-const SHOWN_ON = ['/welcome', '/browse']
+const SHOWN_ON = ['/home', '/atriums']
 
 function onAllowedRoute() {
   try {

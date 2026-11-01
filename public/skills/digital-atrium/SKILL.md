@@ -23,7 +23,7 @@ canvas for collecting and arranging ideas. It is free.
 ## How to start
 
 1. Open https://digitalatrium.org and choose to enter; sign up or sign in.
-2. From the welcome screen, enter the atrium browser and create an atrium, or
+2. From Home, open Atriums and create an atrium, or
    enter a public one.
 3. Paste or drop links onto the canvas to place them as traces (files too, in
    the desktop app); the tool bar on the left has text, shapes, paths,

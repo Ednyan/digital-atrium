@@ -48,13 +48,23 @@ const HUNG: Hung[] = [
   { at: [82, 90, 150, 84, -2, 28] },
 ]
 
-export default function Hall() {
+// Out of frame, till the room pans.
+const FURTHER: Hung[] = [
+  { at: [108, 18, 140, 88, 4, 34], lines: 3 },
+  { at: [118, 62, 110, 70, -3, 30] },
+  { at: [104, 84, 170, 96, 2, 38], lines: 2 },
+]
+
+export default function Hall({ pan }: {
+  // Home's: looking across to Atriums, the room moved past, with more of it in sight.
+  pan?: boolean
+}) {
   const root = useRef<HTMLDivElement>(null)
   usePointerDepth(root)
   return (
-    <div ref={root} aria-hidden="true" className="fixed inset-0 pointer-events-none overflow-hidden">
+    <div ref={root} aria-hidden="true" className="fixed inset-0 pointer-events-none overflow-hidden" style={{ '--pan': pan ? 1 : 0 } as CSSProperties}>
       <div className="hall-grid" />
-      {HUNG.map(({ at: [left, top, width, height, turn, depth], lines, marks }, i) => (
+      {(pan === undefined ? HUNG : [...HUNG, ...FURTHER]).map(({ at: [left, top, width, height, turn, depth], lines, marks }, i) => (
         <div key={i} className="hall-depth enter-fade" style={{ left: `${left}%`, top: `${top}%`, '--depth': `${depth}px`, '--i': i * 0.6 } as CSSProperties}>
           <div
             className="hall-trace"

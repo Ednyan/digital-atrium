@@ -28,7 +28,7 @@ export default function NotFoundPage({ onHome, onAtriums }: { onHome: () => void
         <p className="text-nier-bg/75 text-sm leading-relaxed mb-10">{t('notFound.body')}</p>
         <div className="flex flex-wrap items-center justify-center gap-6">
           <button type="button" onClick={onHome} className="landing-cta px-8 py-3 text-xs tracking-[0.2em] uppercase" style={{ clipPath: DONATE_CUT }}>{t('notFound.home')}</button>
-          <button type="button" onClick={onAtriums} className="landing-link text-xs tracking-[0.18em] uppercase">{t('browser.title')} <span aria-hidden="true">→</span></button>
+          <button type="button" onClick={onAtriums} className="landing-link text-xs tracking-[0.18em] uppercase">{t('nav.atriums')} <span aria-hidden="true">→</span></button>
         </div>
       </div>
     </main>

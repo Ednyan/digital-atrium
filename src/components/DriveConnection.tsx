@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { DRIVE_CONNECTION_EVENT, disconnectDrive, hasDriveToken } from '../lib/drive'
 import { ensureSignedIn } from '../lib/driveSync'
-import { useTranslation } from '../lib/i18n'
 
 /** Whether Google Drive is connected for this account, with the ways to connect
  *  it (Google's window, so on the click) and to give it back. Each answers with
@@ -27,22 +26,4 @@ export function useDriveConnection() {
     }
   }
   return { connected, busy, connect: () => act(ensureSignedIn), disconnect: () => act(disconnectDrive) }
-}
-
-/** The same, said, with its button -- giving it back everywhere, as Google forgets
- *  this app's access (lib/drive, disconnectDrive). A Drive atrium asks for it again
- *  when it's opened. */
-export default function DriveConnection({ buttonClass }: { buttonClass: string }) {
-  const { t } = useTranslation()
-  const { connected, busy, connect, disconnect } = useDriveConnection()
-  const [note, setNote] = useState('')
-  return (
-    <div className="flex flex-wrap items-center gap-3">
-      <span className="text-nier-bg/80 text-xs tracking-[0.15em] uppercase">◇ {t(connected ? 'browser.drive.connected' : 'browser.drive.notConnected')}</span>
-      <button disabled={busy} onClick={() => { setNote(''); void (connected ? disconnect() : connect()).then(setNote) }} className={buttonClass}>
-        {t(connected ? 'browser.drive.disconnect' : 'browser.drive.connect')}
-      </button>
-      {note && <p role="alert" className="w-full text-nier-bg/70 text-[11px]">{note}</p>}
-    </div>
-  )
 }
