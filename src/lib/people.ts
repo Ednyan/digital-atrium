@@ -9,7 +9,7 @@ import { filesUrl, workerUrl } from './rooms'
 /** What anyone may know of someone: never their email. */
 export interface Person { id: string; username: string | null; display_name: string | null; drive_key: JsonWebKey | null; drive_root: string | null; hosted_root?: string | null }
 /** A Google account's own settings, private to it (lib/profile). */
-export interface Settings { player_color?: string; custom_themes?: unknown[] }
+export interface Settings { player_color?: string; custom_themes?: unknown[]; stats?: object }
 export interface InvitationRow {
   id: string; from_user: string; from_name: string | null; roster: string; lobby_id: string; name: string; secret: string | null; created_at: number
   auto?: number | null

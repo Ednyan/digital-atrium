@@ -59,7 +59,7 @@ import { useGamePick } from '../store/gameStore'
 import { useTranslation } from '../lib/i18n'
 import { LASER_EFFECTS, TRAIL_MAX_MS, TRAIL_MIN_MS, type LaserEffect, type LaserSettings } from '../lib/laser'
 import type { TranslationKey } from '../locales/en'
-import { barOrder as viewOrder, isSeparator, newSeparator } from '../lib/barOrder'
+import { barOrder as entriesOf, isSeparator, layOut, newSeparator } from '../lib/barOrder'
 
 export type PlaceTool = 'text' | BoxShape | 'path' | 'frame' | 'embed'
 // The kinds of file the Other button offers.
@@ -175,12 +175,9 @@ const BOX_TEXT_ICON = (
 export const QUICK_ORDER: QuickButton[] = ['select', 'text', 'shape', 'path', 'draw', 'image', 'embed', 'frame', 'other', 'laser', 'pinterest']
 const ON_THE_BAR: QuickButton[] = ['select', 'marquee', 'pan', 'text', 'shape', 'connect', ...QUICK_ORDER.slice(3)]
 
-// The bar's order: as chosen (Customize), with any tool the choice predates
-// at the end -- or as it comes, with none chosen.
-export function barOrder(chosen: string[] | null): QuickButton[] {
-  const known = (chosen ?? []).filter((tool, i, all): tool is QuickButton => (ON_THE_BAR as string[]).includes(tool) && all.indexOf(tool) === i)
-  return [...known, ...ON_THE_BAR.filter(tool => !known.includes(tool))]
-}
+// The bar's entries as they come (lib/barOrder): Pinterest, from elsewhere, set apart.
+const BAR_ITEMS = ON_THE_BAR.map(id => ({ id, apart: id === 'pinterest' }))
+const barOrder = (chosen: string[] | null) => entriesOf(chosen, BAR_ITEMS)
 
 // A tool's key: its place in the order it comes in, not where it's been put.
 const keyOf = (action: QuickButton): string | null => {
@@ -277,7 +274,8 @@ export default function QuickBar({ armed, drawing, laser, panning, selecting, co
 }) {
   const { t } = useTranslation()
   const { quickBarOrder } = useGamePick('quickBarOrder')
-  const tools = barOrder(quickBarOrder)
+  const order = barOrder(quickBarOrder)
+  const toolCount = order.filter(entry => !isSeparator(entry)).length
   // The open flyout: while the pointer is over it or its button, with a
   // moment's grace for the gap between them.
   const [flyout, setFlyout] = useState<FlyoutTool | null>(null)
@@ -286,7 +284,7 @@ export default function QuickBar({ armed, drawing, laser, panning, selecting, co
   // More taking the last place; the rest are under More. It used to go on in
   // more columns, which on a short screen climbed up beside Save.
   const barRef = useRef<HTMLDivElement>(null)
-  const [rows, setRows] = useState(tools.length + 1)
+  const [rows, setRows] = useState(toolCount + 1)
   useLayoutEffect(() => {
     const room = barRef.current?.parentElement
     if (!room) return
@@ -303,8 +301,7 @@ export default function QuickBar({ armed, drawing, laser, panning, selecting, co
     observer.observe(room)
     return () => observer.disconnect()
   }, [horizontal])
-  const shown = tools.length + 1 <= rows ? tools : tools.slice(0, Math.max(0, rows - 1))
-  const hidden = tools.slice(shown.length)
+  const { shown, hidden } = layOut(order, rows) as { shown: { id: QuickButton; apart: boolean }[]; hidden: QuickButton[] }
   // More's panel, open: apart from `flyout`, so a tool in it can open its own.
   const [moreOpen, setMoreOpen] = useState(false)
   const moreTimer = useRef<number | null>(null)
@@ -403,7 +400,7 @@ export default function QuickBar({ armed, drawing, laser, panning, selecting, co
       className={`pointer-events-auto flex ${horizontal ? 'relative flex-row self-start' : 'flex-col'} gap-1 p-1 border border-nier-border/40`}
       style={{ backgroundColor: 'rgb(var(--c-ground) / 0.92)' }}
     >
-      {shown.map((action, i) => renderTool(action, i))}
+      {shown.map(({ id, apart }) => renderTool(id, apart))}
       {/* More: what didn't fit, and Customize quick bar. */}
       <div className={horizontal ? 'group' : 'group relative'} onMouseEnter={horizontal ? undefined : keepMore} onMouseLeave={horizontal ? undefined : letMoreGo}>
         <button
@@ -429,7 +426,7 @@ export default function QuickBar({ armed, drawing, laser, panning, selecting, co
             <ToolName name={t('atrium.tools.more')} keyName={null} />
             {hidden.length > 0 && (
               <div className="grid grid-cols-4 gap-1 pb-1 border-b border-nier-border/25">
-                {hidden.map((action, i) => renderTool(action, i, true))}
+                {hidden.map(action => renderTool(action, false, true))}
               </div>
             )}
             <button
@@ -450,7 +447,7 @@ export default function QuickBar({ armed, drawing, laser, panning, selecting, co
   // A tool's button, with its name sliding out beside it and its flyout --
   // on the bar, or in More's panel (inPanel: named by its title there, a
   // sliding name crossing the tools beside it).
-  function renderTool(action: QuickButton, i: number, inPanel = false) {
+  function renderTool(action: QuickButton, apart: boolean, inPanel = false) {
         const on = action === 'select' ? !armed && !drawing && !laser && !panning && !selecting && !connecting
           : action === 'marquee' ? selecting
           : action === 'connect' ? connecting
@@ -489,13 +486,12 @@ export default function QuickBar({ armed, drawing, laser, panning, selecting, co
             // Under More, not the anchor for its options: they open beside
             // the panel (the next one positioned), at its foot -- on a click,
             // as hovering on the way to them would cross the other tools.
-            className={inPanel || horizontal ? 'group' : 'group relative'}
+            className={inPanel || (horizontal && !apart) ? 'group' : 'group relative'}
             onMouseEnter={withFlyout && !inPanel && !horizontal ? () => keepFlyout(action) : undefined}
             onMouseLeave={withFlyout && !inPanel && !horizontal ? letFlyoutGo : undefined}
           >
-            {/* In the gap above, so every tool keeps its row's height -- and
-                only with a tool above it to set it apart from. */}
-            {action === 'pinterest' && i !== 0 && !inPanel && !horizontal && <div className="absolute -top-[3px] inset-x-1 h-px bg-nier-border/30" />}
+            {/* In the gap before it, so every tool keeps its row's height. */}
+            {apart && <div data-quick-separator="" className={`absolute ${horizontal ? '-left-[3px] inset-y-1 w-px' : '-top-[3px] inset-x-1 h-px'} bg-nier-border/30`} />}
             <button
               type="button"
               data-quick={action}
@@ -744,6 +740,31 @@ function BarEditor({ subtitle, hint, order, rowOf, onOrder, canReset, onClose, c
     if (held && held.order.join() !== order.join()) onOrder(held.order)
     setHeld(null)
   }
+  // Longer than the panel: held near its top or foot, the list scrolls, so a row
+  // can be carried the whole way.
+  const listRef = useRef<HTMLUListElement>(null)
+  const pointerY = useRef(0)
+  const moveRef = useRef(move)
+  moveRef.current = move
+  const holding = !!held
+  useEffect(() => {
+    if (!holding) return
+    let scroller: HTMLElement | null = listRef.current
+    while (scroller && scroller.scrollHeight <= scroller.clientHeight) scroller = scroller.parentElement
+    if (!scroller) return
+    let frame = 0
+    const step = () => {
+      const box = scroller!.getBoundingClientRect()
+      const by = pointerY.current < box.top + 40 ? -8 : pointerY.current > box.bottom - 40 ? 8 : 0
+      if (by) {
+        scroller!.scrollTop += by
+        moveRef.current(pointerY.current)
+      }
+      frame = requestAnimationFrame(step)
+    }
+    frame = requestAnimationFrame(step)
+    return () => cancelAnimationFrame(frame)
+  }, [holding])
   return (
     <CustomizationPanel
       subtitle={subtitle}
@@ -764,7 +785,7 @@ function BarEditor({ subtitle, hint, order, rowOf, onOrder, canReset, onClose, c
       <div className="px-4 py-3">
         <p className="text-nier-bg/60 text-[0.7rem] leading-relaxed tracking-wide mb-3">{hint}</p>
         {children}
-        <ul className="flex flex-col gap-1" data-quick-editor="">
+        <ul ref={listRef} className="flex flex-col gap-1" data-quick-editor="">
           {list.map(entry => {
             const row = rowOf(entry)
             return (
@@ -775,9 +796,13 @@ function BarEditor({ subtitle, hint, order, rowOf, onOrder, canReset, onClose, c
                 onPointerDown={e => {
                   if (e.button !== 0) return
                   e.currentTarget.setPointerCapture(e.pointerId)
+                  pointerY.current = e.clientY
                   setHeld({ entry, order: list })
                 }}
-                onPointerMove={e => move(e.clientY)}
+                onPointerMove={e => {
+                  pointerY.current = e.clientY
+                  move(e.clientY)
+                }}
                 onPointerUp={letGo}
                 onPointerCancel={() => setHeld(null)}
                 className={`flex items-center gap-3 h-10 px-2 border select-none touch-none transition-colors ${
@@ -810,22 +835,51 @@ function BarEditor({ subtitle, hint, order, rowOf, onOrder, canReset, onClose, c
   )
 }
 
+// A separator's row, and the way to add one: both bars', moved like any tool. A
+// new one goes near the top, in view here and on the bar at once, to drag from there.
+function useSeparators(order: string[], onOrder: (order: string[]) => void) {
+  const { t } = useTranslation()
+  return {
+    row: (entry: string) => ({
+      icon: <path d="M12 3v18" />,
+      name: t('atrium.tools.separator'),
+      removeLabel: t('atrium.tools.removeSeparator'),
+      onRemove: () => onOrder(order.filter(other => other !== entry)),
+    }),
+    add: (
+      <button
+        type="button"
+        data-separator-add=""
+        onClick={() => onOrder([...order.slice(0, 1), newSeparator(order), ...order.slice(1)])}
+        className="mb-2 w-full py-2 border border-dashed border-nier-border/40 text-nier-bg/80 text-[10px] tracking-[0.15em] uppercase hover:text-nier-bg hover:border-nier-border/70 transition-colors"
+      >
+        + {t('atrium.tools.addSeparator')}
+      </button>
+    ),
+  }
+}
+
 export function QuickBarEditor({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation()
   const { quickBarOrder, setQuickBarOrder } = useGamePick('quickBarOrder', 'setQuickBarOrder')
+  const order = barOrder(quickBarOrder)
+  const separators = useSeparators(order, setQuickBarOrder)
   return (
     <BarEditor
       subtitle={t('atrium.tools.customizeBar')}
       hint={t('atrium.tools.customizeBarHint')}
-      order={barOrder(quickBarOrder)}
+      order={order}
       rowOf={entry => {
+        if (isSeparator(entry)) return separators.row(entry)
         const tool = entry as QuickButton
         return { icon: tool === 'shape' ? ICONS.rectangle : ICONS[tool], name: t(TOOL_NAME[tool]), keyName: keyOf(tool) }
       }}
       onOrder={setQuickBarOrder}
       canReset={!!quickBarOrder}
       onClose={onClose}
-    />
+    >
+      {separators.add}
+    </BarEditor>
   )
 }
 
@@ -834,21 +888,15 @@ export function QuickBarEditor({ onClose }: { onClose: () => void }) {
 export function ViewBarEditor({ items, onClose }: { items: { id: string; icon: string; label: string; apart?: boolean }[]; onClose: () => void }) {
   const { t } = useTranslation()
   const { viewBarOrder, setViewBarOrder } = useGamePick('viewBarOrder', 'setViewBarOrder')
-  const order = viewOrder(viewBarOrder, items)
+  const order = entriesOf(viewBarOrder, items)
+  const separators = useSeparators(order, setViewBarOrder)
   return (
     <BarEditor
       subtitle={t('atrium.tools.customizeTop')}
       hint={t('atrium.tools.customizeTopHint')}
       order={order}
       rowOf={entry => {
-        if (isSeparator(entry)) {
-          return {
-            icon: <path d="M12 3v18" />,
-            name: t('atrium.tools.separator'),
-            removeLabel: t('atrium.tools.removeSeparator'),
-            onRemove: () => setViewBarOrder(order.filter(other => other !== entry)),
-          }
-        }
+        if (isSeparator(entry)) return separators.row(entry)
         const item = items.find(one => one.id === entry)!
         return { icon: <path d={item.icon} />, name: item.label }
       }}
@@ -856,15 +904,7 @@ export function ViewBarEditor({ items, onClose }: { items: { id: string; icon: s
       canReset={!!viewBarOrder}
       onClose={onClose}
     >
-      <button
-        type="button"
-        data-separator-add=""
-        // Near the top, in view here and on the bar at once, to drag from there.
-        onClick={() => setViewBarOrder([...order.slice(0, 1), newSeparator(order), ...order.slice(1)])}
-        className="mb-2 w-full py-2 border border-dashed border-nier-border/40 text-nier-bg/80 text-[10px] tracking-[0.15em] uppercase hover:text-nier-bg hover:border-nier-border/70 transition-colors"
-      >
-        + {t('atrium.tools.addSeparator')}
-      </button>
+      {separators.add}
     </BarEditor>
   )
 }

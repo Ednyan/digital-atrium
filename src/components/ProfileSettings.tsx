@@ -15,6 +15,8 @@ import {
 import { goTo } from '../lib/route'
 import { daysUntilNameChange, loadMyProfile, saveMyProfile } from '../lib/profile'
 import { googleAccount, workerAccount } from '../lib/signedIn'
+import { accountJoined, noteToday, readStats, syncStats, togglePinned } from '../lib/stats'
+import { AchievementsGrid, ProfileTop } from './ProfileAchievements'
 import { adopt, changePassword, deleteEmailAccount } from '../lib/emailAccount'
 import GoogleButton from './GoogleButton'
 
@@ -30,6 +32,26 @@ export default function ProfileSettings({ onClose }: ProfileSettingsProps) {
   const { t } = useTranslation()
   const { userId, username, setUsername, playerColor, setPlayerColor } = useGamePick('userId', 'username', 'setUsername', 'playerColor', 'setPlayerColor')
   const [displayName, setDisplayName] = useState(username)
+  // The name as saved, for the top of the page: not each letter being typed.
+  const [savedName, setSavedName] = useState(username)
+  // One's achievements and how far one's come (lib/stats), and when one began: what the
+  // account says, what the sign-in says, or the first day seen here. Nothing new
+  // is asked for: one's entry is already read.
+  const [stats, setStats] = useState(readStats)
+  const [signedUp, setSignedUp] = useState<number | null>(null)
+  useEffect(() => {
+    let left = false
+    noteToday()
+    void syncStats().then(now => { if (!left) setStats(now) })
+    void supabase?.auth.getUser().then(({ data }: any) => {
+      const at = Date.parse(data?.user?.created_at ?? '')
+      if (!left && Number.isFinite(at)) setSignedUp(at)
+    })
+    return () => { left = true }
+  }, [])
+  const joinedAt = [signedUp, accountJoined(), stats.firstDay ? Date.parse(stats.firstDay + 'T12:00:00') : null]
+    .filter((at): at is number => typeof at === 'number' && Number.isFinite(at) && at > 0)
+    .sort((a, b) => a - b)[0] ?? null
   const [actualUsername, setActualUsername] = useState('')
   const [canChange, setCanChange] = useState(isDesktop) // Desktop: always allowed
   const [daysUntilChange, setDaysUntilChange] = useState(0)
@@ -105,6 +127,7 @@ export default function ProfileSettings({ onClose }: ProfileSettingsProps) {
     if (!profile) return
     setActualUsername(profile.username)
     setDisplayName(profile.displayName)
+    setSavedName(profile.displayName)
     if (profile.color) {
       setSelectedColor(profile.color)
       setPlayerColor(profile.color)
@@ -171,15 +194,12 @@ export default function ProfileSettings({ onClose }: ProfileSettingsProps) {
       await saveMyProfile(userId, { displayName })
 
       setUsername(displayName)
+      setSavedName(displayName)
       setSuccess(true)
       if (!isDesktop) {
         setCanChange(false)
         setDaysUntilChange(15)
       }
-      
-      setTimeout(() => {
-        onClose()
-      }, 2000)
     } catch (err: any) {
       setError(err?.message === 'NAME_TOO_SOON'
         ? t('profile.canChangeIn', { days: daysUntilNameChange(null, err.until) })
@@ -413,8 +433,9 @@ export default function ProfileSettings({ onClose }: ProfileSettingsProps) {
 
   return (
     <div
-      className="modal-backdrop fixed inset-0 bg-nier-black/80 flex items-center justify-center z-[10000] p-4"
-      style={{ touchAction: 'auto', overscrollBehavior: 'contain' }}
+      data-profile=""
+      className="modal-backdrop fixed inset-0 bg-nier-black z-[10000] overflow-y-auto"
+      style={{ touchAction: 'pan-y', overscrollBehavior: 'contain' }}
       onTouchMove={(e) => e.stopPropagation()}
       onTouchStart={(e) => e.stopPropagation()}
       // Clicking the backdrop deliberately does nothing: this panel holds
@@ -424,42 +445,24 @@ export default function ProfileSettings({ onClose }: ProfileSettingsProps) {
       // added later can quietly turn a miss-click back into a dismissal.
       onClick={(e) => e.stopPropagation()}
     >
-      {/* Capped and scrolling, like every other panel in the app. The brackets
-          sit on this outer, non-scrolling wrapper so they stay pinned to the
-          visible edges rather than to the bottom of the scrollable content. */}
-      <div className="bg-nier-blackLight border border-nier-border/40 max-w-md w-full mx-4 max-h-[90vh] relative flex flex-col">
-        {/* Corner brackets */}
-        <div className="absolute top-0 left-0 w-5 h-5 border-l border-t border-nier-border/60" />
-        <div className="absolute top-0 right-0 w-5 h-5 border-r border-t border-nier-border/60" />
-        <div className="absolute bottom-0 left-0 w-5 h-5 border-l border-b border-nier-border/60" />
-        <div className="absolute bottom-0 right-0 w-5 h-5 border-r border-b border-nier-border/60" />
-
-        {/* Outside the scroller, so the way out stays on screen.
-            The title and the × used to be the first thing inside the
-            scrolling area, which meant the only control that closes this
-            panel scrolled off the top the moment anybody went looking for
-            the delete-account section at the bottom -- the furthest point
-            from the exit is exactly where somebody is most likely to want
-            it. The padding splits with it: the header keeps the top, the
-            scroller keeps the sides and the bottom. */}
-        <div className="flex justify-between items-center gap-3 px-6 pt-6 pb-4 shrink-0">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="w-1.5 h-1.5 rotate-45 border border-nier-border/60 shrink-0" />
-            <h2 className="text-lg text-white tracking-[0.15em] uppercase truncate">{t('profile.title')}</h2>
-          </div>
+      {/* A page of its own: who one is and one's achievements, one's settings beside them. */}
+      <div className="max-w-6xl mx-auto px-5 sm:px-10 py-6">
+        <div className="flex items-center justify-between gap-4 mb-8">
           <button
+            type="button"
+            data-profile-back=""
             onClick={onClose}
-            aria-label={t('common.close')}
-            className="w-8 h-8 shrink-0 flex items-center justify-center border border-nier-border/30 text-nier-bg/80 hover:text-nier-bg hover:border-nier-border/60 transition-colors"
+            className="text-[11px] tracking-[0.2em] uppercase text-nier-bg/80 hover:text-nier-strong transition-colors"
           >
-            ×
+            <span aria-hidden="true">◁</span> {t('common.back')}
           </button>
+          <span className="text-[11px] tracking-wide text-nier-bg/70">{t('achievements.private')}</span>
         </div>
-
-        <div
-          className="px-6 pb-6 overflow-y-auto flex-1 min-h-0"
-          style={{ touchAction: 'pan-y', overscrollBehavior: 'contain' }}
-        >
+        <ProfileTop name={savedName} username={actualUsername} colour={playerColor} joined={joinedAt} stats={stats} />
+        <div className="mt-9 grid gap-9 lg:grid-cols-[minmax(0,1fr)_23rem] items-start">
+          <AchievementsGrid stats={stats} onToggle={id => setStats(togglePinned(id))} />
+        <div data-profile-settings="" aria-labelledby="profile-settings-title">
+        <h2 id="profile-settings-title" className="text-xs font-medium tracking-[0.24em] uppercase text-nier-strong mb-4">{t('profile.yours')}</h2>
         <div className="space-y-4">
           {/* Username (permanent) - only show on web */}
           {!isDesktop && (
@@ -891,6 +894,7 @@ export default function ProfileSettings({ onClose }: ProfileSettingsProps) {
               )}
             </>
           )}
+        </div>
         </div>
         </div>
       </div>

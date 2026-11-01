@@ -39,6 +39,7 @@ const ExportDatabase = lazy(() => import('./ExportDatabase'))
 const DriveSpike = lazy(() => import('./DriveSpike'))
 import type { Lobby } from '../types/database'
 import { sortByLastVisited, mergeRemoteVisits } from '../lib/recentAtriums'
+import { noteToday, syncStats } from '../lib/stats'
 import { cameBefore, markTutorialSeen, tutorialFinished, tutorialSeen, tutorialStarted, unfinishedTutorial } from '../lib/tutorial'
 import { browserAtriumIds, browserEngine, clientFor, forgetBrowserAtrium, leaveBrowserAtrium, rememberBrowserAtrium, vaultProblem } from '../lib/browserAtriums'
 import { checkPlatformAdmin } from '../lib/platformAdmin'
@@ -735,7 +736,12 @@ export function LobbyBrowser({ onJoinLobby, onClose, guest = false, onSignIn }: 
     if (!myId) return
     const release = holdReads()
     if (canHost || canDrive || isDesktop) elsewhere.current = lookElsewhere(myId)
-    void Promise.all([askAhead(), loadBrowserLobbies()]).finally(release)
+    // One's achievements: told to the account after, with what this start has already read.
+    noteToday()
+    void Promise.all([askAhead(), loadBrowserLobbies()]).finally(() => {
+      release()
+      void syncStats()
+    })
   }, [myId])
   // Its shared atriums, as the desktop's account signs in or out.
   useEffect(() => { if (isDesktop) void loadBrowserLobbies() }, [deskAccount])

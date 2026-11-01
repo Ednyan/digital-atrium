@@ -263,8 +263,14 @@ export const useGameStore = create<GameState>((set, get) => ({
   },
   quickBarOrder: (() => {
     try {
-      const stored = JSON.parse(localStorage.getItem('atrium.quickBar.order') || 'null')
-      return Array.isArray(stored) ? stored.filter((tool: unknown): tool is string => typeof tool === 'string') : null
+      const stored = JSON.parse(localStorage.getItem('atrium.quickBar.entries') || 'null')
+      if (Array.isArray(stored)) return stored.filter((tool: unknown): tool is string => typeof tool === 'string')
+      // An order chosen before separators could be moved: the one it had, kept.
+      const before = JSON.parse(localStorage.getItem('atrium.quickBar.order') || 'null')
+      if (!Array.isArray(before)) return null
+      const tools = before.filter((tool: unknown): tool is string => typeof tool === 'string')
+      const at = tools.indexOf('pinterest')
+      return at > 0 ? [...tools.slice(0, at), 'sep-1', ...tools.slice(at)] : tools
     } catch {
       return null
     }
@@ -355,8 +361,9 @@ export const useGameStore = create<GameState>((set, get) => ({
     set({ showMinimap: on })
   },
   setQuickBarOrder: (order) => {
-    if (order) localStorage.setItem('atrium.quickBar.order', JSON.stringify(order))
-    else localStorage.removeItem('atrium.quickBar.order')
+    localStorage.removeItem('atrium.quickBar.order')
+    if (order) localStorage.setItem('atrium.quickBar.entries', JSON.stringify(order))
+    else localStorage.removeItem('atrium.quickBar.entries')
     set({ quickBarOrder: order })
   },
   setPanelActions: (actions) => {

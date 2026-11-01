@@ -71,6 +71,8 @@ import { fileNameOf, saveFile } from '../lib/fileSave'
 import type { PresentationFormat } from '../lib/presentationExport'
 import QuickBar, { EmptyCanvasHint, HistoryButtons, QUICK_ORDER, ToolHint, type PlaceTool, type QuickAction, QuickBarEditor, ViewBarEditor } from './QuickBar'
 import { inTutorial, tutorialFinished } from '../lib/tutorial'
+import { count, noteToday, ACHIEVEMENT_EVENT } from '../lib/stats'
+import type { TranslationKey } from '../locales/en'
 import { isBoxShape, type BoxShape } from '../lib/shapeStyle'
 import { roundedPolygonPath, shapePolygon } from '../lib/traceGeometry'
 import { formatSize } from '../lib/size'
@@ -4902,6 +4904,14 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
   const [tutorial, setTutorial] = useState(() => inTutorial(lobbyId))
   tutorialRef.current = tutorial
   const [clearRequest, setClearRequest] = useState(0)
+  // Today counted, and an achievement earned said (lib/stats).
+  useEffect(() => {
+    noteToday()
+    const earned = (e: Event) => showToast(t('achievements.earned', { name: t(`achievements.name.${(e as CustomEvent<string>).detail}` as TranslationKey) }))
+    window.addEventListener(ACHIEVEMENT_EVENT, earned)
+    return () => window.removeEventListener(ACHIEVEMENT_EVENT, earned)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   useEffect(() => {
     if (clearRequest) void saveAllChanges()
   }, [clearRequest])
@@ -6266,7 +6276,10 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
           <TemplatesPanel
             context={templateContext}
             onClose={() => setShowTemplates(false)}
-            onPlace={(file, screen) => void placeAtriumFile(file, screen ? screenToWorld(screen.x, screen.y) : screenToWorld(window.innerWidth / 2, window.innerHeight / 2), true)}
+            onPlace={(file, screen) => {
+              count('templates')
+              void placeAtriumFile(file, screen ? screenToWorld(screen.x, screen.y) : screenToWorld(window.innerWidth / 2, window.innerHeight / 2), true)
+            }}
           />
         </Suspense>
       )}

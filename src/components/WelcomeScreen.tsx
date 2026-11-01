@@ -618,7 +618,7 @@ export default function WelcomeScreen({ onEnter, onBackToLanding, onAbout, onDev
       {showSettings && <ProfileSettings onClose={() => setShowSettings(false)} />}
       {showContribute && <ContributePanel onClose={() => setShowContribute(false)} />}
 
-      {showAppeal && (
+      {showAppeal && !showSettings && (
         <SupportAppeal
           onClose={() => setShowAppeal(false)}
           onDonate={() => {

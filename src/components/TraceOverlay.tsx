@@ -17,6 +17,7 @@ import { useGameStore, lobbyFullMessage, useGamePick } from '../store/gameStore'
 import { useLatestHandlers } from '../hooks/useLatestHandlers'
 import { showToast } from '../lib/toast'
 import { useTranslation } from '../lib/i18n'
+import { count } from '../lib/stats'
 import { isCanvasTarget, isEditableTarget } from '../lib/editableTarget'
 
 // Video and audio stream from the vault rather than being read into memory.
@@ -2215,6 +2216,11 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
       }
     }
     if (newlyDiscovered.length > 0) {
+      // One's own, for one's achievements: not someone else's in a shared room, and not
+      // an import or a template, which a layer change brings in (above).
+      const mine = newlyDiscovered.filter(trace => trace.userId === useGameStore.getState().userId)
+      count('placed', mine.length)
+      count('drawings', mine.filter(isDrawingTrace).length)
       pushBatchAddOp(newlyDiscovered)
       joinArrangedRef.current?.(newlyDiscovered)
     }
@@ -3010,6 +3016,7 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
       made.push({ id: crypto.randomUUID(), lobbyId, from, to: target, arrow: 'none', color: null, width: DEFAULT_LINK_WIDTH, label: '', labelOnHover: false, straight: false, toCenter: false, labelSize: DEFAULT_LABEL_SIZE, elbow: false, elbowAt: 0.5, opacity: DEFAULT_LINK_OPACITY })
     }
     if (made.length === 0) return
+    count('threads', made.length)
     for (const link of made) putLink(link)
     pushLinksOp([], made)
   }
@@ -3315,10 +3322,13 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
     executeDelete(traceIds, linkIds)
   }
 
+  const clearingRef = useRef(false)
   useEffect(() => {
     if (!clearRequest) return
     const { traces: all, links: threads } = useGameStore.getState()
+    clearingRef.current = true
     executeDelete(all.map(trace => trace.id), threads.map(link => link.id))
+    clearingRef.current = false
     undoStackRef.current = []
     redoStackRef.current = []
     showReach()
@@ -3326,6 +3336,7 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
   }, [clearRequest])
 
   const executeDelete = (traceIds: string[], linkIds: string[] = []) => {
+    if (!clearingRef.current) count('deleted', traceIds.length)
     setContextMenu(null)
     setDeleteConfirmDialog(null)
     setMultiSelectedIds(new Set())

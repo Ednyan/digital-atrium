@@ -13,6 +13,8 @@ import { addColour, normalHex, paletteNow } from './palette'
 import { showToast } from './toast'
 import { t } from './i18n'
 
+import { count } from './stats'
+
 export type Picked = { colour: string } | { problem: 'unreadable' | 'nothing' }
 
 const hexOf = (r: number, g: number, b: number) => '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('')
@@ -103,6 +105,9 @@ export function takeColour(colour: string) {
 /** The colour under (x, y) into the palette (the I key, the dropper). */
 export async function takeColourAt(x: number, y: number, traces: Trace[]) {
   const picked = await colourAt(x, y, traces)
-  if ('colour' in picked) takeColour(picked.colour)
+  if ('colour' in picked) {
+    takeColour(picked.colour)
+    count('colours')
+  }
   else showToast(t(picked.problem === 'unreadable' ? 'atrium.palette.unreadable' : 'atrium.palette.nothing'))
 }

@@ -194,6 +194,8 @@ export const tablesIn = (db: D1Database) => (made ??= (async () => {
 const SETTINGS: Record<string, (value: unknown) => boolean> = {
   player_color: value => typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value),
   custom_themes: value => Array.isArray(value) && value.length <= 12 && JSON.stringify(value).length <= 32_000,
+  // What's counted for one's achievements (src/lib/achievements): one small object, whatever's counted.
+  stats: value => !!value && typeof value === 'object' && !Array.isArray(value) && JSON.stringify(value).length <= 2_000,
 }
 // The atriums whose last visit is kept for an account, as the browser keeps them.
 const MOST_VISITS = 200
@@ -514,7 +516,7 @@ export async function people(request: Request, env: Env, what: string): Promise<
         if (key.length > 1000 || (root && root.length > 128)) return answer(400, { error: 'drive' })
         await db.prepare('update accounts set drive_key = ?, drive_root = ? where id = ?').bind(key === 'null' ? null : key, root, who.id).run()
       }
-      const row = await db.prepare('select id, kind, username, display_name, drive_key, drive_root, hosted_root, email, settings, name_changed_at from accounts where id = ?').bind(who.id).first()
+      const row = await db.prepare('select id, kind, username, display_name, drive_key, drive_root, hosted_root, email, settings, name_changed_at, created_at from accounts where id = ?').bind(who.id).first()
       // A name changed: an owner's, on the public list.
       if (row && (row.username !== (before?.username ?? null) || row.display_name !== (before?.display_name ?? null))) await dropPublic(env, [LISTED])
       return answer(200, shown(row))

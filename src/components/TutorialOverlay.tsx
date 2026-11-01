@@ -9,6 +9,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from '../lib/i18n'
 import { isDrawingTrace } from '../lib/brushes'
+import { count } from '../lib/stats'
 import { useGameStore } from '../store/gameStore'
 import type { Trace } from '../types/database'
 import type { TranslationKey } from '../locales/en'
@@ -28,7 +29,7 @@ const typing = () => {
 
 interface View { x: number; y: number; zoom: number }
 interface Step {
-  id: 'welcome' | 'move' | 'bar' | 'view' | 'text' | 'shape' | 'arrange' | 'style' | 'draw' | 'path' | 'own' | 'connect' | 'finish'
+  id: 'welcome' | 'move' | 'bar' | 'view' | 'menu' | 'text' | 'shape' | 'arrange' | 'style' | 'draw' | 'path' | 'own' | 'connect' | 'finish'
   // What it points at: the first of these on the screen.
   target?: string[]
   // A pop-up about the interface: the rest is dimmed while it's read.
@@ -52,6 +53,7 @@ const STEPS: Step[] = [
   { id: 'move' },
   { id: 'bar', target: ['[data-quick-bar]'], dim: true },
   { id: 'view', target: ['[data-view-bar]', '[data-atrium-menu]'], dim: true },
+  { id: 'menu', target: ['[data-atrium-menu]'], dim: true },
   { id: 'text', target: ['[data-quick="text"]', '[data-quick="more"]'], count: ts => ts.filter(t => t.type === 'text' && !!t.content?.trim()), done: made => made.length > 0 && !typing() },
   { id: 'shape', target: ['[data-quick="shape"]', '[data-quick="more"]'], count: ts => ts.filter(isShape) },
   { id: 'arrange', needs: ts => !!theirShape(ts), ofShape: shape => `${shape.x},${shape.y}` },
@@ -64,11 +66,11 @@ const STEPS: Step[] = [
 ]
 
 const TITLE = {
-  welcome: 'tutorial.welcome.title', move: 'tutorial.move.title', bar: 'tutorial.bar.title', view: 'tutorial.view.title',
+  welcome: 'tutorial.welcome.title', move: 'tutorial.move.title', bar: 'tutorial.bar.title', view: 'tutorial.view.title', menu: 'tutorial.menu.title',
   text: 'tutorial.text.title', shape: 'tutorial.shape.title', arrange: 'tutorial.arrange.title', style: 'tutorial.style.title', draw: 'tutorial.draw.title', path: 'tutorial.path.title', own: 'tutorial.own.title', connect: 'tutorial.connect.title', finish: 'tutorial.finish.title',
 } as const satisfies Record<Step['id'], TranslationKey>
 const BODY = {
-  welcome: 'tutorial.welcome.body', move: 'tutorial.move.body', bar: 'tutorial.bar.body', view: 'tutorial.view.body',
+  welcome: 'tutorial.welcome.body', move: 'tutorial.move.body', bar: 'tutorial.bar.body', view: 'tutorial.view.body', menu: 'tutorial.menu.body',
   text: 'tutorial.text.body', shape: 'tutorial.shape.body', arrange: 'tutorial.arrange.body', style: 'tutorial.style.body', draw: 'tutorial.draw.body', path: 'tutorial.path.body', own: 'tutorial.own.body', connect: 'tutorial.connect.body', finish: 'tutorial.finish.body',
 } as const satisfies Record<Step['id'], TranslationKey>
 
@@ -134,6 +136,11 @@ export default function TutorialOverlay({ view, onToolDown, onStay, onExit }: {
   useLayoutEffect(() => {
     if (cardRef.current) setCardHeight(cardRef.current.offsetHeight)
   }, [index, done, t])
+
+  // The last card reached: it's been done, stayed in or not.
+  useEffect(() => {
+    if (step.id === 'finish') count('tutorial')
+  }, [step.id])
 
   // Where it's pointing, and whether it's been done.
   useEffect(() => {
