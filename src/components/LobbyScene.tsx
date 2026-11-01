@@ -64,12 +64,13 @@ import { clampZoomSensitivity, getStoredZoomSensitivity } from '../lib/zoomSensi
 import { ReportFeedbackModal } from './ReportFeedbackModal'
 const HelpPanel = lazy(() => import('./HelpPanel'))
 const TemplatesPanel = lazy(() => import('./TemplatesPanel'))
+const TutorialOverlay = lazy(() => import('./TutorialOverlay'))
 import PinterestImportPanel from './PinterestImportPanel'
 import Minimap, { type MinimapHandle } from './Minimap'
 import { fileNameOf, saveFile } from '../lib/fileSave'
 import type { PresentationFormat } from '../lib/presentationExport'
-import QuickBar, { ClearGuide, EmptyCanvasHint, HistoryButtons, QUICK_ORDER, ToolHint, type PlaceTool, type QuickAction, QuickBarEditor } from './QuickBar'
-import { guideIsDue, guideTraces, keepGuideTraces, takeGuide } from '../lib/guide'
+import QuickBar, { EmptyCanvasHint, HistoryButtons, QUICK_ORDER, ToolHint, type PlaceTool, type QuickAction, QuickBarEditor } from './QuickBar'
+import { inTutorial, tutorialFinished } from '../lib/tutorial'
 import { isBoxShape, type BoxShape } from '../lib/shapeStyle'
 import { roundedPolygonPath, shapePolygon } from '../lib/traceGeometry'
 import { formatSize } from '../lib/size'
@@ -86,7 +87,6 @@ import LaserLayer from './LaserLayer'
 import ExportDialog, { type Format as ExportFormat } from './ExportDialog'
 import SharePanel from './SharePanel'
 import { ImportTooLargeError, importIntoAtrium } from '../lib/atriumFile'
-import { guideFile, guideMiddle } from '../lib/templates'
 import { createDeckTrace, createPdfTrace } from '../lib/pdfTraces'
 import { DECK_FILE } from '../lib/deck'
 import { importSpreadsheet } from '../lib/sheetTraces'
@@ -1000,11 +1000,12 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
       layer,
     }
   }
+  const tutorialRef = useRef(false)
   const leaveWithTransition = useCallback(() => {
     setLeaving(true)
     // Its picture for the atrium browser, from what's on screen now -- by its
     // owner alone, the same for everyone (lib/atriumPreview), made after leaving.
-    if (isLobbyOwner) {
+    if (isLobbyOwner && !tutorialRef.current) {
       const { traces, links, layers } = useGameStore.getState()
       captureAtriumPreview(lobbyId, {
         traces, links, layers,
@@ -4861,35 +4862,18 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
     userId, username: username ?? '', colours: currentTracePreset(lobbyId), ink: textColourOn(viewTheme?.backgroundColor), t,
   } : null), [userId, username, lobbyId, viewTheme?.backgroundColor, t])
 
-  // A first atrium starts with the guide in it (lib/guide): its first card in
-  // the middle of the view, the next peeking in at the screen's edge.
-  const [placingGuide, setPlacingGuide] = useState(() => guideIsDue(lobbyId))
-  const [placedGuide, setPlacedGuide] = useState(() => guideTraces(lobbyId))
-  const [guideDeleteRequest, setGuideDeleteRequest] = useState<string[] | null>(null)
+  // The tutorial (TutorialOverlay), if this atrium is one still running. Finished
+  // and stayed in, it's an ordinary atrium, with what was made while learning gone.
+  const [tutorial, setTutorial] = useState(() => inTutorial(lobbyId))
+  tutorialRef.current = tutorial
+  const [clearRequest, setClearRequest] = useState(0)
   useEffect(() => {
-    if (!placingGuide || !canEdit || !userId || !templateContext) return
-    // Once the view is where it starts: the canvas is made after this first
-    // runs, and placed on its first frames.
-    let frames = 0
-    let waiting = 0
-    const place = () => {
-      if (!worldContainerRef.current || ++frames < 3) {
-        waiting = requestAnimationFrame(place)
-        return
-      }
-      if (!takeGuide(lobbyId)) return
-      const file = guideFile({ ...templateContext, viewWidth: window.innerWidth / (zoomRef.current || 1) })
-      const middle = guideMiddle(file)
-      const first = screenToWorld(window.innerWidth / 2, window.innerHeight / 2)
-      void importIntoAtrium(file, { x: first.x + middle.x, y: first.y + middle.y }, lobbyId, userId).then(result => {
-        keepGuideTraces(lobbyId, result.ids ?? [])
-        setPlacedGuide(result.ids ?? [])
-      }).catch(e => console.warn('The guide could not be placed:', e)).finally(() => setPlacingGuide(false))
-    }
-    waiting = requestAnimationFrame(place)
-    return () => cancelAnimationFrame(waiting)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [placingGuide, canEdit, userId, templateContext, lobbyId])
+    if (clearRequest) void saveAllChanges()
+  }, [clearRequest])
+  const exitTutorial = () => {
+    useGameStore.getState().clearPendingChanges()
+    leaveWithTransition()
+  }
 
   // The parts of the interface a phone lays out differently (narrow): made
   // once, and placed where the layout puts them.
@@ -5021,7 +5005,7 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
             placing={!!placeTool}
             panning={panTool}
             connectTool={connectTool}
-            deleteRequest={guideDeleteRequest}
+            clearRequest={clearRequest}
             onEditDrawing={traceId => void startDrawing(traceId)}
             hiddenTraceIds={drawingMembers}
             toolSwitch={toolSwitch}
@@ -5136,8 +5120,9 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
         {!uiHidden && (
           <>
             {/* Who's here: how many, and pressed, the list -- with Kick, for
-                the atrium's owner and admins. */}
-            <div className="group relative">
+                the atrium's owner and admins. Not on a phone in the tutorial:
+                nobody else is here, and Exit tutorial needs its room. */}
+            <div className={tutorial && narrow ? 'hidden' : 'group relative'}>
               <button
                 type="button"
                 data-ui-element="true"
@@ -5189,13 +5174,27 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
                 </div>
               )}
             </div>
-            <ThemeToggle variant="atrium" onToggle={followSwitch} />
+            {!(tutorial && narrow) && <ThemeToggle variant="atrium" onToggle={followSwitch} />}
           </>
         )}
 
         {/* The way out; with the interface hidden, the way back to it, dimmed
             until reached for -- but not so far it can't be found. */}
-        {!overlayHidesMenus && <HudIconButton
+        {/* In the tutorial, it says what it does: no one is asked to save anything. */}
+        {!overlayHidesMenus && tutorial && !uiHidden && (
+          <button
+            type="button"
+            data-ui-element="true"
+            data-leave=""
+            data-tutorial-leave=""
+            onClick={exitTutorial}
+            className="atrium-btn cut-corner whitespace-nowrap hover:brightness-110"
+            style={{ borderColor: 'rgb(var(--c-danger) / 0.55)', color: 'rgb(var(--c-danger))', backgroundColor: 'rgb(var(--c-ground) / 0.94)' }}
+          >
+            {t('tutorial.exit')}
+          </button>
+        )}
+        {!overlayHidesMenus && !(tutorial && !uiHidden) && <HudIconButton
           icon={uiHidden ? MENU_ICONS.show : MENU_ICONS.leave}
           label={uiHidden ? t('atrium.hud.showUi') : t('atrium.hud.leaveAtrium')}
           data-leave=""
@@ -5553,20 +5552,30 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
             </div>
           </div>
         )}
-        {canEdit && (
-          <ClearGuide
-            ids={placedGuide}
-            onClear={remaining => {
-              setGuideDeleteRequest(remaining)
-              keepGuideTraces(lobbyId, [])
-              setPlacedGuide([])
-            }}
-          />
-        )}
         <ToolHint armed={placeTool} laser={laserActive} drawing={isDrawingMode} panning={panTool} selecting={selectTool ? (selectLasso ? 'lasso' : 'area') : null} connecting={connectTool} />
       </div>
 
-      {canEdit && !placingGuide && !placeTool && !isDrawingMode && (
+      {tutorial && (
+        <Suspense fallback={null}>
+          <TutorialOverlay
+            view={() => (worldContainerRef.current ? { x: worldContainerRef.current.x, y: worldContainerRef.current.y, zoom: zoomRef.current } : null)}
+            onToolDown={() => {
+              quickActionRef.current('select')
+              closeSidePanels()
+              setSelectedTraceId(null)
+              setMultiSelectRequest([])
+            }}
+            onStay={() => {
+              tutorialFinished()
+              setTutorial(false)
+              setClearRequest(n => n + 1)
+            }}
+            onExit={exitTutorial}
+          />
+        </Suspense>
+      )}
+
+      {canEdit && !tutorial && !placeTool && !isDrawingMode && (
         <EmptyCanvasHint
           ink={textColourOn(viewTheme?.backgroundColor)}
           localFiles={isLocalData}

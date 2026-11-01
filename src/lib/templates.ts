@@ -18,8 +18,6 @@ export interface TemplateContext {
   colours: { border: string; fill: string; text: string }
   // Text straight on the atrium's background.
   ink: string
-  // How wide the view is, for what's laid out to it (the guide).
-  viewWidth?: number
   t: (key: any, vars?: Record<string, string | number>) => string
 }
 
@@ -80,54 +78,11 @@ const item = (id: string, name: string, make: (b: ReturnType<typeof builder>, t:
   build: c => board(c, c.t(name), b => make(b, c.t)),
 })
 
-// The guide (lib/guide), a line of real traces to learn on: walking along it is
-// the first lesson, so the second card peeks in at the screen's edge, and the
-// threads lead the way. Pieces left unjoined are the last lesson's to join.
-export function guideFile(c: TemplateContext): AtriumFile {
-  const wide = c.viewWidth ?? 1280
-  const card = Math.min(340, Math.max(240, wide - 120))
-  const peek = Math.min(130, wide * 0.15)
-  return board(c, c.t('templates.guide'), b => {
-    const walk = b.box(c.t('templates.guide.walk'), 0, 0, card, 210)
-    let x = Math.max(card + 24, wide / 2 - peek + card / 2)
-    const move = b.box(c.t('templates.guide.move'), x, 0, card, 210)
-    x += card + 120
-    const write = b.box(c.t('templates.guide.write'), x, 0, card, 210)
-    x += card / 2 + 210
-    const noteX = x
-    x += 130 + 190
-    b.words(c.t('templates.guide.frames'), (noteX + x) / 2, -215, 620, 70)
-    const frame = b.frame(c.t('templates.guide.frame'), x, 0, 380, 300)
-    const note = b.box(c.t('templates.guide.note'), noteX, 0, 180, 110)
-    x += 190 + 220
-    const from = b.box(c.t('templates.guide.from'), x, 0, 200, 110)
-    const toX = x + 400
-    b.words(c.t('templates.guide.connect'), x + 200, -215, 620, 70)
-    const to = b.box(c.t('templates.guide.to'), toX, 0, 200, 110)
-    const end = b.box(c.t('templates.guide.end'), toX + 100 + 120 + card / 2, 0, card, 210)
-    b.thread(walk, move, 'forward')
-    b.thread(move, write, 'forward')
-    b.thread(write, note, 'forward')
-    b.thread(frame, from, 'forward')
-    b.thread(to, end, 'forward')
-  })
-}
-
-// How far a guide's first card is from the middle of it all: where to put that
-// middle, for the first card to be where the person is.
-export function guideMiddle(file: AtriumFile) {
-  const rows = file.traces as any[]
-  const left = Math.min(...rows.map(r => r.position_x - r.width / 2)), right = Math.max(...rows.map(r => r.position_x + r.width / 2))
-  const top = Math.min(...rows.map(r => r.position_y - r.height / 2)), bottom = Math.max(...rows.map(r => r.position_y + r.height / 2))
-  return { x: (left + right) / 2, y: (top + bottom) / 2 }
-}
-
 export const DIGITAL_ATRIUM_FOLDER: TemplateFolder = {
   kind: 'folder',
   id: 'digital-atrium',
   name: 'Digital Atrium',
   items: [
-    { kind: 'template', id: 'guide', name: 'templates.guide', build: guideFile },
     {
       kind: 'folder', id: 'boards', name: 'templates.folder.boards',
       items: [

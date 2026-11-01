@@ -39,7 +39,7 @@ const ExportDatabase = lazy(() => import('./ExportDatabase'))
 const DriveSpike = lazy(() => import('./DriveSpike'))
 import type { Lobby } from '../types/database'
 import { sortByLastVisited, mergeRemoteVisits } from '../lib/recentAtriums'
-import { offerGuide, offerGuideAgain } from '../lib/guide'
+import { markTutorialSeen, tutorialFinished, tutorialSeen, tutorialStarted, unfinishedTutorial } from '../lib/tutorial'
 import { browserAtriumIds, browserEngine, clientFor, forgetBrowserAtrium, leaveBrowserAtrium, rememberBrowserAtrium, vaultProblem } from '../lib/browserAtriums'
 import { checkPlatformAdmin } from '../lib/platformAdmin'
 import { Check } from './ShapeStyleControls'
@@ -296,6 +296,8 @@ export function LobbyBrowser({ onJoinLobby, onClose, guest = false, onSignIn }: 
     return () => window.removeEventListener('atrium:preview', landed)
   }, [])
   const [loading, setLoading] = useState(true)
+  // Every list here read, once: enough to tell whether this person has any atriums.
+  const [listsRead, setListsRead] = useState(false)
   const [showCreateLobby, setShowCreateLobby] = useState(false)
   const [managingLobbyId, setManagingLobbyId] = useState<string | null>(null)
   const [showJoinById, setShowJoinById] = useState(false)
@@ -868,7 +870,18 @@ export function LobbyBrowser({ onJoinLobby, onClose, guest = false, onSignIn }: 
 
   const loadLobbies = async () => {
     if (!supabase) return
-    void loadBrowserLobbies()
+    // A tutorial left before it finished goes before anything's listed.
+    const left = unfinishedTutorial()
+    if (left) {
+      try {
+        await (await clientFor(left)).from('lobbies').delete().eq('id', left)
+      } catch (err) {
+        console.warn('The tutorial atrium left behind:', err)
+      }
+      forgetBrowserAtrium(left)
+      tutorialFinished()
+    }
+    const browserRead = loadBrowserLobbies()
     void loadPublicDrive()
 
     setLoading(true)
@@ -1007,6 +1020,7 @@ export function LobbyBrowser({ onJoinLobby, onClose, guest = false, onSignIn }: 
       setError(t('browser.errLoadLobbies', { message: err?.message || t('browser.errUnknown') }))
     } finally {
       setLoading(false)
+      void browserRead.then(() => setListsRead(true))
     }
   }
 
@@ -1084,26 +1098,25 @@ export function LobbyBrowser({ onJoinLobby, onClose, guest = false, onSignIn }: 
       ?? themeOf(`preset:${defaultPresetFor(light).id}`, null, []) ?? startingAtriumTheme(light)
   }
 
-  // Developers: a new atrium in this browser, as someone's first, to see the
-  // guide as a new person would. It's a real one, deleted like any other.
-  const testFirstAtrium = async () => {
-    if (creatingNow.current) return
+  // The tutorial, in an atrium of its own (lib/tutorial).
+  const startTutorial = async () => {
+    if (!supabase || creatingNow.current) return
     creatingNow.current = true
     setCreating(true)
     try {
-      const client = (await browserEngine()).localClient
+      const client = browserChoice ? (await browserEngine()).localClient : supabase
       const { data: { user } } = await client.auth.getUser()
       if (!user) throw new Error('Not authenticated')
       const { data, error } = await (client.from('lobbies') as any)
-        .insert({ name: t('browser.testGuideName'), owner_user_id: user.id, password_hash: null, is_public: false, max_players: 50, theme_settings: await startingThemeNow() })
+        .insert({ name: t('tutorial.atriumName'), owner_user_id: user.id, password_hash: null, is_public: false, max_players: 50, theme_settings: await startingThemeNow() })
         .select()
         .single()
       if (error) throw error
-      rememberBrowserAtrium(data.id)
-      offerGuideAgain(data.id)
+      if (browserChoice) rememberBrowserAtrium(data.id)
+      tutorialStarted(data.id)
       onJoinLobby(data.id)
     } catch (err: any) {
-      console.error('Error creating the test atrium:', err)
+      console.error('Error starting the tutorial:', err)
       const problem = vaultProblem(err)
       setError(problem ? t(problem) : t('browser.errCreateLobby'))
     } finally {
@@ -1111,6 +1124,16 @@ export function LobbyBrowser({ onJoinLobby, onClose, guest = false, onSignIn }: 
       setCreating(false)
     }
   }
+
+  // Someone with no atriums, the first time: straight into it. Anyone who has
+  // some already isn't new. Not on a failed load: that says nothing about them.
+  useEffect(() => {
+    if (!listsRead || error || tutorialSeen()) return
+    const own = yours.length + (isDesktop ? lobbies.length + adminLobbies.length : 0)
+    if (own > 0) markTutorialSeen()
+    else void startTutorial()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [listsRead])
 
   const createLobby = async () => {
     if (!supabase || creatingNow.current) return
@@ -1164,9 +1187,6 @@ export function LobbyBrowser({ onJoinLobby, onClose, guest = false, onSignIn }: 
           throw driveError
         }
       }
-
-      // Somebody's first: it starts with the guide in it.
-      if ((isDesktop ? browserLobbies : yours).length === 0) offerGuide(data.id)
 
       // Join the newly created lobby
       onJoinLobby(data.id)
@@ -1629,18 +1649,15 @@ export function LobbyBrowser({ onJoinLobby, onClose, guest = false, onSignIn }: 
           >
             ◇ {t('browser.create')}
           </button>
-          {isOperator && (
-            <button
-              type="button"
-              data-test-guide=""
-              onClick={() => void testFirstAtrium()}
-              disabled={creating}
-              title={t('browser.testGuideHint')}
-              className="px-4 py-3 border border-nier-border/40 text-nier-bg/80 text-xs tracking-[0.18em] uppercase hover:text-nier-bg hover:border-nier-border/70 transition-colors disabled:opacity-40"
-            >
-              {t('browser.testGuide')}
-            </button>
-          )}
+          <button
+            type="button"
+            data-tutorial-start=""
+            onClick={() => void startTutorial()}
+            disabled={creating}
+            className="px-4 py-3 border border-nier-border/40 text-nier-bg/80 text-xs tracking-[0.18em] uppercase hover:text-nier-bg hover:border-nier-border/70 transition-colors disabled:opacity-40"
+          >
+            {t('tutorial.button')}
+          </button>
         </div>
 
         {error && (

@@ -195,8 +195,8 @@ interface TraceOverlayProps {
   // The quick bar's Connect in hand: a trace pressed starts a thread, a drag or
   // a second click ends it, and the tool stays for the next.
   connectTool?: boolean
-  // These to go, as the Delete key has them go: one undo step.
-  deleteRequest?: string[] | null
+  // Raised, everything goes and can't be undone: the tutorial's atrium, left empty.
+  clearRequest?: number
   // Edit Drawing, handed up; and the strokes of the drawing being drawn, kept
   // off the canvas while they're in the drawing layer instead (LobbyScene).
   onEditDrawing?: (traceId: string) => void
@@ -689,7 +689,7 @@ const TraceSlot = React.memo(
 // runs before it has to be laid out again.
 export const CULL_MARGIN = 500
 
-export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackground, gridLineSpacing, zoom, worldOffset, worldLayerRef, onEdgePan, lobbyId, selectedTraceId, setSelectedTraceId, multiSelectRequest, areaSelectRequest, lassoSelectRequest, selecting = false, customizeRequest, newPathRequest, newTextRequest, directSelect = false, frameRequest, isDrawingMode, hideCursor, panning = false, connectTool = false, deleteRequest = null, placing = false, onEditDrawing, hiddenTraceIds, toolSwitch = 0, onMultiSelectionChange, onExport, onCustomizeOpen, canEdit = true }: TraceOverlayProps) {
+export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackground, gridLineSpacing, zoom, worldOffset, worldLayerRef, onEdgePan, lobbyId, selectedTraceId, setSelectedTraceId, multiSelectRequest, areaSelectRequest, lassoSelectRequest, selecting = false, customizeRequest, newPathRequest, newTextRequest, directSelect = false, frameRequest, isDrawingMode, hideCursor, panning = false, connectTool = false, clearRequest = 0, placing = false, onEditDrawing, hiddenTraceIds, toolSwitch = 0, onMultiSelectionChange, onExport, onCustomizeOpen, canEdit = true }: TraceOverlayProps) {
   const { t, language } = useTranslation()
   // A crop under way: the trace as cropped so far, in place of the store's,
   // and into the store as it ends (handleMouseUp). Written on every step,
@@ -3316,9 +3316,14 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
   }
 
   useEffect(() => {
-    if (deleteRequest) executeDelete(deleteRequest)
+    if (!clearRequest) return
+    const { traces: all, links: threads } = useGameStore.getState()
+    executeDelete(all.map(trace => trace.id), threads.map(link => link.id))
+    undoStackRef.current = []
+    redoStackRef.current = []
+    showReach()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [deleteRequest])
+  }, [clearRequest])
 
   const executeDelete = (traceIds: string[], linkIds: string[] = []) => {
     setContextMenu(null)

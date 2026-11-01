@@ -114,7 +114,7 @@ export class ImportTooLargeError extends Error {
   }
 }
 
-export interface ImportIntoResult { added: number; missing: number; failed: number; ids?: string[]; standIns?: number }
+export interface ImportIntoResult { added: number; missing: number; failed: number; standIns?: number }
 
 // The kinds of trace this app draws. One of another kind -- from a newer
 // version -- can't be had here, nor can one a database turns away.
@@ -309,6 +309,6 @@ export function importIntoAtrium(file: AtriumFile, at: { x: number; y: number },
       if (Array.isArray(data)) for (const row of data) { own.links.add(row.id); useGameStore.getState().receiveLink(mapRowToLink(row)) }
     }
     window.dispatchEvent(new Event('atrium:layers-changed'))
-    return { added, missing, failed: failed + (file.traces.length - known.length), standIns, ids: [...own.traces] }
+    return { added, missing, failed: failed + (file.traces.length - known.length), standIns }
   }, () => own))
 }

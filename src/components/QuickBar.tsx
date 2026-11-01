@@ -832,22 +832,3 @@ export function EmptyCanvasHint({ ink, localFiles, onTemplates, onHelp }: { ink:
     </div>
   )
 }
-
-// Clear the guide: as long as any of it is still on the canvas (lib/guide).
-export function ClearGuide({ ids, onClear }: { ids: string[]; onClear: (remaining: string[]) => void }) {
-  const { t } = useTranslation()
-  const { traces } = useGamePick('traces')
-  const remaining = ids.length > 0 ? traces.filter(trace => ids.includes(trace.id)).map(trace => trace.id) : []
-  if (remaining.length === 0) return null
-  return (
-    <button
-      type="button"
-      data-clear-guide=""
-      onClick={() => onClear(remaining)}
-      className="pointer-events-auto px-3 py-1.5 border font-mono text-[11px] tracking-wider whitespace-nowrap transition-colors hover:bg-nier-bg/10"
-      style={{ color: 'rgb(var(--c-fg))', background: 'rgb(var(--c-ground) / 0.92)', borderColor: 'rgb(var(--c-fg) / 0.3)' }}
-    >
-      {t('atrium.guide.clear')}
-    </button>
-  )
-}
