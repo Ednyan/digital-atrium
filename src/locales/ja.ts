@@ -526,6 +526,9 @@ const ja: Catalogue = {
   // ------------------------------------------------- profile settings, web
   'profile.title': "プロフィール",
   'profile.yours': "あなたの設定",
+  'profile.editName': "表示名を変更",
+  'profile.nameEvery': "15 日に 1 回変更できます。",
+  'profile.undoLabel': "元に戻せる回数",
   'achievements.title': "実績",
   'achievements.count': "{earned} / {all}",
   'achievements.hint': "獲得した実績を押すと、名前の横に最大 {most} 個まで表示できます。",

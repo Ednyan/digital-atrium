@@ -530,6 +530,9 @@ const ko: Catalogue = {
   // ------------------------------------------------- profile settings, web
   'profile.title': "프로필",
   'profile.yours': "내 설정",
+  'profile.editName': "표시 이름 변경",
+  'profile.nameEvery': "15일에 한 번 바꿀 수 있어요.",
+  'profile.undoLabel': "되돌릴 수 있는 횟수",
   'achievements.title': "업적",
   'achievements.count': "{earned} / {all}",
   'achievements.hint': "달성한 업적을 누르면 이름 옆에 최대 {most}개까지 표시돼요.",

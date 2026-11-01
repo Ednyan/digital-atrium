@@ -529,6 +529,9 @@ const zh: Catalogue = {
   // ------------------------------------------------- profile settings, web
   'profile.title': "个人资料",
   'profile.yours': "你的设置",
+  'profile.editName': "更改显示名称",
+  'profile.nameEvery': "每 15 天可更改一次。",
+  'profile.undoLabel': "可撤销的步数",
   'achievements.title': "成就",
   'achievements.count': "{earned} / {all}",
   'achievements.hint': "点击已获得的成就，可将其显示在你的名字旁，最多 {most} 个。",

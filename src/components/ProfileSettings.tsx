@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, type CSSProperties, type ReactNode } from 'react'
 import { friendlyAuthError } from '../lib/authErrors'
 import { supabase, isDesktop } from '../lib/supabase'
 import { useGamePick } from '../store/gameStore'
@@ -19,6 +19,8 @@ import { accountJoined, noteToday, readStats, syncStats, togglePinned } from '..
 import { AchievementsGrid, ProfileTop } from './ProfileAchievements'
 import { adopt, changePassword, deleteEmailAccount } from '../lib/emailAccount'
 import GoogleButton from './GoogleButton'
+import { LanguageList } from './LanguageToggle'
+import { useMenuGlide } from './MenuGlide'
 
 // The same five the in-atrium panel offers, from the palette the rest of the
 // app is drawn in. The picker under them still takes anything.
@@ -26,14 +28,73 @@ const PRESET_COLORS = ['#FF8A3D', '#E8C15A', '#9AD4C4', '#A8B6D9', '#C77DFF']
 
 interface ProfileSettingsProps {
   onClose: () => void
+  // What's the screen behind's to do: none, where there's nothing of the kind.
+  onPinterest?: () => void
+  onLogOut?: () => void
 }
 
-export default function ProfileSettings({ onClose }: ProfileSettingsProps) {
-  const { t } = useTranslation()
+// A setting, compact until it's pressed: its name, what it's set to, and under
+// them what changes it, unfolding. `go`: it does something at once instead.
+function SettingRow({ id, label, value, open = false, danger = false, go = false, onToggle, children }: {
+  id: string
+  label: string
+  value?: string
+  open?: boolean
+  danger?: boolean
+  go?: boolean
+  onToggle: (id: string) => void
+  children?: ReactNode
+}) {
+  return (
+    <div data-setting={id} className="relative border-b last:border-b-0 border-nier-border/20">
+      <button
+        type="button"
+        aria-expanded={go ? undefined : open}
+        data-danger={danger || undefined}
+        onClick={() => onToggle(id)}
+        className={`profile-row relative w-full min-h-[2.9rem] px-3.5 flex items-center justify-between gap-3 text-left text-xs ${danger ? 'text-[#ff8585]' : 'text-nier-bg/95'}`}
+      >
+        <span>{label}</span>
+        <span className="flex items-center gap-2 min-w-0 text-[11px] text-nier-bg/75">
+          {value && <span className="truncate">{value}</span>}
+          {!go && <span aria-hidden="true" className="profile-chevron" data-open={open || undefined}>▸</span>}
+        </span>
+      </button>
+      {!go && (
+        <div className="profile-fold" data-open={open || undefined}>
+          <div className="min-h-0 overflow-hidden"><div className="px-3.5 pb-3.5 pt-1">{children}</div></div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+export default function ProfileSettings({ onClose, onPinterest, onLogOut }: ProfileSettingsProps) {
+  const { t, language, languages } = useTranslation()
   const { userId, username, setUsername, playerColor, setPlayerColor } = useGamePick('userId', 'username', 'setUsername', 'playerColor', 'setPlayerColor')
-  const [displayName, setDisplayName] = useState(username)
-  // The name as saved, for the top of the page: not each letter being typed.
+  // One's name, at the top of the page, where it's changed.
   const [savedName, setSavedName] = useState(username)
+  // The one of the rows open: they're compact until pressed.
+  const [openRow, setOpenRow] = useState<string | null>(null)
+  const glide = useMenuGlide('.profile-row')
+  const languageName = languages.find(entry => entry.code === language)?.endonym ?? ''
+  // Going back: the page fades out first.
+  const [leaving, setLeaving] = useState(false)
+  const pageRef = useRef<HTMLDivElement>(null)
+  const leave = () => {
+    setLeaving(true)
+    window.setTimeout(onClose, 170)
+  }
+  const leaveRef = useRef(leave)
+  leaveRef.current = leave
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement | null)?.tagName
+      if (e.key === 'Escape' && tag !== 'INPUT' && tag !== 'TEXTAREA') leaveRef.current()
+    }
+    window.addEventListener('keydown', key)
+    return () => window.removeEventListener('keydown', key)
+  }, [])
   // One's achievements and how far one's come (lib/stats), and when one began: what the
   // account says, what the sign-in says, or the first day seen here. Nothing new
   // is asked for: one's entry is already read.
@@ -55,12 +116,9 @@ export default function ProfileSettings({ onClose }: ProfileSettingsProps) {
   const [actualUsername, setActualUsername] = useState('')
   const [canChange, setCanChange] = useState(isDesktop) // Desktop: always allowed
   const [daysUntilChange, setDaysUntilChange] = useState(0)
-  const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [success, setSuccess] = useState(false)
   
   // Password change state
-  const [showPasswordChange, setShowPasswordChange] = useState(false)
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -70,7 +128,6 @@ export default function ProfileSettings({ onClose }: ProfileSettingsProps) {
 
   // Delete-account state -- web only, irreversible, so it's gated behind
   // typing the account's own username as an explicit confirmation.
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deleteConfirmText, setDeleteConfirmText] = useState('')
   // Confirmation is an emailed code now, for every account rather than only the
   // ones with a password -- see add_account_deletion_codes.sql. So there is no
@@ -126,7 +183,6 @@ export default function ProfileSettings({ onClose }: ProfileSettingsProps) {
     const profile = await loadMyProfile(userId).catch(() => null)
     if (!profile) return
     setActualUsername(profile.username)
-    setDisplayName(profile.displayName)
     setSavedName(profile.displayName)
     if (profile.color) {
       setSelectedColor(profile.color)
@@ -155,6 +211,25 @@ export default function ProfileSettings({ onClose }: ProfileSettingsProps) {
     setTimeout(() => setColorSaved(false), 1600)
   }
 
+  // One row open at a time; what was half-typed in one goes as it closes.
+  const toggleRow = (id: string) => {
+    if (openRow === 'password' || id === 'password') {
+      setCurrentPassword('')
+      setNewPassword('')
+      setConfirmPassword('')
+      setPasswordError('')
+    }
+    if (openRow === 'delete') {
+      setDeleteConfirmText('')
+      setDeleteCode('')
+      setDeletePassword('')
+      setCodeSent(false)
+      setResendIn(0)
+      setDeleteError('')
+    }
+    setOpenRow(now => (now === id ? null : id))
+  }
+
   const handleUndoDepthChange = (value: number) => {
     const clamped = Math.max(1, Math.min(MAX_UNDO_DEPTH, value))
     setUndoDepth(clamped)
@@ -169,43 +244,25 @@ export default function ProfileSettings({ onClose }: ProfileSettingsProps) {
     window.dispatchEvent(new CustomEvent('lobby-packing-shape-changed', { detail: { lobbyId: null, shape } }))
   }
 
-  const handleUpdateDisplayName = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError('')
-    setSuccess(false)
-    setLoading(true)
-
-    if (!userId) return
-
-    if (!isDesktop && !canChange) {
-      setError(t('profile.canChangeIn', { days: daysUntilChange }))
-      setLoading(false)
-      return
-    }
-
-    if (displayName.length < 1 || displayName.length > 30) {
-      setError(t('profile.errNameLength'))
-      setLoading(false)
-      return
-    }
-
+  // The name from the top of the page. What went wrong, to say there, or nothing.
+  const saveName = async (next: string): Promise<string | null> => {
+    if (!userId) return t('profile.errUpdateName')
+    if (!isDesktop && !canChange) return t('profile.canChangeIn', { days: daysUntilChange })
+    if (next.length < 1 || next.length > 30) return t('profile.errNameLength')
     try {
       // The web's waits its days; the desktop's is its username too (lib/profile).
-      await saveMyProfile(userId, { displayName })
-
-      setUsername(displayName)
-      setSavedName(displayName)
-      setSuccess(true)
+      await saveMyProfile(userId, { displayName: next })
+      setUsername(next)
+      setSavedName(next)
       if (!isDesktop) {
         setCanChange(false)
         setDaysUntilChange(15)
       }
+      return null
     } catch (err: any) {
-      setError(err?.message === 'NAME_TOO_SOON'
+      return err?.message === 'NAME_TOO_SOON'
         ? t('profile.canChangeIn', { days: daysUntilNameChange(null, err.until) })
-        : err?.message || t('profile.errUpdateName'))
-    } finally {
-      setLoading(false)
+        : err?.message || t('profile.errUpdateName')
     }
   }
 
@@ -249,7 +306,7 @@ export default function ProfileSettings({ onClose }: ProfileSettingsProps) {
         setCurrentPassword('')
         setNewPassword('')
         setConfirmPassword('')
-        setTimeout(() => { setShowPasswordChange(false); setPasswordSuccess(false) }, 2000)
+        setTimeout(() => { setOpenRow(null); setPasswordSuccess(false) }, 2000)
       } catch (err: any) {
         setPasswordError(err?.message === 'WRONG_PASSWORD' ? t('profile.errWrongCurrent') : err?.message === 'SAME' ? t('profile.errSamePassword') : err?.message === 'WEAK_PASSWORD' ? t('auth.passwordHint') : t('profile.errUpdatePassword'))
       } finally {
@@ -301,7 +358,7 @@ export default function ProfileSettings({ onClose }: ProfileSettingsProps) {
       setConfirmPassword('')
       
       setTimeout(() => {
-        setShowPasswordChange(false)
+        setOpenRow(null)
         setPasswordSuccess(false)
       }, 2000)
     } catch (err: any) {
@@ -433,239 +490,128 @@ export default function ProfileSettings({ onClose }: ProfileSettingsProps) {
 
   return (
     <div
+      ref={pageRef}
       data-profile=""
-      className="modal-backdrop fixed inset-0 bg-nier-black z-[10000] overflow-y-auto"
+      data-leaving={leaving || undefined}
+      className="profile-page fixed inset-0 bg-nier-black z-[10000] overflow-y-auto"
       style={{ touchAction: 'pan-y', overscrollBehavior: 'contain' }}
       onTouchMove={(e) => e.stopPropagation()}
       onTouchStart={(e) => e.stopPropagation()}
-      // Clicking the backdrop deliberately does nothing: this panel holds
+      // Clicking beside something deliberately does nothing: this holds
       // half-typed passwords and a delete-account confirmation, and a stray
-      // click beside it should not throw that away. The × is the way out.
-      // The stop is explicit rather than merely omitted so that no ancestor
-      // added later can quietly turn a miss-click back into a dismissal.
+      // click should not throw that away. The stop is explicit rather than merely
+      // omitted so that no ancestor added later can quietly make it a dismissal.
       onClick={(e) => e.stopPropagation()}
     >
+      <div aria-hidden="true" className="profile-glow" />
       {/* A page of its own: who one is and one's achievements, one's settings beside them. */}
-      <div className="max-w-6xl mx-auto px-5 sm:px-10 py-6">
-        <div className="flex items-center justify-between gap-4 mb-8">
+      <div className="relative max-w-[82rem] mx-auto px-5 sm:px-10 xl:px-16 py-7">
+        <div className="enter-down flex items-center justify-between gap-4 mb-8">
           <button
             type="button"
             data-profile-back=""
-            onClick={onClose}
-            className="text-[11px] tracking-[0.2em] uppercase text-nier-bg/80 hover:text-nier-strong transition-colors"
+            onClick={leave}
+            className="profile-back text-[11px] tracking-[0.2em] uppercase text-nier-bg/80 hover:text-nier-strong transition-colors"
           >
-            <span aria-hidden="true">◁</span> {t('common.back')}
+            <span aria-hidden="true" className="inline-block transition-transform">◁</span> {t('common.back')}
           </button>
           <span className="text-[11px] tracking-wide text-nier-bg/70">{t('achievements.private')}</span>
         </div>
-        <ProfileTop name={savedName} username={actualUsername} colour={playerColor} joined={joinedAt} stats={stats} />
-        <div className="mt-9 grid gap-9 lg:grid-cols-[minmax(0,1fr)_23rem] items-start">
+        <ProfileTop
+          name={savedName}
+          username={isDesktop ? '' : actualUsername}
+          colour={selectedColor}
+          joined={joinedAt}
+          stats={stats}
+          canEdit={isDesktop || canChange}
+          locked={!isDesktop && !canChange ? t('profile.canChangeIn', { days: daysUntilChange }) : null}
+          every={isDesktop ? null : t('profile.nameEvery')}
+          onSaveName={saveName}
+        />
+        <div className="mt-9 grid gap-9 lg:grid-cols-[minmax(0,1fr)_23.25rem] items-start">
           <AchievementsGrid stats={stats} onToggle={id => setStats(togglePinned(id))} />
-        <div data-profile-settings="" aria-labelledby="profile-settings-title">
-        <h2 id="profile-settings-title" className="text-xs font-medium tracking-[0.24em] uppercase text-nier-strong mb-4">{t('profile.yours')}</h2>
-        <div className="space-y-4">
-          {/* Username (permanent) - only show on web */}
-          {!isDesktop && (
-            <div>
-              <label className="block text-nier-bg/70 text-xs tracking-[0.1em] uppercase mb-2">{t('profile.usernamePermanent')}</label>
-              <div className="bg-nier-black border border-nier-border/20 px-3 py-2 text-nier-bg/75 text-sm tracking-wide">
-                {actualUsername}
+          <aside data-profile-settings="" aria-labelledby="profile-settings-title" className="enter-up" style={{ '--i': 3 } as CSSProperties}>
+            <h2 id="profile-settings-title" className="text-xs font-medium tracking-[0.24em] uppercase text-nier-strong">{t('profile.yours')}</h2>
+            <div {...glide.host} className="menu-glide-host relative mt-3.5 border border-nier-border/30">
+              {glide.light}
+              <div data-setting="colour" className="relative p-3.5 border-b border-nier-border/20">
+                <p className="text-[10px] tracking-[0.16em] uppercase text-nier-bg/75">
+                  {t('profile.yourCursor')}
+                  {colorSaved && <span className="profile-note ml-2 normal-case tracking-normal text-nier-bg/80">{t('profile.saved')}</span>}
+                </p>
+                <div className="grid grid-cols-6 gap-2 mt-2.5">
+                  {/* First, as "anything else": the colour one chose oneself. The
+                      native input stretched over it at no opacity stays the real
+                      target; the dashed cell with a plus says it opens a picker. */}
+                  <div
+                    className={`group relative h-8 border border-dashed transition-colors cursor-pointer ${isCustomColour ? 'border-nier-bg' : 'border-nier-border/50 hover:border-nier-border/80'}`}
+                    style={{ backgroundColor: isCustomColour ? selectedColor : 'transparent' }}
+                  >
+                    <input
+                      type="color"
+                      value={selectedColor}
+                      onChange={(e) => handleColorChange(e.target.value)}
+                      title={t('profile.anyOtherColour')}
+                      aria-label={t('profile.anyOtherColour')}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                    />
+                    {!isCustomColour && <span className="pointer-events-none absolute inset-0 flex items-center justify-center text-sm leading-none text-nier-bg/70 group-hover:text-nier-bg transition-colors">+</span>}
+                  </div>
+                  {PRESET_COLORS.map((color) => (
+                    <button
+                      key={color}
+                      type="button"
+                      aria-label={color}
+                      aria-pressed={selectedColor === color}
+                      onClick={() => handleColorChange(color)}
+                      className={`profile-swatch h-8 border-2 ${selectedColor === color ? 'border-nier-strong' : 'border-transparent'}`}
+                      style={{ backgroundColor: color }}
+                    />
+                  ))}
+                </div>
+                {error && <p className="profile-note mt-2 text-xs text-[#ff8585]">{error}</p>}
               </div>
-            </div>
-          )}
 
-          <form onSubmit={handleUpdateDisplayName}>
-            <label className="block text-nier-strong text-xs tracking-[0.1em] uppercase mb-2">
-              {isDesktop ? t('auth.username') : t('profile.displayName')}
-            </label>
-            <input
-              type="text"
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              className="w-full bg-nier-black border border-nier-border/30 text-nier-bg px-3 py-2 text-sm tracking-wide placeholder-nier-bg/50 focus:border-nier-border/60 transition-colors"
-              placeholder={isDesktop ? t('profile.yourUsername') : t('profile.yourDisplayName')}
-              maxLength={30}
-              disabled={!isDesktop && !canChange}
-            />
-            
-            {!isDesktop && !canChange && (
-              <p className="text-nier-bg/70 text-[0.8rem] leading-relaxed tracking-wide mt-2">
-                ◇ {t('profile.canChangeIn', { days: daysUntilChange })}
-              </p>
-            )}
-
-            {!isDesktop && canChange && (
-              <p className="text-nier-bg/60 text-[0.8rem] leading-relaxed tracking-wide mt-2">
-                ✓ {t('profile.canChangeNow')}
-              </p>
-            )}
-
-            {error && (
-              <div className="border border-nier-red/40 bg-nier-red/10 px-3 py-2 text-nier-bg/80 text-[0.8rem] leading-relaxed tracking-wide mt-2">
-                {error}
-              </div>
-            )}
-
-            {success && (
-              <div className="border border-nier-border/40 bg-nier-border/10 px-3 py-2 text-nier-bg text-[0.8rem] leading-relaxed tracking-wide mt-2">
-                ✓ {isDesktop ? t('auth.username') : t('profile.displayName')} {t('common.updated')}
-              </div>
-            )}
-
-            <button
-              type="submit"
-              disabled={loading || (!isDesktop && !canChange) || displayName === username}
-              className="w-full mt-4 py-2 bg-nier-bg text-nier-black text-xs tracking-[0.1em] uppercase hover:bg-nier-strong transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-            >
-              {loading ? t('profile.updating') : isDesktop ? t('profile.updateUsername') : t('profile.updateDisplayName')}
-            </button>
-          </form>
-
-
-          <div className="h-[1px] bg-gradient-to-r from-nier-border/30 via-nier-border/20 to-transparent my-4" />
-
-          {/* The settings that follow the person into every atrium. They are
-              the same three the in-atrium profile panel offers, reading and
-              writing the same keys -- changed here, they apply there. */}
-          <div className="flex items-baseline gap-3">
-            <span className="text-nier-strong text-xs tracking-[0.22em] uppercase">{t('profile.howYouWork')}</span>
-            <div className="flex-1 h-[1px] bg-gradient-to-r from-nier-border/30 to-transparent" />
-          </div>
-
-          <div>
-            <label className="block text-nier-strong text-xs tracking-[0.1em] uppercase mb-2">{t('profile.yourCursor')}</label>
-            <div className="grid grid-cols-6 gap-2 mb-2">
-              {/* First cell, and it is "anything else" -- the colour you chose
-                  yourself belongs at the head of the row rather than tacked
-                  on after the five suggestions. It has to read as a control
-                  rather than as another preset that happens to be a
-                  different colour. A bare <input type="color"> renders as a
-                  filled swatch identical in shape to the five beside it, so
-                  the only thing saying it opens a picker was a title
-                  attribute -- which is a tooltip nobody hovers for and no
-                  touch device shows at all.
-
-                  So the native input is stretched over the cell at zero
-                  opacity (it stays the real click target, and the OS picker
-                  it opens is the point), and what shows through is a dashed
-                  cell with a plus: the shape "add your own" takes everywhere
-                  else. Dashed against five solid swatches is the difference
-                  you can see without reading anything. */}
-              <div
-                className={`relative w-full h-10 border-2 border-dashed transition-colors cursor-pointer group ${
-                  isCustomColour
-                    ? 'border-nier-bg'
-                    : 'border-nier-border/50 hover:border-nier-border/80'
-                }`}
-                style={{
-                  backgroundColor: isCustomColour ? selectedColor : 'transparent',
-                  boxShadow: isCustomColour ? `0 0 12px ${selectedColor}40` : 'none',
-                }}
-              >
+              <SettingRow id="undo" label={t('profile.undoLabel')} value={String(undoDepth)} open={openRow === 'undo'} onToggle={toggleRow}>
                 <input
-                  type="color"
-                  value={selectedColor}
-                  onChange={(e) => handleColorChange(e.target.value)}
-                  title={t('profile.anyOtherColour')}
-                  aria-label={t('profile.anyOtherColour')}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  type="range"
+                  min="1"
+                  max={MAX_UNDO_DEPTH}
+                  step="1"
+                  value={undoDepth}
+                  aria-label={t('profile.undoLabel')}
+                  onChange={(e) => handleUndoDepthChange(parseInt(e.target.value, 10))}
+                  className="w-full accent-nier-bg"
                 />
-                {/* Hidden once the cell is carrying a colour of its own, where
-                    it would be a plus sitting on top of the answer. */}
-                {!isCustomColour && (
-                  <span className="pointer-events-none absolute inset-0 flex items-center justify-center text-base leading-none text-nier-bg/70 group-hover:text-nier-bg transition-colors">
-                    +
-                  </span>
-                )}
-              </div>
-              {PRESET_COLORS.map((color) => (
-                <button
-                  key={color}
-                  type="button"
-                  onClick={() => handleColorChange(color)}
-                  className={`w-full h-10 border-2 transition-all ${
-                    selectedColor === color
-                      ? 'border-nier-bg scale-105'
-                      : 'border-nier-border/30 hover:border-nier-border/60'
-                  }`}
-                  style={{
-                    backgroundColor: color,
-                    boxShadow: selectedColor === color ? `0 0 12px ${color}40` : 'none',
-                  }}
-                />
-              ))}
-            </div>
-            <p className="text-nier-bg/70 text-[0.8rem] leading-relaxed tracking-wide mt-1.5">
-              {t('profile.cursorNote')}
-              {colorSaved && <span className="text-nier-bg/80"> {t('profile.saved')}</span>}
-            </p>
-          </div>
+                <p className="text-nier-bg/70 text-xs leading-relaxed mt-1.5">{t('profile.undoNote')}</p>
+              </SettingRow>
 
-          <div>
-            <label className="block text-nier-strong text-xs tracking-[0.1em] uppercase mb-2">
-              {t('profile.undoSteps', { count: undoDepth })}
-            </label>
-            <input
-              type="range"
-              min="1"
-              max={MAX_UNDO_DEPTH}
-              step="1"
-              value={undoDepth}
-              onChange={(e) => handleUndoDepthChange(parseInt(e.target.value, 10))}
-              className="w-full accent-nier-bg"
-            />
-            <p className="text-nier-bg/70 text-[0.8rem] leading-relaxed tracking-wide mt-1.5">
-              {t('profile.undoNote')}
-            </p>
-          </div>
+              <SettingRow id="shape" label={t('profile.batchShape')} value={packingShape === 'square' ? t('profile.shapeSquare') : t('profile.shapeCircle')} open={openRow === 'shape'} onToggle={toggleRow}>
+                <div className="flex gap-2">
+                  {(['square', 'circle'] as const).map(shape => (
+                    <button
+                      key={shape}
+                      type="button"
+                      aria-pressed={packingShape === shape}
+                      onClick={() => handlePackingShapeChange(shape)}
+                      className={`flex-1 py-2 border text-xs tracking-[0.15em] uppercase transition-colors ${packingShape === shape ? 'border-nier-bg bg-nier-bg/10 text-nier-bg' : 'border-nier-border/40 text-nier-bg/80 hover:border-nier-border/60'}`}
+                    >
+                      {shape === 'square' ? t('profile.shapeSquare') : t('profile.shapeCircle')}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-nier-bg/70 text-xs leading-relaxed mt-2">{t('profile.batchNote')}</p>
+              </SettingRow>
 
-          <div>
-            <label className="block text-nier-strong text-xs tracking-[0.1em] uppercase mb-2">
-              {t('profile.batchShape')}
-            </label>
-            <div className="flex gap-2">
-              {(['square', 'circle'] as const).map(shape => (
-                <button
-                  key={shape}
-                  type="button"
-                  onClick={() => handlePackingShapeChange(shape)}
-                  className={`flex-1 py-2 border text-xs tracking-[0.15em] uppercase transition-colors ${
-                    packingShape === shape
-                      ? 'border-nier-bg bg-nier-bg/10 text-nier-bg'
-                      : 'border-nier-border/40 text-nier-bg/80 hover:border-nier-border/60'
-                  }`}
-                >
-                  {shape === 'square' ? t('profile.shapeSquare') : t('profile.shapeCircle')}
-                </button>
-              ))}
-            </div>
-            <p className="text-nier-bg/70 text-[0.8rem] leading-relaxed tracking-wide mt-1.5">
-              {t('profile.batchNote')}
-            </p>
-          </div>
+              <SettingRow id="language" label={t('welcome.language')} value={languageName} open={openRow === 'language'} onToggle={toggleRow}>
+                <div className="-mx-3.5 -mb-3.5"><LanguageList onChosen={() => setOpenRow(null)} /></div>
+              </SettingRow>
 
-          <div className="h-[1px] bg-gradient-to-r from-nier-border/30 via-nier-border/20 to-transparent my-4" />
+              {onPinterest && <SettingRow id="pinterest" label={t('profile.pinterest')} onToggle={onPinterest} go />}
 
-          {/* Password Change Section - only on the web, for an account with a password */}
-          {!isDesktop && !google && (
-            <>
-              <div>
-                <button
-                  onClick={() => {
-                    setShowPasswordChange(!showPasswordChange)
-                    setCurrentPassword('')
-                    setNewPassword('')
-                    setConfirmPassword('')
-                    setPasswordError('')
-                  }}
-                  className="w-full text-left text-nier-bg/80 text-xs tracking-[0.1em] uppercase flex items-center justify-between hover:text-nier-bg transition-colors"
-                >
-                  <span>{t('profile.changePassword')}</span>
-                  <span className="text-nier-bg/70">{showPasswordChange ? '▼' : '▶'}</span>
-                </button>
-                
-                {showPasswordChange && (
-                  <form onSubmit={handlePasswordChange} className="space-y-3 mt-3">
+              {!isDesktop && !google && (
+                <SettingRow id="password" label={t('profile.changePassword')} open={openRow === 'password'} onToggle={toggleRow}>
+                  <form onSubmit={handlePasswordChange} className="space-y-3">
                     <div>
                       <label className="block text-nier-strong text-xs tracking-[0.1em] uppercase mb-1">{t('profile.currentPassword')}</label>
                       <input
@@ -725,49 +671,12 @@ export default function ProfileSettings({ onClose }: ProfileSettingsProps) {
                       {passwordLoading ? t('profile.updating') : t('profile.updatePassword')}
                     </button>
                   </form>
-                )}
-              </div>
+                </SettingRow>
+              )}
 
-              <div className="h-[1px] bg-gradient-to-r from-nier-border/30 via-nier-border/20 to-transparent my-4" />
-            </>
-          )}
-
-          {!isDesktop && (
-            <div className="flex items-center justify-center gap-3 pt-1">
-              <a
-                href="/privacy"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-nier-bg/70 hover:text-nier-bg/80 text-[0.7rem] tracking-[0.1em] uppercase transition-colors"
-              >
-                {t('landing.privacy')}
-              </a>
-              <span className="text-nier-bg/50 text-[0.7rem]">◇</span>
-              <a
-                href="/terms"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-nier-bg/70 hover:text-nier-bg/80 text-[0.7rem] tracking-[0.1em] uppercase transition-colors"
-              >
-                {t('landing.terms')}
-              </a>
-            </div>
-          )}
-
-          {/* Delete Account -- web only, irreversible */}
-          {!isDesktop && (
-            <>
-              <div className="h-[1px] bg-gradient-to-r from-nier-red/30 via-nier-red/10 to-transparent my-4" />
-
-              {!showDeleteConfirm ? (
-                <button
-                  onClick={() => setShowDeleteConfirm(true)}
-                  className="w-full py-2 border border-nier-red/60 text-nier-red text-xs tracking-[0.1em] uppercase hover:bg-nier-red/20 transition-colors"
-                >
-                  {t('profile.deleteAccount')}
-                </button>
-              ) : (
-                <div className="border border-nier-red/60 bg-nier-red/10 p-3 space-y-3">
+              {!isDesktop && (
+                <SettingRow id="delete" label={t('profile.deleteAccount')} danger open={openRow === 'delete'} onToggle={toggleRow}>
+                  <div className="border border-nier-red/60 bg-nier-red/10 p-3 space-y-3">
                   <p className="text-nier-bg text-[0.8rem] leading-relaxed tracking-wide">
                     {t('profile.deleteWarning')}
                   </p>
@@ -883,7 +792,7 @@ export default function ProfileSettings({ onClose }: ProfileSettingsProps) {
                       {deleteLoading ? t('profile.deleting') : t('profile.deletePermanently')}
                     </button>}
                     <button
-                      onClick={() => { setShowDeleteConfirm(false); setDeleteConfirmText(''); setDeleteCode(''); setDeletePassword(''); setCodeSent(false); setResendIn(0); setDeleteError('') }}
+                      onClick={() => setOpenRow(null)}
                       disabled={deleteLoading}
                       className="flex-1 py-2 border border-nier-border/30 text-nier-bg/80 text-xs tracking-[0.1em] uppercase hover:border-nier-border/60 hover:text-nier-bg transition-colors disabled:opacity-30"
                     >
@@ -891,11 +800,20 @@ export default function ProfileSettings({ onClose }: ProfileSettingsProps) {
                     </button>
                   </div>
                 </div>
+
+                </SettingRow>
               )}
-            </>
-          )}
-        </div>
-        </div>
+
+              {onLogOut && <SettingRow id="logout" label={t('welcome.logOut')} danger onToggle={onLogOut} go />}
+            </div>
+            {!isDesktop && (
+              <p className="mt-3.5 text-[11px] leading-relaxed text-nier-bg/70">
+                <a href="/privacy" target="_blank" rel="noopener noreferrer" className="hover:text-nier-bg transition-colors">{t('landing.privacy')}</a>
+                <span aria-hidden="true"> · </span>
+                <a href="/terms" target="_blank" rel="noopener noreferrer" className="hover:text-nier-bg transition-colors">{t('landing.terms')}</a>
+              </p>
+            )}
+          </aside>
         </div>
       </div>
     </div>

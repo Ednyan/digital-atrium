@@ -520,6 +520,9 @@ export const en = {
   // ------------------------------------------------- profile settings, web
   'profile.title': "Profile",
   'profile.yours': "Your settings",
+  'profile.editName': "Change your display name",
+  'profile.nameEvery': "You can change it once every 15 days.",
+  'profile.undoLabel': "Steps you can undo",
   'achievements.title': "Achievements",
   'achievements.count': "{earned} of {all}",
   'achievements.hint': "Press an achievement you have earned to show it beside your name, up to {most}.",

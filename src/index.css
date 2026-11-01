@@ -1430,6 +1430,36 @@ input[type='color']::-moz-color-swatch { border: none; }
    cut corner is a clip-path, and a clip-path would have cut the tail off. */
 .donate-btn-wrap { position: relative; display: inline-flex; }
 
+/* The profile: a page that arrives part by part and leaves as one; settings that
+   unfold rather than appear; what's earned answering the pointer. */
+.profile-page { animation: enter-fade 220ms ease backwards; transition: opacity 170ms ease; }
+.profile-page[data-leaving] { opacity: 0; }
+.profile-glow {
+  position: absolute; left: -8rem; top: -16rem; width: min(54rem, 100vw); height: 44rem; pointer-events: none;
+  background: radial-gradient(closest-side, rgb(255 138 61 / 0.12), rgb(255 138 61 / 0));
+  animation: profile-glow 1.4s ease backwards;
+}
+@keyframes profile-glow { from { opacity: 0; scale: 0.8; } }
+.profile-name .profile-name-pen { opacity: 0; translate: -6px 0; transition: opacity 180ms ease, translate 180ms cubic-bezier(.16, 1, .3, 1); }
+.profile-name:hover .profile-name-pen, .profile-name:focus-visible .profile-name-pen { opacity: 1; translate: 0 0; }
+.profile-note { animation: enter-up 260ms cubic-bezier(.16, 1, .3, 1) backwards; }
+.profile-chip { animation: enter-zoom 320ms cubic-bezier(.16, 1, .3, 1) backwards; }
+.profile-back:hover span { transform: translateX(-3px); }
+.profile-swatch { transition: transform 200ms cubic-bezier(.16, 1, .3, 1), border-color 150ms ease; }
+.profile-swatch:hover { transform: translateY(-2px); }
+.profile-swatch[aria-pressed='true'] { transform: scale(1.06); }
+.profile-chevron { display: inline-block; transition: transform 240ms cubic-bezier(.16, 1, .3, 1); }
+.profile-chevron[data-open] { transform: rotate(90deg); }
+.profile-fold { display: grid; grid-template-rows: 0fr; visibility: hidden; transition: grid-template-rows 300ms cubic-bezier(.16, 1, .3, 1), visibility 300ms; }
+.profile-fold[data-open] { grid-template-rows: 1fr; visibility: visible; }
+.achievement-card { transition: transform 240ms cubic-bezier(.16, 1, .3, 1), border-color 180ms ease, background-color 180ms ease, box-shadow 240ms ease; }
+.achievement-card:hover { transform: translateY(-3px); box-shadow: 0 10px 26px -14px var(--achievement); }
+.achievement-card:active { transform: translateY(-1px) scale(0.99); }
+.achievement-mark { transition: rotate 420ms cubic-bezier(.16, 1, .3, 1), scale 420ms cubic-bezier(.16, 1, .3, 1); }
+.achievement-card:hover .achievement-mark { rotate: 90deg; scale: 1.14; }
+.achievement-bar { transform-origin: left; animation: achievement-bar 900ms cubic-bezier(.16, 1, .3, 1) backwards; }
+@keyframes achievement-bar { from { transform: scaleX(0); } }
+
 /* The tutorial: a light gliding to what it's about, and its card after it. */
 .tutorial-spot {
   position: absolute;

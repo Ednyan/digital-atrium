@@ -614,8 +614,8 @@ export default function WelcomeScreen({ onEnter, onBackToLanding, onAbout, onDev
         `}</style>
       </div>
 
+      {showSettings && <ProfileSettings onClose={() => setShowSettings(false)} onPinterest={() => setShowPinterest(true)} onLogOut={isDesktop ? undefined : handleLogout} />}
       {showPinterest && <PinterestConnectionPanel onClose={() => setShowPinterest(false)} />}
-      {showSettings && <ProfileSettings onClose={() => setShowSettings(false)} />}
       {showContribute && <ContributePanel onClose={() => setShowContribute(false)} />}
 
       {showAppeal && !showSettings && (
