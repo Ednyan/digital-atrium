@@ -3,7 +3,9 @@
 // keyboard's focus). It closes by its own button, Escape, or a press anywhere
 // off it; what it opens elsewhere -- a dialog -- closes it too (LobbyScene).
 
-import { useEffect, useRef, type ButtonHTMLAttributes, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type ButtonHTMLAttributes, type CSSProperties, type ReactNode } from 'react'
+import { barOrder, layOut } from '../lib/barOrder'
+import { useGamePick } from '../store/gameStore'
 import { useTranslation } from '../lib/i18n'
 import { useNarrow } from '../lib/useNarrow'
 
@@ -258,11 +260,95 @@ export default function AtriumMenu({ open, onOpenChange, items }: {
 }
 
 // The viewing tools, a row along the top in the middle, each name drawn out
-// below it. What `open` is says what it has open (its panel), pressed.
-export function ViewBar({ items }: { items: MenuItem[] }) {
+// below it. What `open` is says what it has open (its panel), pressed. Put in an
+// order of one's own, separators too (ViewBarEditor); as many as there's room for
+// between what's at the top left and right, the rest under More, always last.
+export function ViewBar({ items, onCustomize }: { items: MenuItem[]; onCustomize: () => void }) {
   const { t } = useTranslation()
+  const { viewBarOrder } = useGamePick('viewBarOrder')
+  const barRef = useRef<HTMLDivElement>(null)
+  const [rows, setRows] = useState(items.length + 1)
+  useLayoutEffect(() => {
+    const start = document.querySelector('[data-hud-start]')
+    const end = document.querySelector('[data-hud-end]')
+    // It's kept in the middle, so the wider of the two sides says how far it can
+    // reach each way. A tool is 36px with 4 between; the bar adds 6 more in all.
+    const fit = () => {
+      const side = Math.max(start?.getBoundingClientRect().right ?? 0, window.innerWidth - (end?.getBoundingClientRect().left ?? window.innerWidth))
+      setRows(Math.max(1, Math.floor((window.innerWidth - 2 * (side + 12) - 6) / 40)))
+    }
+    fit()
+    const observer = new ResizeObserver(fit)
+    if (start) observer.observe(start)
+    if (end) observer.observe(end)
+    window.addEventListener('resize', fit)
+    return () => {
+      observer.disconnect()
+      window.removeEventListener('resize', fit)
+    }
+  }, [])
+  const byId = new Map(items.map(item => [item.id, item]))
+  const { shown, hidden } = layOut(barOrder(viewBarOrder, items), rows)
+
+  // More's panel: while the pointer is over it or its button, with a moment's
+  // grace between them; a press anywhere off the bar puts it away.
+  const [moreOpen, setMoreOpen] = useState(false)
+  const moreTimer = useRef<number | null>(null)
+  const keepMore = () => {
+    if (moreTimer.current) window.clearTimeout(moreTimer.current)
+    moreTimer.current = null
+    setMoreOpen(true)
+  }
+  const letMoreGo = () => {
+    if (moreTimer.current) window.clearTimeout(moreTimer.current)
+    moreTimer.current = window.setTimeout(() => setMoreOpen(false), 250)
+  }
+  useEffect(() => {
+    if (!moreOpen) return
+    const press = (e: PointerEvent) => {
+      if (!barRef.current?.contains(e.target as Node)) setMoreOpen(false)
+    }
+    window.addEventListener('pointerdown', press, true)
+    return () => window.removeEventListener('pointerdown', press, true)
+  }, [moreOpen])
+  // A panel of its own, opened from under More: More stays for it to hang from.
+  const showMore = moreOpen || hidden.some(id => byId.get(id)?.panel && byId.get(id)?.open)
+
+  const tool = (item: MenuItem, apart: boolean, inMore: boolean) => (
+    <div key={item.id} className="group relative">
+      {apart && <div data-view-separator="" className="absolute -left-[3px] inset-y-1 w-px bg-nier-border/30" />}
+      <button
+        type="button"
+        data-view={item.id}
+        onClick={() => {
+          item.onSelect()
+          if (inMore && !item.panel) setMoreOpen(false)
+        }}
+        title={inMore ? item.label : undefined}
+        aria-label={item.hint ? `${item.label} (${item.hint})` : item.label}
+        aria-pressed={item.open}
+        aria-expanded={item.panel ? !!item.open : undefined}
+        className={`peer relative w-9 h-9 flex items-center justify-center border transition-colors ${
+          item.open
+            ? 'bg-nier-bg text-nier-black border-nier-bg'
+            : item.lit
+              ? 'bg-transparent text-nier-bg border-nier-bg/60 hover:border-nier-bg'
+              : 'bg-transparent text-nier-bg/80 border-transparent hover:border-nier-border/60 hover:text-nier-bg focus-visible:border-nier-border/60'
+        }`}
+      >
+        <MenuIcon d={item.icon} />
+        {item.lit && <span data-lit="" className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full" style={{ background: 'rgb(var(--c-emerald))' }} />}
+      </button>
+      {/* Its panel, under it while open -- and its name, only while not. */}
+      {item.panel && item.open
+        ? <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 z-10">{item.panel}</div>
+        : !inMore && <SlideLabel side="below-centre" text={item.label} hint={item.hint} onPress={item.onSelect} />}
+    </div>
+  )
+
   return (
     <div
+      ref={barRef}
       role="toolbar"
       aria-orientation="horizontal"
       aria-label={t('atrium.tools.view')}
@@ -271,33 +357,45 @@ export function ViewBar({ items }: { items: MenuItem[] }) {
       className="flex gap-1 p-1 border border-nier-border/40 font-mono pointer-events-auto"
       style={{ backgroundColor: 'rgb(var(--c-ground) / 0.92)' }}
     >
-      {items.map(item => (
-        <div key={item.id} className="group relative">
-          {item.apart && <div className="absolute -left-[3px] inset-y-1 w-px bg-nier-border/30" />}
-          <button
-            type="button"
-            data-view={item.id}
-            onClick={item.onSelect}
-            aria-label={item.hint ? `${item.label} (${item.hint})` : item.label}
-            aria-pressed={item.open}
-            aria-expanded={item.panel ? !!item.open : undefined}
-            className={`peer relative w-9 h-9 flex items-center justify-center border transition-colors ${
-              item.open
-                ? 'bg-nier-bg text-nier-black border-nier-bg'
-                : item.lit
-                  ? 'bg-transparent text-nier-bg border-nier-bg/60 hover:border-nier-bg'
-                  : 'bg-transparent text-nier-bg/80 border-transparent hover:border-nier-border/60 hover:text-nier-bg focus-visible:border-nier-border/60'
-            }`}
+      {shown.map(({ id, apart }) => tool(byId.get(id)!, apart, false))}
+      <div className="group relative" onMouseEnter={keepMore} onMouseLeave={letMoreGo}>
+        <button
+          type="button"
+          data-view-more=""
+          aria-haspopup="true"
+          aria-expanded={showMore}
+          aria-label={t('atrium.tools.more')}
+          onClick={() => setMoreOpen(open => !open)}
+          className={`peer relative w-9 h-9 flex items-center justify-center border transition-colors ${
+            showMore ? 'border-nier-border/60 text-nier-bg' : 'bg-transparent text-nier-bg/80 border-transparent hover:border-nier-border/60 hover:text-nier-bg'
+          }`}
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="M5.5 12h.01M12 12h.01M18.5 12h.01" strokeWidth="3" strokeLinecap="round" /></svg>
+        </button>
+        {!showMore && <SlideLabel side="below-centre" text={t('atrium.tools.more')} onPress={() => setMoreOpen(true)} />}
+        {showMore && (
+          <div
+            data-view-more-panel=""
+            className="slide-in absolute top-full right-0 mt-2 flex flex-col gap-1 p-1 border border-nier-border/40 z-10"
+            style={{ backgroundColor: 'rgb(var(--c-ground) / 0.95)' }}
           >
-            <MenuIcon d={item.icon} />
-            {item.lit && <span data-lit="" className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full" style={{ background: 'rgb(var(--c-emerald))' }} />}
-          </button>
-          {/* Its panel, under it while open -- and its name, only while not. */}
-          {item.panel && item.open
-            ? <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 z-10">{item.panel}</div>
-            : <SlideLabel side="below-centre" text={item.label} hint={item.hint} onPress={item.onSelect} />}
-        </div>
-      ))}
+            {hidden.length > 0 && (
+              <div className="grid grid-cols-4 gap-1 w-max pb-1 border-b border-nier-border/25">
+                {hidden.map(id => tool(byId.get(id)!, false, true))}
+              </div>
+            )}
+            <button
+              type="button"
+              data-view-customize=""
+              onClick={() => { setMoreOpen(false); onCustomize() }}
+              className="flex items-center gap-2 h-9 px-2 border border-transparent text-nier-bg/80 hover:border-nier-border/60 hover:text-nier-bg transition-colors whitespace-nowrap text-[11px] tracking-[0.12em] uppercase"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="M4 6h9M4 12h5M4 18h9M17 4v6M14.5 7.5L17 10l2.5-2.5M17 20v-6M14.5 16.5L17 14l2.5 2.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+              {t('atrium.tools.customizeTop')}
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

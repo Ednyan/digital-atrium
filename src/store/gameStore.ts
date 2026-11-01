@@ -112,6 +112,9 @@ interface GameState {
   setAutoOpenCustomization: (on: boolean) => void
   setConfirmDelete: (on: boolean) => void
   setQuickBarOrder: (order: string[] | null) => void
+  // The top bar's tools and separators in the order chosen (lib/barOrder), as above.
+  viewBarOrder: string[] | null
+  setViewBarOrder: (order: string[] | null) => void
   setPanelActions: (actions: string[] | null) => void
   setSpatialSound: (on: boolean) => void
   setShowMinimap: (on: boolean) => void
@@ -245,6 +248,19 @@ export const useGameStore = create<GameState>((set, get) => ({
     const stored = localStorage.getItem('autoSaveMinutes')
     return stored !== null && Number.isFinite(Number(stored)) ? clampAutoSave(Number(stored)) : AUTO_SAVE_DEFAULT
   })(),
+  viewBarOrder: (() => {
+    try {
+      const stored = JSON.parse(localStorage.getItem('atrium.viewBar.order') || 'null')
+      return Array.isArray(stored) ? stored.filter((tool: unknown): tool is string => typeof tool === 'string') : null
+    } catch {
+      return null
+    }
+  })(),
+  setViewBarOrder: (order) => {
+    if (order) localStorage.setItem('atrium.viewBar.order', JSON.stringify(order))
+    else localStorage.removeItem('atrium.viewBar.order')
+    set({ viewBarOrder: order })
+  },
   quickBarOrder: (() => {
     try {
       const stored = JSON.parse(localStorage.getItem('atrium.quickBar.order') || 'null')

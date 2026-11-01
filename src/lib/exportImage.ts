@@ -348,7 +348,7 @@ export async function loadPicture(url: string): Promise<Picture | null> {
   return blob ? pictureOf(blob) : null
 }
 
-async function pictureOf(blob: Blob): Promise<Picture | null> {
+export async function pictureOf(blob: Blob): Promise<Picture | null> {
   const objectUrl = URL.createObjectURL(blob)
   try {
     const img = new Image()

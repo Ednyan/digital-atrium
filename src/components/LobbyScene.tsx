@@ -69,7 +69,7 @@ import PinterestImportPanel from './PinterestImportPanel'
 import Minimap, { type MinimapHandle } from './Minimap'
 import { fileNameOf, saveFile } from '../lib/fileSave'
 import type { PresentationFormat } from '../lib/presentationExport'
-import QuickBar, { EmptyCanvasHint, HistoryButtons, QUICK_ORDER, ToolHint, type PlaceTool, type QuickAction, QuickBarEditor } from './QuickBar'
+import QuickBar, { EmptyCanvasHint, HistoryButtons, QUICK_ORDER, ToolHint, type PlaceTool, type QuickAction, QuickBarEditor, ViewBarEditor } from './QuickBar'
 import { inTutorial, tutorialFinished } from '../lib/tutorial'
 import { isBoxShape, type BoxShape } from '../lib/shapeStyle'
 import { roundedPolygonPath, shapePolygon } from '../lib/traceGeometry'
@@ -481,7 +481,26 @@ function refreshGround(theme: ThemeSettings | null | undefined) {
 // `version` tells to place it again. Switched off, it keeps its picture.
 // `place`: where drawGrid last put the picture, in screen pixels.
 const backdrop = { el: null as HTMLDivElement | null, url: '', src: '', w: 0, h: 0, scale: 1, parallax: 0.3, fill: false, version: 0,
-  place: null as { x: number; y: number; w: number; h: number } | null }
+  place: null as { x: number; y: number; w: number; h: number } | null,
+  // The picture's own bytes, where they could be had: what's on screen, and the
+  // atrium browser's picture of it, come from this one copy (shownFrom).
+  file: null as Blob | null, fileUrl: '' }
+// Where the Atrium's own files are kept, whose answers let a page read them. Read
+// once here, for good: a page may not draw what it only displayed, so the picture
+// for the atrium browser would have to ask for it a second time, under stricter
+// rules the browser's cached copy can fail. Another site's picture is displayed
+// as it always was: this would be one more request to it, likely refused.
+const READABLE_FILES = /^https:\/\/(files\.digitalatrium\.org|rooms\.digitalatrium\.org|[^/]+\.supabase\.co)\//
+function letGoOfBackdropFile() {
+  if (backdrop.fileUrl) URL.revokeObjectURL(backdrop.fileUrl)
+  backdrop.file = null
+  backdrop.fileUrl = ''
+}
+async function shownFrom(src: string): Promise<{ shown: string; file: Blob | null }> {
+  if (!READABLE_FILES.test(src)) return { shown: src, file: null }
+  const file = await fetch(src).then(response => (response.ok ? response.blob() : null)).catch(() => null)
+  return file ? { shown: URL.createObjectURL(file), file } : { shown: src, file: null }
+}
 function paintBackdrop(el: HTMLDivElement, theme: ThemeSettings | null | undefined) {
   const room = theme?.backgroundColor ?? '#0a0a0f'
   const veil = rgbaOf(room, 1 - (theme?.backgroundImageOpacity ?? 1))
@@ -501,6 +520,7 @@ function refreshBackdrop(theme: ThemeSettings | null | undefined, app: Applicati
   if (!url) {
     backdrop.url = ''
     backdrop.src = ''
+    letGoOfBackdropFile()
     el.style.display = 'none'
     return
   }
@@ -509,21 +529,31 @@ function refreshBackdrop(theme: ThemeSettings | null | undefined, app: Applicati
   if (url === backdrop.url) { paintBackdrop(el, theme); placeAgain(); return }
   backdrop.url = url
   backdrop.src = ''
+  letGoOfBackdropFile()
   paintBackdrop(el, theme)
-  void resolveLocalStreamUrl(url).then(src => {
+  void resolveLocalStreamUrl(url).then(async src => {
     // Still local://: its file isn't here -- the theme's colours alone.
     if (src.startsWith('local://')) return
+    const { shown, file } = await shownFrom(src)
+    if (backdrop.url !== url) {
+      if (file) URL.revokeObjectURL(shown)
+      return
+    }
+    if (file) {
+      backdrop.file = file
+      backdrop.fileUrl = shown
+    }
     const img = new Image()
     img.onload = () => {
       if (backdrop.url !== url) return
       backdrop.w = img.naturalWidth || 1
       backdrop.h = img.naturalHeight || 1
-      backdrop.src = src
+      backdrop.src = shown
       backdrop.version++
       paintBackdrop(el, theme)
       placeAgain()
     }
-    img.src = src
+    img.src = shown
   })
 }
 const rgbaOf = (hex: string, alpha: number) => {
@@ -732,6 +762,7 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
     setShowThemeCustomization(false)
     setShowProfileCustomization(false)
     setShowQuickBarEditor(false)
+    setShowViewBarEditor(false)
     setShowTemplates(false)
   }, [])
   // The atrium's locations live in the store and are saved with the rest, each change
@@ -780,6 +811,8 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
   const [showProfileCustomization, setShowProfileCustomization] = useState(false)
   // Customize quick bar (QuickBarEditor), from the bar's More.
   const [showQuickBarEditor, setShowQuickBarEditor] = useState(false)
+  // Customize top bar (ViewBarEditor), from the top bar's More.
+  const [showViewBarEditor, setShowViewBarEditor] = useState(false)
   const [currentLobby, setCurrentLobby] = useState<Lobby | null>(null)
   // The tab named after the atrium, its own name first: one among several tabs reads at a glance.
   useEffect(() => { if (currentLobby?.name) document.title = `${currentLobby.name} — Digital Atrium` }, [currentLobby?.name])
@@ -994,9 +1027,10 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
       width, height,
       view: { x: world.x, y: world.y, zoom: zoomRef.current },
       colour: theme?.backgroundColor ?? '#0a0a0f',
-      picture: backdrop.url && backdrop.place
-        ? { url: backdrop.url, ...backdrop.place, repeat: !backdrop.fill, opacity: theme?.backgroundImageOpacity ?? 1 }
+      picture: backdrop.src && backdrop.place
+        ? { url: backdrop.url, file: backdrop.file, ...backdrop.place, repeat: !backdrop.fill, opacity: theme?.backgroundImageOpacity ?? 1 }
         : null,
+      pictureMissing: !!backdrop.url && !backdrop.src,
       layer,
     }
   }
@@ -4253,6 +4287,7 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
       groundRef.current = null
       groundDrawnFor = null
       backdrop.url = ''
+      letGoOfBackdropFile()
       tracesDataRef.current = []
       
       // Destroy indicator pool objects to free GPU memory
@@ -4908,6 +4943,13 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
       setShowProfileCustomization(true)
     } },
   ]
+  // A bar's editor, docked where the other panels are: it lets go of the selection.
+  const customizeBar = (show: (on: boolean) => void) => {
+    closeSidePanels()
+    setSelectedTraceId(null)
+    setMultiSelectRequest([])
+    show(true)
+  }
   const history = <HistoryButtons onStep={direction => void stepHistory(direction)} />
   const quickBar = (
     <QuickBar
@@ -4924,12 +4966,7 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
       onAction={quickAction}
       onKind={(tool, second) => (tool === 'select' ? setDirectSelect(second) : tool === 'marquee' ? setSelectLasso(second) : setPlainText(second))}
       onLaserSettings={changeLaserSettings}
-      onCustomize={() => {
-        closeSidePanels()
-        setSelectedTraceId(null)
-        setMultiSelectRequest([])
-        setShowQuickBarEditor(true)
-      }}
+      onCustomize={() => customizeBar(setShowQuickBarEditor)}
       horizontal={narrow}
     />
   )
@@ -5116,7 +5153,7 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
           order, so the one you press by accident least often is furthest from
           the corner. Each its icon, its name drawn out below it under the
           pointer (HudIconButton). Viewing the atrium is the right bar's. */}
-      <div ref={sessionBarRef} className="hud-in-right fixed top-4 right-4 z-[10000] flex items-center gap-2 font-mono pointer-events-auto" style={{ '--base': '180ms', '--i': 1 } as CSSProperties}>
+      <div ref={sessionBarRef} data-hud-end="" className="hud-in-right fixed top-4 right-4 z-[10000] flex items-center gap-2 font-mono pointer-events-auto" style={{ '--base': '180ms', '--i': 1 } as CSSProperties}>
         {!uiHidden && (
           <>
             {/* Who's here: how many, and pressed, the list -- with Kick, for
@@ -5215,7 +5252,7 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
           usage, which a phone does without. */}
       {!uiHidden && !narrow && (
       <div className="hud-in-top fixed top-4 left-1/2 -translate-x-1/2 z-[9999] pointer-events-none flex items-start" style={{ '--base': '180ms', '--i': 1 } as CSSProperties}>
-        <ViewBar items={viewItems} />
+        <ViewBar items={viewItems} onCustomize={() => customizeBar(setShowViewBarEditor)} />
         {/* The palette slides out beside it, and the two stay in the middle
             together: this row is what's centred, and it widens. */}
         <div className="grid transition-[grid-template-columns,opacity] duration-300 ease-out" style={{ gridTemplateColumns: showPalette ? '1fr' : '0fr', opacity: showPalette ? 1 : 0 }}>
@@ -5290,7 +5327,7 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
       <div className={`hud-in-left fixed top-4 left-4 z-[9999] flex flex-col items-start gap-2 pointer-events-none ${narrow ? 'right-4' : 'bottom-4'}`} style={{ '--base': '180ms' } as CSSProperties}>
       {/* HUD + presentation quick-toggle, in one row so the toggle always
           sits just to the right of the HUD regardless of its width. */}
-      <div data-hud="true" className="shrink-0 flex items-start gap-2 pointer-events-none">
+      <div data-hud="true" data-hud-start="" className="shrink-0 flex items-start gap-2 pointer-events-none">
       {/* The atrium's menu: three lines, and open, a column of icons whose
           names slide out beside them (AtriumMenu). Choosing one that opens
           something elsewhere closes it; Share and Language open beside it. */}
@@ -6335,6 +6372,7 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
 
       {/* Profile Customization Modal */}
       {showQuickBarEditor && <QuickBarEditor onClose={() => setShowQuickBarEditor(false)} />}
+      {showViewBarEditor && <ViewBarEditor items={viewItems} onClose={() => setShowViewBarEditor(false)} />}
 
       {showProfileCustomization && (
         <ProfileCustomization

@@ -59,6 +59,7 @@ import { useGamePick } from '../store/gameStore'
 import { useTranslation } from '../lib/i18n'
 import { LASER_EFFECTS, TRAIL_MAX_MS, TRAIL_MIN_MS, type LaserEffect, type LaserSettings } from '../lib/laser'
 import type { TranslationKey } from '../locales/en'
+import { barOrder as viewOrder, isSeparator, newSeparator } from '../lib/barOrder'
 
 export type PlaceTool = 'text' | BoxShape | 'path' | 'frame' | 'embed'
 // The kinds of file the Other button offers.
@@ -708,44 +709,52 @@ const TOOL_NAME: Record<QuickButton, TranslationKey> = {
   pinterest: 'atrium.canvas.pinterestBoards',
 }
 
-// Customize quick bar: the tools in the bar's order, each dragged by its row
-// to where it's wanted, as the Layer panel's are -- the bar following at
-// once. Reset puts them back as they come. Docked where the other panels are.
-export function QuickBarEditor({ onClose }: { onClose: () => void }) {
+// Customizing a bar: its entries in order, each dragged by its row to where it's
+// wanted, as the Layer panel's are -- the bar following at once. Reset puts them
+// back as they come. Docked where the other panels are.
+function BarEditor({ subtitle, hint, order, rowOf, onOrder, canReset, onClose, children }: {
+  subtitle: string
+  hint: string
+  order: string[]
+  rowOf: (entry: string) => { icon: ReactNode; name: string; keyName?: string | null; onRemove?: () => void; removeLabel?: string }
+  // The order as chosen, or none to put it back.
+  onOrder: (order: string[] | null) => void
+  canReset: boolean
+  onClose: () => void
+  children?: ReactNode
+}) {
   const { t } = useTranslation()
-  const { quickBarOrder, setQuickBarOrder } = useGamePick('quickBarOrder', 'setQuickBarOrder')
-  const order = barOrder(quickBarOrder)
   // The row held, and the order as it would be let go of now.
-  const [held, setHeld] = useState<{ tool: QuickButton; order: QuickButton[] } | null>(null)
-  const rowRefs = useRef(new Map<QuickButton, HTMLLIElement>())
+  const [held, setHeld] = useState<{ entry: string; order: string[] } | null>(null)
+  const rowRefs = useRef(new Map<string, HTMLLIElement>())
   const list = held?.order ?? order
   const move = (y: number) => {
     if (!held) return
     // Before the first row whose middle is below the pointer.
-    const others = list.filter(tool => tool !== held.tool)
-    let at = others.findIndex(tool => {
-      const r = rowRefs.current.get(tool)?.getBoundingClientRect()
+    const others = list.filter(entry => entry !== held.entry)
+    let at = others.findIndex(entry => {
+      const r = rowRefs.current.get(entry)?.getBoundingClientRect()
       return !!r && y < r.top + r.height / 2
     })
     if (at < 0) at = others.length
-    const next = [...others.slice(0, at), held.tool, ...others.slice(at)]
-    if (next.join() !== list.join()) setHeld({ tool: held.tool, order: next })
+    const next = [...others.slice(0, at), held.entry, ...others.slice(at)]
+    if (next.join() !== list.join()) setHeld({ entry: held.entry, order: next })
   }
   const letGo = () => {
-    if (held && held.order.join() !== order.join()) setQuickBarOrder(held.order)
+    if (held && held.order.join() !== order.join()) onOrder(held.order)
     setHeld(null)
   }
   return (
     <CustomizationPanel
-      subtitle={t('atrium.tools.customizeBar')}
+      subtitle={subtitle}
       onClose={onClose}
       zIndex={9999}
       actions={(
         <button
           type="button"
           data-quick-reset=""
-          disabled={!quickBarOrder}
-          onClick={() => setQuickBarOrder(null)}
+          disabled={!canReset}
+          onClick={() => onOrder(null)}
           className="w-full py-2 border border-nier-border/40 text-nier-strong text-[10px] tracking-[0.15em] uppercase hover:border-nier-bg transition-colors disabled:opacity-40 disabled:pointer-events-none"
         >
           {t('atrium.tools.resetBar')}
@@ -753,34 +762,110 @@ export function QuickBarEditor({ onClose }: { onClose: () => void }) {
       )}
     >
       <div className="px-4 py-3">
-        <p className="text-nier-bg/60 text-[0.7rem] leading-relaxed tracking-wide mb-3">{t('atrium.tools.customizeBarHint')}</p>
+        <p className="text-nier-bg/60 text-[0.7rem] leading-relaxed tracking-wide mb-3">{hint}</p>
+        {children}
         <ul className="flex flex-col gap-1" data-quick-editor="">
-          {list.map(tool => (
-            <li
-              key={tool}
-              ref={el => { if (el) rowRefs.current.set(tool, el); else rowRefs.current.delete(tool) }}
-              data-quick-row={tool}
-              onPointerDown={e => {
-                if (e.button !== 0) return
-                e.currentTarget.setPointerCapture(e.pointerId)
-                setHeld({ tool, order: list })
-              }}
-              onPointerMove={e => move(e.clientY)}
-              onPointerUp={letGo}
-              onPointerCancel={() => setHeld(null)}
-              className={`flex items-center gap-3 h-10 px-2 border select-none touch-none transition-colors ${
-                held?.tool === tool ? 'border-nier-bg bg-nier-bg/10 cursor-grabbing' : 'border-nier-border/30 hover:border-nier-border/60 cursor-grab'
-              }`}
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-nier-bg/50 shrink-0" aria-hidden="true">{GRIP_ICON}</svg>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-nier-bg shrink-0" aria-hidden="true">{tool === 'shape' ? ICONS.rectangle : ICONS[tool]}</svg>
-              <span className="flex-1 min-w-0 truncate text-nier-strong text-[11px] tracking-[0.12em] uppercase">{t(TOOL_NAME[tool])}</span>
-              {keyOf(tool) && <span className="text-nier-bg/50 text-[10px] font-mono">{keyOf(tool)}</span>}
-            </li>
-          ))}
+          {list.map(entry => {
+            const row = rowOf(entry)
+            return (
+              <li
+                key={entry}
+                ref={el => { if (el) rowRefs.current.set(entry, el); else rowRefs.current.delete(entry) }}
+                data-quick-row={entry}
+                onPointerDown={e => {
+                  if (e.button !== 0) return
+                  e.currentTarget.setPointerCapture(e.pointerId)
+                  setHeld({ entry, order: list })
+                }}
+                onPointerMove={e => move(e.clientY)}
+                onPointerUp={letGo}
+                onPointerCancel={() => setHeld(null)}
+                className={`flex items-center gap-3 h-10 px-2 border select-none touch-none transition-colors ${
+                  held?.entry === entry ? 'border-nier-bg bg-nier-bg/10 cursor-grabbing' : 'border-nier-border/30 hover:border-nier-border/60 cursor-grab'
+                }`}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-nier-bg/50 shrink-0" aria-hidden="true">{GRIP_ICON}</svg>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-nier-bg shrink-0" aria-hidden="true">{row.icon}</svg>
+                <span className="flex-1 min-w-0 truncate text-nier-strong text-[11px] tracking-[0.12em] uppercase">{row.name}</span>
+                {row.keyName && <span className="text-nier-bg/50 text-[10px] font-mono">{row.keyName}</span>}
+                {row.onRemove && (
+                  <button
+                    type="button"
+                    data-separator-remove=""
+                    aria-label={row.removeLabel}
+                    title={row.removeLabel}
+                    onPointerDown={e => e.stopPropagation()}
+                    onClick={row.onRemove}
+                    className="w-6 h-6 shrink-0 flex items-center justify-center text-nier-bg/60 hover:text-nier-bg transition-colors"
+                  >
+                    ×
+                  </button>
+                )}
+              </li>
+            )
+          })}
         </ul>
       </div>
     </CustomizationPanel>
+  )
+}
+
+export function QuickBarEditor({ onClose }: { onClose: () => void }) {
+  const { t } = useTranslation()
+  const { quickBarOrder, setQuickBarOrder } = useGamePick('quickBarOrder', 'setQuickBarOrder')
+  return (
+    <BarEditor
+      subtitle={t('atrium.tools.customizeBar')}
+      hint={t('atrium.tools.customizeBarHint')}
+      order={barOrder(quickBarOrder)}
+      rowOf={entry => {
+        const tool = entry as QuickButton
+        return { icon: tool === 'shape' ? ICONS.rectangle : ICONS[tool], name: t(TOOL_NAME[tool]), keyName: keyOf(tool) }
+      }}
+      onOrder={setQuickBarOrder}
+      canReset={!!quickBarOrder}
+      onClose={onClose}
+    />
+  )
+}
+
+// Customize top bar: its tools and its separators, moved alike. More can be added,
+// and any taken away.
+export function ViewBarEditor({ items, onClose }: { items: { id: string; icon: string; label: string; apart?: boolean }[]; onClose: () => void }) {
+  const { t } = useTranslation()
+  const { viewBarOrder, setViewBarOrder } = useGamePick('viewBarOrder', 'setViewBarOrder')
+  const order = viewOrder(viewBarOrder, items)
+  return (
+    <BarEditor
+      subtitle={t('atrium.tools.customizeTop')}
+      hint={t('atrium.tools.customizeTopHint')}
+      order={order}
+      rowOf={entry => {
+        if (isSeparator(entry)) {
+          return {
+            icon: <path d="M12 3v18" />,
+            name: t('atrium.tools.separator'),
+            removeLabel: t('atrium.tools.removeSeparator'),
+            onRemove: () => setViewBarOrder(order.filter(other => other !== entry)),
+          }
+        }
+        const item = items.find(one => one.id === entry)!
+        return { icon: <path d={item.icon} />, name: item.label }
+      }}
+      onOrder={setViewBarOrder}
+      canReset={!!viewBarOrder}
+      onClose={onClose}
+    >
+      <button
+        type="button"
+        data-separator-add=""
+        // Near the top, in view here and on the bar at once, to drag from there.
+        onClick={() => setViewBarOrder([...order.slice(0, 1), newSeparator(order), ...order.slice(1)])}
+        className="mb-2 w-full py-2 border border-dashed border-nier-border/40 text-nier-bg/80 text-[10px] tracking-[0.15em] uppercase hover:text-nier-bg hover:border-nier-border/70 transition-colors"
+      >
+        + {t('atrium.tools.addSeparator')}
+      </button>
+    </BarEditor>
   )
 }
 

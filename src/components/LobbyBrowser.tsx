@@ -39,7 +39,7 @@ const ExportDatabase = lazy(() => import('./ExportDatabase'))
 const DriveSpike = lazy(() => import('./DriveSpike'))
 import type { Lobby } from '../types/database'
 import { sortByLastVisited, mergeRemoteVisits } from '../lib/recentAtriums'
-import { markTutorialSeen, tutorialFinished, tutorialSeen, tutorialStarted, unfinishedTutorial } from '../lib/tutorial'
+import { cameBefore, markTutorialSeen, tutorialFinished, tutorialSeen, tutorialStarted, unfinishedTutorial } from '../lib/tutorial'
 import { browserAtriumIds, browserEngine, clientFor, forgetBrowserAtrium, leaveBrowserAtrium, rememberBrowserAtrium, vaultProblem } from '../lib/browserAtriums'
 import { checkPlatformAdmin } from '../lib/platformAdmin'
 import { Check } from './ShapeStyleControls'
@@ -1125,13 +1125,20 @@ export function LobbyBrowser({ onJoinLobby, onClose, guest = false, onSignIn }: 
     }
   }
 
-  // Someone with no atriums, the first time: straight into it. Anyone who has
-  // some already isn't new. Not on a failed load: that says nothing about them.
+  // Someone new, the first time: straight into it. Only when that's certain: no
+  // atriums listed, and none of an account's history elsewhere. Couldn't tell, as
+  // with a failed load, and nothing's decided: it's asked again on the next visit.
   useEffect(() => {
     if (!listsRead || error || tutorialSeen()) return
     const own = yours.length + (isDesktop ? lobbies.length + adminLobbies.length : 0)
-    if (own > 0) markTutorialSeen()
-    else void startTutorial()
+    if (own > 0) { markTutorialSeen(); return }
+    let left = false
+    void cameBefore().then(before => {
+      if (left || before === null) return
+      if (before) markTutorialSeen()
+      else void startTutorial()
+    })
+    return () => { left = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [listsRead])
 

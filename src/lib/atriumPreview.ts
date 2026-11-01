@@ -20,7 +20,7 @@
 // atrium, rewritten.
 
 import { supabase, isLocalData } from './supabase'
-import { exportImage, loadPicture } from './exportImage'
+import { exportImage, loadPicture, pictureOf } from './exportImage'
 import type { Layer, Trace } from '../types/database'
 import type { TraceLink } from './traceLinks'
 
@@ -40,7 +40,9 @@ export interface RoomSnapshot {
   colour: string
   // Its picture, placed as on screen (in screen pixels): repeated from (x, y)
   // in tiles w by h, or one picture there; as strong as `opacity`.
-  picture: { url: string; x: number; y: number; w: number; h: number; repeat: boolean; opacity: number } | null
+  picture: { url: string; file: Blob | null; x: number; y: number; w: number; h: number; repeat: boolean; opacity: number } | null
+  // It has a picture, but not one on screen yet: still loading, or its file isn't here.
+  pictureMissing: boolean
   // The canvas's ground, grid and particles, shrunk to the preview's size.
   layer: HTMLCanvasElement | null
 }
@@ -94,22 +96,27 @@ export function captureAtriumPreview(lobbyId: string, atrium: AtriumAsLeft) {
   // on its colour.
   const room = inView.length ? atrium.room(MAX_SIDE) : null
   const pictured = inView.length ? inView : traces
+  // A picture never gives way to a poorer one: none of the atrium in view, or its
+  // own picture not on screen. Nothing's made or sent, and the next leave tries.
+  if (last && (!room || room.pictureMissing)) return
 
   // Through the client of the atrium left (lib/browserAtriums), whichever is current by then.
   const client = supabase, local = isLocalData
-  const make = () => void makePreview(client, local, lobbyId, pictured, links, layers, room, background, print)
+  const make = () => void makePreview(client, local, lobbyId, pictured, links, layers, room, background, print, !!last)
   if ('requestIdleCallback' in window) requestIdleCallback(make, { timeout: 4000 })
   else setTimeout(make, 1500)
 }
 
-async function makePreview(client: any, local: boolean, lobbyId: string, traces: Trace[], links: TraceLink[], layers: Layer[], room: RoomSnapshot | null, background: string, print: string) {
+async function makePreview(client: any, local: boolean, lobbyId: string, traces: Trace[], links: TraceLink[], layers: Layer[], room: RoomSnapshot | null, background: string, print: string, hasOne: boolean) {
   if (!client) return
   try {
+    const under = room && await roomPicture(room)
+    if (under?.missed && hasOne) return
     const { blob } = await exportImage(traces, links, layers, {
       format: 'png', scale: 1, background, maxSide: MAX_SIDE, type: 'image/webp', quality: 0.8,
       ...(room && {
         frame: { x: -room.view.x / room.view.zoom, y: -room.view.y / room.view.zoom, width: room.width / room.view.zoom, height: room.height / room.view.zoom },
-        underlay: await roomPicture(room),
+        underlay: under!.canvas,
       }),
     })
     if (!await keepPreview(client, local, lobbyId, blob)) return
@@ -153,7 +160,7 @@ export async function keepPreview(client: any, local: boolean, lobbyId: string, 
 // The room under the traces, as it was seen: its colour; its picture as
 // placed, under a veil of the colour as strong as the picture is faint (as
 // the scene's backdrop paints it); then the canvas's own layers.
-async function roomPicture(room: RoomSnapshot): Promise<HTMLCanvasElement> {
+async function roomPicture(room: RoomSnapshot): Promise<{ canvas: HTMLCanvasElement; missed: boolean }> {
   const k = Math.min(1, MAX_SIDE / Math.max(room.width, room.height))
   const canvas = document.createElement('canvas')
   canvas.width = Math.max(1, Math.round(room.width * k))
@@ -163,7 +170,8 @@ async function roomPicture(room: RoomSnapshot): Promise<HTMLCanvasElement> {
   ctx.fillStyle = room.colour
   ctx.fillRect(0, 0, room.width, room.height)
   const placed = room.picture
-  const picture = placed && await loadPicture(placed.url)
+  // The copy the scene has it from, with no asking; else from where it's kept.
+  const picture = placed && (placed.file ? await pictureOf(placed.file) : await loadPicture(placed.url))
   if (placed && picture) {
     if (placed.repeat) {
       const tiles = ctx.createPattern(picture.source, 'repeat')
@@ -179,5 +187,5 @@ async function roomPicture(room: RoomSnapshot): Promise<HTMLCanvasElement> {
     ctx.globalAlpha = 1
   }
   if (room.layer) ctx.drawImage(room.layer, 0, 0, room.width, room.height)
-  return canvas
+  return { canvas, missed: !!placed && !picture }
 }
