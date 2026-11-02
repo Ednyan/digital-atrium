@@ -8,6 +8,8 @@
 // one (or there isn't one), at most every few minutes, and never in the way:
 // after leaving, once the browser is idle. Everything it needs is taken as the
 // atrium is left, since the canvas and the store are gone straight after.
+// One missing what it should show never replaces a picture, nor is shared
+// (lib/previewRules): better none than one that misleads everyone else's copy.
 //
 // Made by the atrium's owner alone, and the same for everyone: a cloud
 // atrium's in its row; a Drive atrium's sent to Drive too, and taken from
@@ -21,7 +23,8 @@
 
 import { supabase, isLocalData } from './supabase'
 import { exportImage, loadPicture, pictureOf } from './exportImage'
-import { rememberCard } from './atriumCards'
+import { readCards, rememberCard } from './atriumCards'
+import { previewDue, previewIsWhole, type PreviewMemory } from './previewRules'
 import { useGameStore } from '../store/gameStore'
 import type { Layer, Trace } from '../types/database'
 import type { TraceLink } from './traceLinks'
@@ -81,9 +84,12 @@ export function captureAtriumPreview(lobbyId: string, atrium: AtriumAsLeft) {
   const { traces, links, layers, background } = atrium
   if (!supabase || traces.length === 0) return
   const print = fingerprint(traces, atrium.look)
-  let last: { print: string; at: number } | null = null
+  let last: PreviewMemory | null = null
   try { last = JSON.parse(localStorage.getItem(memoryKey(lobbyId)) || 'null') } catch { /* none */ }
-  if (last && (last.print === print || Date.now() - last.at < AT_MOST_EVERY)) return
+  if (!previewDue(last, print, Date.now(), AT_MOST_EVERY)) return
+  // One made here, or one this device has from anywhere: this device's memory alone
+  // would let the first visit from a new place write over everyone's good picture.
+  const hasOne = !!last || !!readCards(useGameStore.getState().userId)[lobbyId]?.preview
 
   // On screen as it's left: the traces whose boxes meet the window, and a
   // frame's whole contents with it (else its off-screen part stands empty).
@@ -100,13 +106,36 @@ export function captureAtriumPreview(lobbyId: string, atrium: AtriumAsLeft) {
   const pictured = inView.length ? inView : traces
   // A picture never gives way to a poorer one: none of the atrium in view, or its
   // own picture not on screen. Nothing's made or sent, and the next leave tries.
-  if (last && (!room || room.pictureMissing)) return
+  if (hasOne && (!room || room.pictureMissing)) return
 
   // Through the client of the atrium left (lib/browserAtriums), whichever is current by then.
   const client = supabase, local = isLocalData
-  const make = () => void makePreview(client, local, lobbyId, pictured, links, layers, room, background, print, !!last)
+  const make = () => void makePreview(client, local, lobbyId, pictured, links, layers, room, background, print, hasOne)
   if ('requestIdleCallback' in window) requestIdleCallback(make, { timeout: 4000 })
   else setTimeout(make, 1500)
+}
+
+const remember = (lobbyId: string, memory: PreviewMemory) => {
+  try { localStorage.setItem(memoryKey(lobbyId), JSON.stringify(memory)) } catch { /* the next leave tries again */ }
+}
+async function shareNow(lobbyId: string, blob: Blob, memory: PreviewMemory) {
+  const shared = await (await import('./driveSync')).sharePreview(lobbyId, blob).catch(error => {
+    console.warn('[preview] not shared:', error)
+    return false
+  })
+  if (shared) remember(lobbyId, { ...memory, unshared: false })
+  return shared
+}
+/** Whether this device's picture is newer than what's shared of the atrium, so stands
+ *  over it (lib/driveSync, takePreview); and it's sent, now, if it can be. */
+export async function ownPictureStands(lobbyId: string): Promise<boolean> {
+  let memory: PreviewMemory | null = null
+  try { memory = JSON.parse(localStorage.getItem(memoryKey(lobbyId)) || 'null') } catch { /* none */ }
+  if (!memory?.unshared) return false
+  const { readLocalFileBytes } = await import('./localDb')
+  const bytes = await readLocalFileBytes(`local://traces/${lobbyId}/preview.webp`)
+  if (bytes) await shareNow(lobbyId, new Blob([bytes as BlobPart], { type: 'image/webp' }), memory)
+  return true
 }
 
 async function makePreview(client: any, local: boolean, lobbyId: string, traces: Trace[], links: TraceLink[], layers: Layer[], room: RoomSnapshot | null, background: string, print: string, hasOne: boolean) {
@@ -114,17 +143,21 @@ async function makePreview(client: any, local: boolean, lobbyId: string, traces:
   try {
     const under = room && await roomPicture(room)
     if (under?.missed && hasOne) return
-    const { blob } = await exportImage(traces, links, layers, {
+    const { blob, images } = await exportImage(traces, links, layers, {
       format: 'png', scale: 1, background, maxSide: MAX_SIDE, type: 'image/webp', quality: 0.8,
       ...(room && {
         frame: { x: -room.view.x / room.view.zoom, y: -room.view.y / room.view.zoom, width: room.width / room.view.zoom, height: room.height / room.view.zoom },
         underlay: under!.canvas,
       }),
     })
+    const whole = previewIsWhole({ hadRoom: !!room, roomPictureLost: !!room?.pictureMissing || !!under?.missed, images })
+    if (!whole && hasOne) return
     if (!await keepPreview(client, local, lobbyId, blob)) return
-    try { localStorage.setItem(memoryKey(lobbyId), JSON.stringify({ print, at: Date.now() })) } catch { /* the next leave tries again */ }
-    // A Drive atrium's is everyone's: sent there too.
-    if (local) await (await import('./driveSync')).sharePreview(lobbyId, blob).catch(error => console.warn('[preview] not shared:', error))
+    // A Drive atrium's is everyone's: sent there too, if it's fit to be. Said to be
+    // waiting first, so a page closed on the way doesn't lose that it is.
+    const memory: PreviewMemory = { print, at: Date.now(), whole, unshared: local && whole }
+    remember(lobbyId, memory)
+    if (local && whole) await shareNow(lobbyId, blob, memory)
   } catch (error) {
     console.warn('[preview] not made:', error)
   }

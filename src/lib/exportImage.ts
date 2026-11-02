@@ -742,7 +742,11 @@ function drawLink(p: Painter, link: TraceLink, a: End, b: End, measure: CanvasRe
 
 // maxScale: the largest a PNG of it can be made (MAX_SIDE, MAX_AREA); x, y:
 // the world point at its top left corner.
-export interface ExportResult { blob: Blob; scale: number; width: number; height: number; maxScale: number; x: number; y: number }
+export interface ExportResult {
+  blob: Blob; scale: number; width: number; height: number; maxScale: number; x: number; y: number
+  // Its image traces, and those whose file couldn't be read, so aren't in it.
+  images: { tried: number; missed: number }
+}
 
 // The picture of `traces` -- and of the connections between two of them --
 // in the atrium's order (`layers` for its groups).
@@ -752,6 +756,7 @@ export async function exportImage(traces: Trace[], links: TraceLink[], layers: L
 
   // Read what's to be pictured first: pictures, kept drawings, natural sizes.
   const prepared = new Map<string, Prepared>()
+  const images = { tried: 0, missed: 0 }
   await Promise.all(traces.map(async trace => {
     let picture: Picture | null = null
     const data = trace.type === 'image' && trace.width && trace.height ? asStrokeData(trace.strokeData) : null
@@ -761,6 +766,8 @@ export async function exportImage(traces: Trace[], links: TraceLink[], layers: L
       picture = canvasPicture(renderStrokeData(data, trace.width!, trace.height!, ppw))
     } else if (trace.type === 'image' && (trace.mediaUrl || trace.imageUrl)) {
       picture = await loadPicture((trace.mediaUrl || trace.imageUrl)!)
+      images.tried++
+      if (!picture) images.missed++
     } else if (trace.type === 'sheet' || trace.type === 'chart') {
       picture = await sheetPicture(trace, options.scale * Math.max(Math.abs(t.scaleX), Math.abs(t.scaleY)))
     } else if (trace.type === 'document' && isDeckFile(trace.mediaUrl)) {
@@ -851,7 +858,7 @@ export async function exportImage(traces: Trace[], links: TraceLink[], layers: L
     const { defs, body } = await painter.markup()
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${pixelWidth}" height="${pixelHeight}" viewBox="${num(minX)} ${num(minY)} ${num(width)} ${num(height)}">`
       + (defs ? `<defs>${defs}</defs>` : '') + body + '</svg>'
-    return { blob: new Blob([svg], { type: 'image/svg+xml' }), scale, width: pixelWidth, height: pixelHeight, maxScale, x: minX, y: minY }
+    return { blob: new Blob([svg], { type: 'image/svg+xml' }), scale, width: pixelWidth, height: pixelHeight, maxScale, x: minX, y: minY, images }
   }
   const canvas = document.createElement('canvas')
   canvas.width = pixelWidth
@@ -862,5 +869,5 @@ export async function exportImage(traces: Trace[], links: TraceLink[], layers: L
   paint(canvasPainter(ctx, scale))
   const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, options.type ?? 'image/png', options.quality))
   if (!blob) throw new Error('The picture could not be made')
-  return { blob, scale, width: pixelWidth, height: pixelHeight, maxScale, x: minX, y: minY }
+  return { blob, scale, width: pixelWidth, height: pixelHeight, maxScale, x: minX, y: minY, images }
 }

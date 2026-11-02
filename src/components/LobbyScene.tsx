@@ -1033,7 +1033,7 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
       picture: backdrop.src && backdrop.place
         ? { url: backdrop.url, file: backdrop.file, ...backdrop.place, repeat: !backdrop.fill, opacity: theme?.backgroundImageOpacity ?? 1 }
         : null,
-      pictureMissing: !!backdrop.url && !backdrop.src,
+      pictureMissing: !!backdrop.url && !(backdrop.src && backdrop.place),
       layer,
     }
   }
