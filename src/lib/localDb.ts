@@ -2477,9 +2477,11 @@ let browserReady: Promise<void> | null = null
  *  and who's making things in it now: the account signed in, or this
  *  browser's guest -- their profile here kept as they are. */
 export async function openBrowserVault(maker: { id: string; name: string; color: string }): Promise<void> {
-  await (browserReady ??= initLocalDb().catch(error => { browserReady = null; throw error }))
+  await browserVaultOpen()
   await makeAs(maker)
 }
+/** This browser's vault open, to read from: nobody's named as making anything. */
+export const browserVaultOpen = (): Promise<void> => (browserReady ??= initLocalDb().catch(error => { browserReady = null; throw error }))
 
 /** Who makes what's made from here on, with a profile of their own: the
  *  browser's account or guest -- or, on desktop, the device's person, or
