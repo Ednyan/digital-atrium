@@ -24,14 +24,15 @@ function flights(room: HTMLElement, from: HTMLElement, to: HTMLElement) {
     flight.append(picture)
     room.append(flight)
     const at = (r: DOMRect) => ({ left: `${r.left - box.left}px`, top: `${r.top - box.top}px`, width: `${r.width}px`, height: `${r.height}px` })
-    source.classList.add('home-flying')
-    target.classList.add('home-flying')
-    const done = () => {
-      flight.remove()
-      source.classList.remove('home-flying')
-      target.classList.remove('home-flying')
-    }
+    const done = () => flight.remove()
     flight.animate([at(a), at(b)], { duration: TIME, easing: EASE, fill: 'both' }).finished.then(done, done)
+    // It flies over what's on the cards (a title, the picture's fade): faded in and
+    // out, and handing over to the real pictures, so none of that pops as it passes.
+    // By when it fades it's almost there: the easing has done nearly all its moving.
+    const faded = { duration: TIME, fill: 'both' as const }
+    flight.animate([{ opacity: 0, offset: 0 }, { opacity: 1, offset: 0.12 }, { opacity: 1, offset: 0.5 }, { opacity: 0, offset: 1 }], faded)
+    source.querySelector('img')?.animate([{ opacity: 1, offset: 0 }, { opacity: 0, offset: 0.12 }, { opacity: 0, offset: 1 }], { duration: TIME })
+    target.querySelector('img')?.animate([{ opacity: 0, offset: 0 }, { opacity: 0, offset: 0.5 }, { opacity: 1, offset: 1 }], { duration: TIME })
   })
 }
 
