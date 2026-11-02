@@ -1,13 +1,14 @@
 // One's profile picture: made small here (256 pixels square covers its largest
 // showing, Profile's 112, on a 2x screen), and kept as a public file at an address
 // nobody can guess, read from there and cached for good, so showing it asks this
-// app's server nothing. The device remembers where it is. The desktop's own is
-// kept on the device alone, as the rest of its profile is.
+// app's server nothing. The device remembers where it is. On the desktop with no
+// account signed in, it's kept on the device alone, as the rest of its profile is.
 
 import { useSyncExternalStore } from 'react'
 import { useGameStore } from '../store/gameStore'
 import { cropOf, type CropView } from './pictureCrop'
 import { filesUrl, workerUrl } from './rooms'
+import { ACCOUNT_EVENT, workerAccount } from './signedIn'
 import { isDesktop } from './supabase'
 import { toWorker } from './worker'
 
@@ -15,7 +16,8 @@ export const PICTURE_SIDE = 256
 const ENOUGH_BYTES = 24 * 1024
 const CHANGED = 'atrium:my-picture'
 
-const keyOf = () => `atrium.picture.${useGameStore.getState().userId}`
+const keyOf = () => `atrium.picture.${workerAccount()?.id ?? useGameStore.getState().userId}`
+const onDeviceOnly = () => isDesktop && !workerAccount()
 const read = () => { try { return localStorage.getItem(keyOf()) } catch { return null } }
 function keep(picture: string | null) {
   try {
@@ -33,14 +35,18 @@ const addressOf = (picture: string) => /^(data|blob):/.test(picture) ? picture :
 export function useMyPicture(): string | null {
   const picture = useSyncExternalStore(changed => {
     window.addEventListener(CHANGED, changed)
-    return () => window.removeEventListener(CHANGED, changed)
+    window.addEventListener(ACCOUNT_EVENT, changed)
+    return () => {
+      window.removeEventListener(CHANGED, changed)
+      window.removeEventListener(ACCOUNT_EVENT, changed)
+    }
   }, read)
   return picture && addressOf(picture)
 }
 
 /** What the account says, as it's read for other reasons (lib/stats, lib/profile). */
 export function notePictureFrom(settings: { picture?: unknown } | undefined) {
-  if (isDesktop) return
+  if (onDeviceOnly()) return
   keep(typeof settings?.picture === 'string' ? settings.picture : null)
 }
 
@@ -96,14 +102,14 @@ const asDataUrl = (blob: Blob) => new Promise<string>((done, failed) => {
 /** Saved as one's picture, the old one gone. Throws if it couldn't be. */
 export async function saveMyPicture(blob: Blob): Promise<void> {
   const url = await asDataUrl(blob)
-  if (isDesktop) { keep(url); return }
+  if (onDeviceOnly()) { keep(url); return }
   const { ok, answer } = await toWorker<{ picture?: string }>('/people/picture', { picture: url.slice(url.indexOf(',') + 1) }, true)
   if (!ok || !answer?.picture) throw new Error('The picture was not saved')
   keep(answer.picture)
 }
 
 export async function removeMyPicture(): Promise<void> {
-  if (!isDesktop) {
+  if (!onDeviceOnly()) {
     const { ok } = await toWorker('/people/picture', {}, true)
     if (!ok) throw new Error('The picture was not removed')
   }

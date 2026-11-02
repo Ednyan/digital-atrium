@@ -234,10 +234,10 @@ const ja: Catalogue = {
   'welcome.connections': "接続",
   'nav.home': "ホーム",
   'nav.atriums': "Atrium",
+  'nav.exit': "終了",
   'welcome.firstTitle': "The Digital Atrium へようこそ",
   'welcome.exit': 'アプリを終了',
   'welcome.useBrowserLanguage': 'ブラウザーに合わせる',
-  'welcome.website': 'ウェブサイトを見る',
   'welcome.websiteTitle': 'ブラウザーで digitalatrium.org を開きます',
 
   // -------------------------------------------------------- atrium browser

@@ -228,10 +228,10 @@ export const en = {
   'welcome.connections': "Connections",
   'nav.home': "Home",
   'nav.atriums': "Atriums",
+  'nav.exit': "Exit",
   'welcome.firstTitle': "Welcome to The Digital Atrium",
   'welcome.exit': 'Exit Application',
   'welcome.useBrowserLanguage': "Use my browser's",
-  'welcome.website': 'Visit the website',
   'welcome.websiteTitle': 'Opens digitalatrium.org in your browser',
 
   // -------------------------------------------------------- atrium browser

@@ -30,6 +30,7 @@ import Hall from './Hall'
 import { supabase, isDesktop } from '../lib/supabase'
 import { goTo } from '../lib/route'
 import { useMyPicture } from '../lib/myPicture'
+import { signOutWorkerAccount, useWorkerAccount } from '../lib/signedIn'
 import { slideBetween } from '../lib/homeSlide'
 import type { AtriumsApi } from './LobbyBrowser'
 import { checkPlatformAdmin, knownPlatformAdmin } from '../lib/platformAdmin'
@@ -71,6 +72,7 @@ const FAMILY_COLOUR = { start: '#FF8A3D', placed: '#E8C15A', deleted: '#C77DFF',
 // The Atrium's mark, in the colour of what's behind this mask.
 const MARK: CSSProperties = { WebkitMaskImage: 'url(/atrium-mark.png)', maskImage: 'url(/atrium-mark.png)', WebkitMaskSize: 'contain', maskSize: 'contain', WebkitMaskRepeat: 'no-repeat', maskRepeat: 'no-repeat', WebkitMaskPosition: 'center', maskPosition: 'center' }
 
+const TOP_WORD = 'cut-corner inline-flex items-center justify-center gap-2 h-[2.125rem] px-3 border border-nier-border/60 text-nier-strong hover:border-nier-border text-[11px] tracking-[0.15em] uppercase leading-none transition-colors'
 const footLink = 'text-[11px] tracking-[0.1em] uppercase text-nier-bg/80 hover:text-nier-strong transition-colors whitespace-nowrap'
 
 export default function HomeScreen({ view, onGo, onOpenAtrium, guest = false, onSignIn, onBackToLanding, onAbout, onDevelopers }: HomeScreenProps) {
@@ -89,6 +91,7 @@ export default function HomeScreen({ view, onGo, onOpenAtrium, guest = false, on
   const [isDeveloper, setIsDeveloper] = useState(knownPlatformAdmin)
   useEffect(() => { if (!guest) void checkPlatformAdmin().then(setIsDeveloper) }, [guest])
   const picture = useMyPicture()
+  const account = useWorkerAccount()
 
   // The two walls. Atriums is there from when it's first wanted, and stays.
   const room = useRef<HTMLDivElement>(null)
@@ -151,7 +154,7 @@ export default function HomeScreen({ view, onGo, onOpenAtrium, guest = false, on
   useEffect(() => {
     noteToday()
     if (!guest) void syncStats().then(setStats)
-  }, [guest])
+  }, [guest, account?.id])
   useEffect(() => { if (!showSettings) setStats(readStats()) }, [showSettings])
   // Anew on coming back from Atriums, which may have told the device more.
   const [cardsTold, setCardsTold] = useState(0)
@@ -204,6 +207,9 @@ export default function HomeScreen({ view, onGo, onOpenAtrium, guest = false, on
     window.location.reload()
   }
 
+  // On the desktop only an account can be left: the device's person stays.
+  const logOut = !isDesktop ? () => void handleLogout() : account ? () => void signOutWorkerAccount() : undefined
+
   const brand = (
     <>
       <span
@@ -224,12 +230,17 @@ export default function HomeScreen({ view, onGo, onOpenAtrium, guest = false, on
         <div aria-hidden="true" className="welcome-glow" />
 
         <header className="enter-down home-top relative z-30">
-          {/* Web only: the desktop has no website behind it to go back to. */}
-          {onBackToLanding && !isDesktop ? (
-            <button type="button" data-welcome-brand="" onClick={() => leaveTo(onBackToLanding)} title={t('common.back')} className="flex items-center gap-3 justify-self-start transition-opacity hover:opacity-80">{brand}</button>
-          ) : (
-            <div className="flex items-center gap-3 justify-self-start">{brand}</div>
-          )}
+          {/* The website: the page behind this on the web; on the desktop, none being
+              behind it, in the system's browser, as the webview has no way back. */}
+          <button
+            type="button"
+            data-welcome-brand=""
+            onClick={() => (isDesktop ? openExternalUrl(ATRIUM_WEBSITE) : onBackToLanding && leaveTo(onBackToLanding))}
+            title={isDesktop ? t('welcome.websiteTitle') : t('common.back')}
+            className="flex items-center gap-3 justify-self-start transition-opacity hover:opacity-80"
+          >
+            {brand}
+          </button>
           {!guest && (
             <nav aria-label={t('welcome.more')} data-home-nav="" data-on={view} className="home-nav">
               <span aria-hidden="true" className="home-nav-light" />
@@ -238,10 +249,16 @@ export default function HomeScreen({ view, onGo, onOpenAtrium, guest = false, on
             </nav>
           )}
           <div className="home-tools flex items-center gap-2.5">
-            <button type="button" data-home-help="" onClick={() => setShowHelp(true)} title={t('help.title')} aria-label={t('help.title')} className="cut-corner inline-flex items-center justify-center gap-2 h-[2.125rem] px-3 border border-nier-border/60 text-nier-strong hover:border-nier-border text-[11px] tracking-[0.15em] uppercase leading-none transition-colors" style={{ backgroundColor: 'rgb(var(--c-ground) / 0.94)' }}>
+            <button type="button" data-home-help="" onClick={() => setShowHelp(true)} title={t('help.title')} aria-label={t('help.title')} className={TOP_WORD} style={{ backgroundColor: 'rgb(var(--c-ground) / 0.94)' }}>
               <span aria-hidden="true" className="text-[13px] leading-none">?</span>
               <span className="hidden sm:inline">{t('help.title')}</span>
             </button>
+            {isDesktop && onAbout && (
+              <button type="button" data-home-about="" onClick={onAbout} title={t('welcome.about')} aria-label={t('welcome.about')} className={TOP_WORD} style={{ backgroundColor: 'rgb(var(--c-ground) / 0.94)' }}>
+                <span aria-hidden="true" className="text-[13px] leading-none normal-case">i</span>
+                <span className="hidden xl:inline">{t('welcome.about')}</span>
+              </button>
+            )}
             <FullscreenButton className="cut-corner inline-flex items-center justify-center w-[2.625rem] h-[2.125rem] border border-nier-border/40 text-nier-bg/80 hover:text-nier-strong hover:border-nier-border/70 transition-colors" style={{ backgroundColor: 'rgb(var(--c-ground) / 0.94)' }} />
             <ThemeToggle />
             <DonateButton onClick={() => setShowContribute(true)} variant="quiet" compact className="h-[2.125rem] !py-0" />
@@ -252,7 +269,7 @@ export default function HomeScreen({ view, onGo, onOpenAtrium, guest = false, on
                 chipClass="welcome-chip flex items-center gap-2.5 h-[2.125rem] pl-1 pr-3 border border-nier-border/40 hover:border-nier-border/80 transition-colors"
                 chipStyle={{ backgroundColor: 'rgb(var(--c-ground) / 0.94)' }}
                 onProfile={() => setShowSettings(true)}
-                onLogOut={isDesktop ? undefined : () => void handleLogout()}
+                onLogOut={logOut}
               >
                 <span aria-hidden="true" className="w-[1.625rem] h-[1.625rem] flex items-center justify-center overflow-hidden text-[11px] font-bold uppercase transition-colors duration-300" style={{ background: playerColor, color: '#191919' }}><PictureOrInitial picture={picture} initial={(username || '?').slice(0, 1)} /></span>
                 <span className="hidden sm:block max-w-[10rem] truncate text-xs text-nier-strong">{username}</span>
@@ -262,6 +279,24 @@ export default function HomeScreen({ view, onGo, onOpenAtrium, guest = false, on
                   </span>
                 )}
               </AccountMenu>
+            )}
+            {/* Where a window's way out is. */}
+            {isDesktop && (
+              <button
+                type="button"
+                data-home-exit=""
+                onClick={async () => {
+                  const { getCurrentWindow } = await import('@tauri-apps/api/window')
+                  getCurrentWindow().close()
+                }}
+                title={t('welcome.exit')}
+                aria-label={t('welcome.exit')}
+                className={`${TOP_WORD} home-exit`}
+                style={{ backgroundColor: 'rgb(var(--c-ground) / 0.94)' }}
+              >
+                <svg aria-hidden="true" width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"><path d="M8 1.8v6M4.5 3.9a5.4 5.4 0 1 0 7 0" /></svg>
+                <span className="hidden xl:inline">{t('nav.exit')}</span>
+              </button>
             )}
           </div>
         </header>
@@ -360,7 +395,7 @@ export default function HomeScreen({ view, onGo, onOpenAtrium, guest = false, on
                     </span>
                   </button>
                 )}
-                <WelcomeConnections onPinterest={() => setShowPinterest(true)} pinterestOpen={showPinterest} style={{ '--i': 9 } as CSSProperties} />
+                <WelcomeConnections onPinterest={() => setShowPinterest(true)} pinterestOpen={showPinterest} onAccountWanted={() => onGo('atriums')} style={{ '--i': 9 } as CSSProperties} />
               </aside>
             </div>
           </main>
@@ -370,21 +405,6 @@ export default function HomeScreen({ view, onGo, onOpenAtrium, guest = false, on
               <button type="button" data-welcome-tutorial="" onClick={() => askAtriums(api => api.startTutorial())} className={footLink}>{t('tutorial.button')}</button>
               <button type="button" onClick={() => openContributors('/home')} className={footLink}>{t('welcome.contributors')}</button>
               {isDeveloper && onDevelopers && <button type="button" data-welcome-developers="" onClick={onDevelopers} className={footLink}>{t('welcome.developers')}</button>}
-              {isDesktop && onAbout && <button type="button" onClick={onAbout} className={footLink}>{t('welcome.about')}</button>}
-              {/* Handed to the system's browser: the webview has no address bar to come back from. */}
-              {isDesktop && <button type="button" onClick={() => openExternalUrl(ATRIUM_WEBSITE)} title={t('welcome.websiteTitle')} className={footLink}>{t('welcome.website')} ↗</button>}
-              {isDesktop && (
-                <button
-                  type="button"
-                  onClick={async () => {
-                    const { getCurrentWindow } = await import('@tauri-apps/api/window')
-                    getCurrentWindow().close()
-                  }}
-                  className={`${footLink} danger-word`}
-                >
-                  {t('welcome.exit')}
-                </button>
-              )}
             </nav>
             {funded && (
               <button type="button" data-welcome-funded="" onClick={() => openContributors('/home')} title={t('goal.seeWho')} className="flex items-center gap-3 text-[11px] tracking-[0.1em] uppercase text-nier-bg/80 hover:text-nier-strong transition-colors">
@@ -406,7 +426,7 @@ export default function HomeScreen({ view, onGo, onOpenAtrium, guest = false, on
         </div>
       </div>
 
-      {showSettings && <ProfileSettings onClose={() => setShowSettings(false)} onPinterest={() => setShowPinterest(true)} pinterestOpen={showPinterest} onLogOut={isDesktop ? undefined : handleLogout} />}
+      {showSettings && <ProfileSettings onClose={() => setShowSettings(false)} onPinterest={() => setShowPinterest(true)} pinterestOpen={showPinterest} onLogOut={logOut} />}
       {showPinterest && <PinterestConnectionPanel onClose={() => setShowPinterest(false)} />}
       {showContribute && <ContributePanel onClose={() => setShowContribute(false)} />}
 

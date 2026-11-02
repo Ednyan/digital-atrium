@@ -7,6 +7,9 @@ import { googleOpen } from '../lib/drive'
 import { useTranslation } from '../lib/i18n'
 import { disconnectPinterest, initiatePinterestConnect, isPinterestConfigured, usePinterestStatus } from '../lib/pinterest'
 import { isDesktop } from '../lib/supabase'
+import { useWorkerAccount } from '../lib/signedIn'
+import { openExternalUrl } from '../lib/openExternal'
+import { ATRIUM_WEBSITE } from '../lib/creatorLinks'
 import { showToast } from '../lib/toast'
 import { useDriveConnection } from './DriveConnection'
 import PinterestMark from './PinterestMark'
@@ -47,10 +50,12 @@ function Row({ id, mark, name, connected, said, busy, onConnect, onDisconnect }:
   )
 }
 
-export default function WelcomeConnections({ onPinterest, pinterestOpen, style }: {
+export default function WelcomeConnections({ onPinterest, pinterestOpen, onAccountWanted, style }: {
   // Pinterest's own panel: how the desktop connects.
   onPinterest: () => void
   pinterestOpen: boolean
+  // The desktop, signed in to nothing: where it can be.
+  onAccountWanted: () => void
   style?: CSSProperties
 }) {
   const { t } = useTranslation()
@@ -60,7 +65,16 @@ export default function WelcomeConnections({ onPinterest, pinterestOpen, style }
   const [lookAgain, setLookAgain] = useState(0)
   const [leaving, setLeaving] = useState(false)
   const pinterest = usePinterestStatus(pinterestOpen, lookAgain)
-  const showDrive = googleOpen
+  const account = useWorkerAccount()
+  const showDrive = googleOpen || isDesktop
+  // The desktop can't show Google's window. It has Drive from the site, as the site
+  // signs it in: with an account to have it for, and the site to connect it from.
+  const connectDrive = () => {
+    if (!isDesktop) { void drive.connect().then(said); return }
+    if (!account) { onAccountWanted(); return }
+    showToast(t('browser.drive.desktopGoogle'))
+    openExternalUrl(ATRIUM_WEBSITE)
+  }
   const showPinterest = isDesktop || isPinterestConfigured()
   if (!showDrive && !showPinterest) return null
   return (
@@ -72,10 +86,10 @@ export default function WelcomeConnections({ onPinterest, pinterestOpen, style }
             id="drive"
             mark={<DriveMark className="block w-full h-full" />}
             name="Google Drive"
-            connected={drive.connected}
+            connected={drive.connected && (!isDesktop || !!account)}
             said={t('profile.pinterestConnectedPlain')}
             busy={drive.busy}
-            onConnect={() => void drive.connect().then(said)}
+            onConnect={connectDrive}
             onDisconnect={() => void drive.disconnect().then(said)}
           />
         )}

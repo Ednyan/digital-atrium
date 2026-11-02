@@ -237,10 +237,10 @@ const zh: Catalogue = {
   'welcome.connections': "连接",
   'nav.home': "主页",
   'nav.atriums': "Atrium",
+  'nav.exit': "退出",
   'welcome.firstTitle': "欢迎来到 The Digital Atrium",
   'welcome.exit': '退出应用',
   'welcome.useBrowserLanguage': '跟随浏览器',
-  'welcome.website': '访问网站',
   'welcome.websiteTitle': '在浏览器中打开 digitalatrium.org',
 
   // -------------------------------------------------------- atrium browser

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from '../lib/i18n'
 import type { TranslationKey } from '../locales/en'
 import { linkDesktop } from '../lib/emailAccount'
-import { ACCOUNT_EVENT, signOutWorkerAccount, workerAccount } from '../lib/signedIn'
+import { signOutWorkerAccount, useWorkerAccount } from '../lib/signedIn'
 import RichText from './RichText'
 
 // The desktop app's account (docs/DECENTRALIZING.md, step 8), in the atrium
@@ -10,18 +10,11 @@ import RichText from './RichText'
 // atriums shared with it. The vault's atriums stay the device's either way.
 export default function DesktopAccount({ buttonClass }: { buttonClass: string }) {
   const { t } = useTranslation()
-  const [account, setAccount] = useState(workerAccount)
+  const account = useWorkerAccount()
   const [code, setCode] = useState<string | null>(null)
   const [note, setNote] = useState<TranslationKey | null>(null)
   const stopped = useRef(false)
-  useEffect(() => {
-    const changed = () => setAccount(workerAccount())
-    window.addEventListener(ACCOUNT_EVENT, changed)
-    return () => {
-      stopped.current = true
-      window.removeEventListener(ACCOUNT_EVENT, changed)
-    }
-  }, [])
+  useEffect(() => () => { stopped.current = true }, [])
 
   const signIn = async () => {
     stopped.current = false

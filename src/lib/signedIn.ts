@@ -4,6 +4,7 @@
 // the lasting sign-in, or an email account (lib/emailAccount), a renewal
 // token -- the worker's session what either is known by.
 
+import { useEffect, useState } from 'react'
 import { cloudClient } from './supabase'
 
 // `kind`: an email account's says so; a Google account's, kept before there
@@ -27,6 +28,16 @@ export function workerAccount(): WorkerAccount | null {
   } catch {
     return null
   }
+}
+/** The same, kept up to date as they sign in and out. */
+export function useWorkerAccount(): WorkerAccount | null {
+  const [account, setAccount] = useState(workerAccount)
+  useEffect(() => {
+    const changed = () => setAccount(workerAccount())
+    window.addEventListener(ACCOUNT_EVENT, changed)
+    return () => window.removeEventListener(ACCOUNT_EVENT, changed)
+  }, [])
+  return account
 }
 /** A Google account, signed in here: its Google is its sign-in. */
 export function googleAccount(): GoogleAccount | null {

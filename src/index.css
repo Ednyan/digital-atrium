@@ -1490,6 +1490,7 @@ input[type='color']::-moz-color-swatch { border: none; }
 .home-nav button:hover, .home-nav button[aria-current] { color: rgb(var(--c-strong)); }
 .home-nav-light { position: absolute; inset-block: -1px; left: -1px; width: calc(50% + 1px); background: rgb(var(--c-fg) / 0.1); border: 1px solid rgb(var(--c-line) / 0.6); transition: translate 0.76s cubic-bezier(0.22, 1, 0.36, 1); }
 .home-nav[data-on='atriums'] .home-nav-light { translate: calc(100% - 1px) 0; }
+.home-exit:hover { color: rgb(var(--c-danger)); border-color: rgb(var(--c-danger) / 0.7); }
 .home-wall { position: absolute; inset: 0; overflow-y: auto; overflow-x: hidden; }
 .home-wall[data-away] { visibility: hidden; }
 .home-flight { position: absolute; z-index: 20; overflow: hidden; pointer-events: none; }

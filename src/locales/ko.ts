@@ -238,10 +238,10 @@ const ko: Catalogue = {
   'welcome.connections': "연결",
   'nav.home': "홈",
   'nav.atriums': "Atrium",
+  'nav.exit': "종료",
   'welcome.firstTitle': "The Digital Atrium에 오신 것을 환영해요",
   'welcome.exit': '앱 종료',
   'welcome.useBrowserLanguage': '브라우저 설정 따르기',
-  'welcome.website': '웹사이트 보기',
   'welcome.websiteTitle': '브라우저에서 digitalatrium.org를 열어요',
 
   // -------------------------------------------------------- atrium browser
