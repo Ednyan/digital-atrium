@@ -50,7 +50,9 @@ for (let waited = 0; ; waited++) {
 }
 
 // 2. One draft for the tag.
-const drafts = (await json('/releases?per_page=30')).filter(release => release.tag_name === tag && release.draft)
+// GitHub calls a draft "untagged-..." once it's been changed without its tag being
+// restated: a run that stopped short of publishing left one so, known by its name and commit.
+const drafts = (await json('/releases?per_page=30')).filter(release => release.draft && (release.tag_name === tag || (release.tag_name.startsWith('untagged-') && release.name === tag && release.target_commitish === sha)))
 if (drafts.length !== 1) throw new Error(`${drafts.length} drafts for ${tag}: merge them first (one per tag)`)
 const release = drafts[0]
 const assetNamed = name => release.assets.find(asset => asset.name === name)
@@ -73,7 +75,7 @@ for (const [platform, entry] of Object.entries(manifest.platforms)) {
 await api(`/releases/assets/${manifestAsset.id}`, { method: 'DELETE' })
 const upload = release.upload_url.replace(/\{.*\}$/, '')
 await api(`${upload}?name=latest.json`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...manifest, notes: blurb }, null, 2) })
-await api(`/releases/${release.id}`, { method: 'PATCH', body: JSON.stringify({ body, ...(publish ? { draft: false } : {}) }) })
+await api(`/releases/${release.id}`, { method: 'PATCH', body: JSON.stringify({ tag_name: tag, body, ...(publish ? { draft: false } : {}) }) })
 console.log(publish ? `${tag} published` : `${tag} ready, still a draft`)
 
 // 5. What installed apps are offered now.
