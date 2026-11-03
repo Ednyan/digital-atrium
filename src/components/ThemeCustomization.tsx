@@ -16,8 +16,9 @@ import type { Lobby, ThemeSettings } from '../types/database'
 import { useTranslation } from '../lib/i18n'
 import type { TranslationKey } from '../locales/en'
 import { useGameStore } from '../store/gameStore'
+import { useWorkerAccount } from '../lib/signedIn'
 import { firstFreeName } from '../lib/traceNames'
-import { CUSTOM_THEME_LIMIT, presetsNow, gridStyleOf, modeOf, rememberLast, setCustomThemes, themeModeOf, themeOf, useCustomThemes, type CustomTheme, type ThemeMode, type ThemeRef } from '../lib/customThemes'
+import { customThemeLimit, DEVICE_THEMES, ONLINE_THEMES, presetsNow, gridStyleOf, modeOf, rememberLast, setCustomThemes, themeModeOf, themeOf, useCustomThemes, type CustomTheme, type ThemeMode, type ThemeRef } from '../lib/customThemes'
 import { useLandingTheme } from '../lib/useLandingTheme'
 import { shownSpecialThemes, useSpecialThemes } from '../lib/specialThemes'
 import { CustomizationPanel, Section } from './Customization'
@@ -180,7 +181,10 @@ export function themeSwatch(values: ThemeSettings, cell: number): React.CSSPrope
 }
 
 // A theme as a tile: its floor ruled by its grid, its name, light or dark.
-export function ThemeTile({ name, about, values, mode, selected, onPick, testId }: {
+// A cloud: one of one's own themes kept online, on the account.
+const ONLINE_ICON = 'M7 18a4.6 4.4 0 0 1 0 -9a5 4.5 0 0 1 11 2h1a3.5 3.5 0 0 1 0 7h-12'
+
+export function ThemeTile({ name, about, values, mode, selected, onPick, testId, online = false }: {
   name: string
   about?: string
   values: ThemeSettings
@@ -188,7 +192,9 @@ export function ThemeTile({ name, about, values, mode, selected, onPick, testId 
   selected: boolean
   onPick: () => void
   testId: string
+  online?: boolean
 }) {
+  const { t } = useTranslation()
   return (
     <button
       type="button"
@@ -204,6 +210,7 @@ export function ThemeTile({ name, about, values, mode, selected, onPick, testId 
       />
       <span className="flex items-center gap-1.5 px-2 py-1.5 text-[10px] tracking-[0.12em] uppercase text-nier-bg/85">
         <span className="min-w-0 flex-1 truncate">{name}</span>
+        {online && <span className="shrink-0 text-nier-bg/60" title={t('atrium.theme.isOnline')} aria-label={t('atrium.theme.isOnline')}><MenuIcon d={ONLINE_ICON} size={12} /></span>}
         <span className="shrink-0 text-nier-bg/60" aria-label={mode}><MenuIcon d={mode === 'light' ? MENU_ICONS.sun : MENU_ICONS.moon} size={12} /></span>
       </span>
     </button>
@@ -229,6 +236,15 @@ export function ThemeCustomization({ lobby, viewRef, onPick, canSaveForAtrium, o
   const shown: ThemeSettings = { ...THEME_DEFAULTS, ...(themeOf(viewRef, atrium, customs) ?? atrium ?? {}) }
   const mine = viewRef.startsWith('custom:') ? customs.find(c => `custom:${c.id}` === viewRef) ?? null : null
   const [status, setStatus] = useState<string | null>(null)
+  // On the desktop, signed in: one's own are the account's three and the device's nine.
+  const account = useWorkerAccount()
+  const limit = customThemeLimit()
+  const both = isDesktop && !!account
+  const onlineOnes = customs.filter(c => c.online)
+  const deviceOnes = customs.filter(c => !c.online)
+  // The account's three full, a theme put online: one of them to come down for it.
+  const [swapping, setSwapping] = useState(false)
+  useEffect(() => setSwapping(false), [mine?.id])
 
   const keep = (next: CustomTheme[]) => {
     if (userId) setCustomThemes(userId, next, () => setStatus(t('atrium.theme.yoursNotSaved')))
@@ -238,17 +254,31 @@ export function ThemeCustomization({ lobby, viewRef, onPick, canSaveForAtrium, o
   }
   const setValue = (patch: Partial<ThemeSettings>) => mine && change({ values: { ...mine.values, ...patch } })
 
-  // One of your own, from the theme that's showing.
+  // One of your own, from the theme that's showing: on the desktop, kept on it
+  // while it has room, online after.
   const makeTheme = () => {
-    if (!userId || customs.length >= CUSTOM_THEME_LIMIT) return
+    if (!userId || customs.length >= limit) return
     const theme: CustomTheme = {
       id: crypto.randomUUID(),
       name: firstFreeName(customs.map(c => c.name), n => t('atrium.theme.customName', { n })),
       mode: themeModeOf(viewRef, atrium, customs),
       values: shown,
+      ...(isDesktop ? { online: deviceOnes.length >= DEVICE_THEMES } : {}),
     }
     keep([...customs, theme])
     onPick(`custom:${theme.id}`)
+  }
+  // Online, or back on this device only.
+  const moveMine = () => {
+    if (!mine) return
+    if (mine.online) { if (deviceOnes.length < DEVICE_THEMES) change({ online: false }); return }
+    if (onlineOnes.length < ONLINE_THEMES) change({ online: true })
+    else setSwapping(open => !open)
+  }
+  const swapWith = (other: CustomTheme) => {
+    if (!mine) return
+    keep(customs.map(c => (c.id === mine.id ? { ...c, online: true } : c.id === other.id ? { ...c, online: false } : c)))
+    setSwapping(false)
   }
   const deleteTheme = () => {
     if (!mine) return
@@ -324,7 +354,7 @@ export function ThemeCustomization({ lobby, viewRef, onPick, canSaveForAtrium, o
         <p className="text-nier-bg/55 text-[0.7rem] leading-relaxed tracking-wide">{t('atrium.theme.forYou')}</p>
       </Section>
 
-      <Section id="mine" title={t('atrium.theme.yours', { count: customs.length, limit: CUSTOM_THEME_LIMIT })}>
+      <Section id="mine" title={t('atrium.theme.yours', { count: customs.length, limit })}>
         <div className="grid grid-cols-3 gap-2">
           {customs.map(theme => (
             <ThemeTile
@@ -335,11 +365,12 @@ export function ThemeCustomization({ lobby, viewRef, onPick, canSaveForAtrium, o
               mode={theme.mode}
               selected={viewRef === `custom:${theme.id}`}
               onPick={() => onPick(`custom:${theme.id}`)}
+              online={both && !!theme.online}
             />
           ))}
           {/* The slots not made yet: crossed out, and pressed, a theme
               from the one showing. */}
-          {Array.from({ length: CUSTOM_THEME_LIMIT - customs.length }, (_, i) => (
+          {Array.from({ length: Math.max(0, limit - customs.length) }, (_, i) => (
             <button
               key={`empty-${i}`}
               type="button"
@@ -397,10 +428,39 @@ export function ThemeCustomization({ lobby, viewRef, onPick, canSaveForAtrium, o
                 <MenuIcon d="M4 7h16M10 11v6M14 11v6M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12M9 7v-3a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v3" size={14} />
               </button>
             </div>
+            {both && (
+              <div className="space-y-2">
+                <button
+                  type="button"
+                  data-theme-online=""
+                  aria-pressed={!!mine.online}
+                  onClick={moveMine}
+                  disabled={!!mine.online && deviceOnes.length >= DEVICE_THEMES}
+                  title={mine.online && deviceOnes.length >= DEVICE_THEMES ? t('atrium.theme.deviceFull', { n: DEVICE_THEMES }) : undefined}
+                  className="w-full flex items-center justify-center gap-2 px-2 py-2 text-[10px] tracking-[0.12em] uppercase border border-nier-border/30 text-nier-bg/85 hover:border-nier-border/60 disabled:opacity-40 transition-colors"
+                >
+                  <MenuIcon d={ONLINE_ICON} size={13} />
+                  {mine.online ? t('atrium.theme.keepOnDevice') : t('atrium.theme.putOnline')}
+                </button>
+                {swapping && (
+                  <div data-theme-swap="" className="space-y-1.5">
+                    <p className="text-nier-bg/70 text-[0.7rem] leading-relaxed tracking-wide">{t('atrium.theme.swapWith', { n: ONLINE_THEMES })}</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {onlineOnes.map(other => (
+                        <button key={other.id} type="button" onClick={() => swapWith(other)} className="max-w-full truncate px-2.5 py-1.5 text-[10px] tracking-[0.12em] uppercase border border-nier-border/30 text-nier-bg/85 hover:border-nier-border/70 transition-colors">
+                          {other.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <p className="text-nier-bg/55 text-[0.7rem] leading-relaxed tracking-wide">{mine.online ? t('atrium.theme.onlineHint') : t('atrium.theme.deviceHint')}</p>
+              </div>
+            )}
           </div>
         ) : (
           <p className="text-nier-bg/55 text-[0.7rem] leading-relaxed tracking-wide">
-            {customs.length < CUSTOM_THEME_LIMIT ? t('atrium.theme.makeYourOwn') : t('atrium.theme.pickYours')}
+            {customs.length < limit ? t('atrium.theme.makeYourOwn') : t('atrium.theme.pickYours')}
           </p>
         )}
       </Section>

@@ -68,9 +68,16 @@ test('two devices: the first day is the earliest, and an empty one does not coun
   assert.equal(mergeStats({ ...NO_STATS, firstDay: '2026-11-01' }, { firstDay: '' }).firstDay, '2026-11-01')
 })
 
-test('those chosen here stand; none here, the account\'s', () => {
+test('those chosen last stand, on whichever device; never chosen either side, the account\'s if none here', () => {
   assert.deepEqual(mergeStats({ ...NO_STATS, pinned: ['a'] }, { pinned: ['b'] }).pinned, ['a'])
   assert.deepEqual(mergeStats(NO_STATS, { pinned: ['b', 'c', 'd', 'e'] }).pinned, ['b', 'c', 'd'])
+  // Chosen on the web after the desktop's: the web's, there too.
+  assert.deepEqual(mergeStats({ ...NO_STATS, pinned: ['a'], pinnedAt: 100 }, { pinned: ['b'], pinnedAt: 200 }).pinned, ['b'])
+  // Chosen here after: here's stands, and the account is told it.
+  const merged = mergeStats({ ...NO_STATS, pinned: ['a'], pinnedAt: 300 }, { pinned: ['b'], pinnedAt: 200 })
+  assert.deepEqual([merged.pinned, merged.pinnedAt], [['a'], 300])
+  // All taken off, later: none, not the older ones back.
+  assert.deepEqual(mergeStats({ ...NO_STATS, pinned: ['a'], pinnedAt: 100 }, { pinned: [], pinnedAt: 200 }).pinned, [])
 })
 
 test('nothing on the account changes nothing; rubbish on it counts for nothing', () => {

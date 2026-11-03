@@ -36,7 +36,7 @@ import type { AtriumsApi } from './LobbyBrowser'
 import { checkPlatformAdmin, knownPlatformAdmin } from '../lib/platformAdmin'
 import { agoOf, cardsKnown, readCards, recentCards, type AtriumCard } from '../lib/atriumCards'
 import { atriumVisitedAt } from '../lib/recentAtriums'
-import { ACHIEVEMENTS, isEarned, nextAchievement, progressOf } from '../lib/achievements'
+import { ACHIEVEMENTS, FAMILY_COLOUR, isEarned, nextAchievement, progressOf } from '../lib/achievements'
 import { noteToday, readStats, syncStats } from '../lib/stats'
 import { unfinishedTutorial } from '../lib/tutorial'
 import { isBrowserAtrium } from '../lib/browserAtriums'
@@ -67,7 +67,6 @@ const HelpPanel = lazy(() => import('./HelpPanel'))
 let LobbyBrowser: typeof import('./LobbyBrowser').LobbyBrowser | null = null
 const fetchLobbyBrowser = () => import('./LobbyBrowser').then(module => { LobbyBrowser = module.LobbyBrowser })
 
-const FAMILY_COLOUR = { start: '#FF8A3D', placed: '#E8C15A', deleted: '#C77DFF', days: '#9AD4C4', other: '#A8B6D9' } as const
 
 // The Atrium's mark, in the colour of what's behind this mask.
 const MARK: CSSProperties = { WebkitMaskImage: 'url(/atrium-mark.png)', maskImage: 'url(/atrium-mark.png)', WebkitMaskSize: 'contain', maskSize: 'contain', WebkitMaskRepeat: 'no-repeat', maskRepeat: 'no-repeat', WebkitMaskPosition: 'center', maskPosition: 'center' }
@@ -163,6 +162,8 @@ export default function HomeScreen({ view, onGo, onOpenAtrium, guest = false, on
   // once, for it to have something to show. Never again after: Home asks for nothing.
   useEffect(() => { if (!guest && !cardsKnown(userId)) setAtriumsWanted(true) }, [guest, userId])
   const [last, ...others] = recent
+  // Nothing to show yet, as the lists are read for the first time: said, not taken for a first visit.
+  const reading = !guest && !last && !cardsKnown(userId)
   const next = nextAchievement(stats)
   const pinned = stats.pinned.flatMap(id => ACHIEVEMENTS.find(one => one.id === id && isEarned(one, stats)) ?? [])
 
@@ -307,11 +308,11 @@ export default function HomeScreen({ view, onGo, onOpenAtrium, guest = false, on
         <div className="relative min-h-full max-w-[90rem] mx-auto flex flex-col px-5 sm:px-10 xl:px-16 pt-2 pb-5">
           <main className="relative flex-1 flex flex-col min-h-0">
             {/* What this is, not who's here: the name's at the top, and first days aren't "back". */}
-            <h1 data-welcome-title="" data-rise="" className="enter-up text-2xl sm:text-[2rem] font-extralight leading-tight tracking-[0.01em] text-nier-strong" style={{ '--i': 1 } as CSSProperties}>{t(last ? 'welcome.pickUp' : stats.daysHere > 1 ? 'browser.yours' : 'welcome.firstTitle')}</h1>
+            <h1 data-welcome-title="" data-rise="" className="enter-up text-2xl sm:text-[2rem] font-extralight leading-tight tracking-[0.01em] text-nier-strong" style={{ '--i': 1 } as CSSProperties}>{t(last ? 'welcome.pickUp' : reading || stats.daysHere > 1 ? 'browser.yours' : 'welcome.firstTitle')}</h1>
             <p data-welcome-line="" data-rise="" className="enter-up mt-2 text-[13px] tracking-[0.04em] text-nier-bg/85" style={{ '--i': 2 } as CSSProperties}>
               {last
                 ? (stats.streak >= 2 ? t('welcome.streak', { n: number(stats.streak) }) : t('welcome.asLeft'))
-                : t('welcome.firstLine')}
+                : reading ? ' ' : t('welcome.firstLine')}
             </p>
 
             <div className="mt-7 flex-1 grid gap-7 lg:grid-cols-[minmax(0,1fr)_25rem] min-h-0">
@@ -343,6 +344,12 @@ export default function HomeScreen({ view, onGo, onOpenAtrium, guest = false, on
                       {t('welcome.continue')}
                     </button>
                   </div>
+                </section>
+              ) : reading ? (
+                <section data-welcome-hero="" data-welcome-reading="" role="status" className="enter-up relative min-h-[18rem] lg:min-h-[24rem] overflow-hidden border border-nier-border/40 bg-nier-blackLight flex flex-col justify-end p-5 sm:p-7" style={{ '--i': 4 } as CSSProperties}>
+                  <div aria-hidden="true" className="absolute inset-0 animate-pulse bg-nier-bg/5" />
+                  <div className="relative h-[2px] mb-4 bg-nier-bg/10 overflow-hidden"><div className="h-full bg-nier-bg/70 animate-nier-slide" /></div>
+                  <p className="relative text-[11px] tracking-[0.2em] uppercase text-nier-bg/80">{t('browser.loadingAtriums')}</p>
                 </section>
               ) : (
                 <section data-welcome-hero="" className="enter-up relative min-h-[18rem] lg:min-h-[24rem] overflow-hidden border border-nier-border/40 flex flex-col items-center justify-center gap-6 p-7" style={{ '--i': 4 } as CSSProperties}>

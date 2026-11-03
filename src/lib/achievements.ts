@@ -19,11 +19,13 @@ export interface Stats {
   daysHere: number
   lastDay: string
   firstDay: string
-  // The achievements chosen to show beside one's name.
+  // The achievements chosen to show beside one's name, and when they were chosen:
+  // the latest choice is the one, on whichever device it was made.
   pinned: string[]
+  pinnedAt: number
 }
 
-export const NO_STATS: Stats = { tutorial: 0, placed: 0, deleted: 0, threads: 0, colours: 0, drawings: 0, templates: 0, streak: 0, bestStreak: 0, daysHere: 0, lastDay: '', firstDay: '', pinned: [] }
+export const NO_STATS: Stats = { tutorial: 0, placed: 0, deleted: 0, threads: 0, colours: 0, drawings: 0, templates: 0, streak: 0, bestStreak: 0, daysHere: 0, lastDay: '', firstDay: '', pinned: [], pinnedAt: 0 }
 export const MOST_PINNED = 3
 
 export interface Achievement {
@@ -33,6 +35,14 @@ export interface Achievement {
   // How it's said (lib/i18n: achievements.what.<what>), with {n} the goal.
   what: string
   family: 'start' | 'placed' | 'deleted' | 'days' | 'other'
+}
+// Each family's colour: its mark, wherever it's shown.
+export const FAMILY_COLOUR: Record<Achievement['family'], string> = {
+  start: '#FF8A3D',
+  placed: '#E8C15A',
+  deleted: '#C77DFF',
+  days: '#9AD4C4',
+  other: '#A8B6D9',
 }
 const award = (id: string, counter: Counter, goal: number, what: string, family: Achievement['family']): Achievement => ({ id, counter, goal, what, family })
 
@@ -92,6 +102,9 @@ export function mergeStats(here: Stats, there: Partial<Stats> | null | undefined
   const other = { ...NO_STATS, ...there }
   const count = (key: Counter | 'bestStreak' | 'daysHere') => Math.max(here[key], Number(other[key]) || 0)
   const latest = other.lastDay > here.lastDay ? other : here
+  const pinnedAt = Number(other.pinnedAt) || 0
+  // Chosen there later -- or never chosen either side, and none here yet.
+  const theirPins = Array.isArray(other.pinned) && (pinnedAt > here.pinnedAt || (pinnedAt === here.pinnedAt && here.pinned.length === 0))
   return {
     ...here,
     tutorial: count('tutorial'), placed: count('placed'), deleted: count('deleted'), threads: count('threads'),
@@ -100,6 +113,7 @@ export function mergeStats(here: Stats, there: Partial<Stats> | null | undefined
     bestStreak: count('bestStreak'), daysHere: count('daysHere'),
     lastDay: latest.lastDay,
     firstDay: [here.firstDay, other.firstDay].filter(Boolean).sort()[0] ?? '',
-    pinned: here.pinned.length > 0 || !Array.isArray(other.pinned) ? here.pinned : other.pinned.filter(id => typeof id === 'string').slice(0, MOST_PINNED),
+    pinned: theirPins ? other.pinned.filter(id => typeof id === 'string').slice(0, MOST_PINNED) : here.pinned,
+    pinnedAt: Math.max(here.pinnedAt, pinnedAt),
   }
 }

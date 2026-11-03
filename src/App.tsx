@@ -42,6 +42,7 @@ import { consumeSignInIntent } from './lib/signInIntent'
 import ThemeToggle from './components/ThemeToggle'
 import LanguageToggle from './components/LanguageToggle'
 import { useGameStore, useGamePick } from './store/gameStore'
+import { loadMyProfile } from './lib/profile'
 import { supabase, isDesktop } from './lib/supabase'
 import { browserGuest, endGuest, enterBrowserAtrium, isBrowserAtrium, isGuestHere, leaveBrowserAtrium, vaultProblem } from './lib/browserAtriums'
 import { startOverlay } from './lib/overlay'
@@ -1597,7 +1598,8 @@ function AppInner() {
     }
     // Not on desktop, whose person is the device's (lib/localDb) and stays
     // so: an account signed in there is for the atriums shared with it
-    // (components/DesktopAccount), and stands in only inside one of those.
+    // (components/DesktopAccount), and stands in only inside one of those --
+    // and is one's profile (below).
     if (!isDesktop) {
       window.addEventListener(ACCOUNT_EVENT, onAccount)
       if (workerAccount()) void loadWorkerAccount(cameFromSignIn)
@@ -1900,6 +1902,24 @@ function AppInner() {
       window.removeEventListener(ACCOUNT_EVENT, onAccount)
     }
   }, [setUsername, setUserId])
+
+  // On desktop, an account signed in by the site is one's profile (lib/profile):
+  // its name and colour are the ones shown and used, as on the web -- read with
+  // what the first page asks anyway. The device's person still keeps this vault's
+  // atriums, by its id. Signed out, the device's own name and colour again.
+  useEffect(() => {
+    if (!isDesktop || !isAuthenticated) return
+    const follow = async () => {
+      const { userId } = useGameStore.getState()
+      const profile = userId ? await loadMyProfile(userId).catch(() => null) : null
+      if (!profile) return
+      setUsername(profile.displayName)
+      if (profile.color) setPlayerColor(profile.color)
+    }
+    if (workerAccount()) void follow()
+    window.addEventListener(ACCOUNT_EVENT, follow)
+    return () => window.removeEventListener(ACCOUNT_EVENT, follow)
+  }, [isAuthenticated, setUsername, setPlayerColor])
 
   // Clear active_lobby_id when browser/tab is closed
   useEffect(() => {

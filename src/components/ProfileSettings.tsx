@@ -14,7 +14,7 @@ import {
 } from '../lib/atriumPreferences'
 import { goTo } from '../lib/route'
 import { daysUntilNameChange, loadMyProfile, saveMyProfile } from '../lib/profile'
-import { googleAccount, workerAccount } from '../lib/signedIn'
+import { googleAccount, workerAccount, useWorkerAccount } from '../lib/signedIn'
 import { accountJoined, noteToday, readStats, syncStats, togglePinned } from '../lib/stats'
 import { AchievementsGrid, ProfileTop } from './ProfileAchievements'
 import { adopt, changePassword, deleteEmailAccount } from '../lib/emailAccount'
@@ -77,6 +77,10 @@ function SettingRow({ id, label, value, open = false, danger = false, go = false
 export default function ProfileSettings({ onClose, onPinterest, pinterestOpen = false, onLogOut }: ProfileSettingsProps) {
   const { t, language, languages } = useTranslation()
   const { userId, username, setUsername, playerColor, setPlayerColor } = useGamePick('userId', 'username', 'setUsername', 'playerColor', 'setPlayerColor')
+  // The desktop's own person's profile, with no account signed in there; else the
+  // account's, the same as on the web (lib/profile).
+  const deskAccount = useWorkerAccount()
+  const onDevice = isDesktop && !deskAccount
   const pinterest = usePinterestStatus(pinterestOpen)
   const pinterestSaid = !pinterest ? undefined
     : !pinterest.connected ? t('profile.pinterestNotConnected')
@@ -109,6 +113,8 @@ export default function ProfileSettings({ onClose, onPinterest, pinterestOpen = 
   // account says, what the sign-in says, or the first day seen here. Nothing new
   // is asked for: one's entry is already read.
   const [stats, setStats] = useState(readStats)
+  const pinsChanged = useRef(false)
+  useEffect(() => () => { if (pinsChanged.current) void syncStats() }, [])
   const [signedUp, setSignedUp] = useState<number | null>(null)
   useEffect(() => {
     let left = false
@@ -124,7 +130,7 @@ export default function ProfileSettings({ onClose, onPinterest, pinterestOpen = 
     .filter((at): at is number => typeof at === 'number' && Number.isFinite(at) && at > 0)
     .sort((a, b) => a - b)[0] ?? null
   const [actualUsername, setActualUsername] = useState('')
-  const [canChange, setCanChange] = useState(isDesktop) // Desktop: always allowed
+  const [canChange, setCanChange] = useState(onDevice) // The desktop's own: always allowed
   const [daysUntilChange, setDaysUntilChange] = useState(0)
   const [error, setError] = useState('')
   
@@ -283,14 +289,14 @@ export default function ProfileSettings({ onClose, onPinterest, pinterestOpen = 
   // The name from the top of the page. What went wrong, to say there, or nothing.
   const saveName = async (next: string): Promise<string | null> => {
     if (!userId) return t('profile.errUpdateName')
-    if (!isDesktop && !canChange) return t('profile.canChangeIn', { days: daysUntilChange })
+    if (!onDevice && !canChange) return t('profile.canChangeIn', { days: daysUntilChange })
     if (next.length < 1 || next.length > 30) return t('profile.errNameLength')
     try {
       // The web's waits its days; the desktop's is its username too (lib/profile).
       await saveMyProfile(userId, { displayName: next })
       setUsername(next)
       setSavedName(next)
-      if (!isDesktop) {
+      if (!onDevice) {
         setCanChange(false)
         setDaysUntilChange(15)
       }
@@ -556,17 +562,17 @@ export default function ProfileSettings({ onClose, onPinterest, pinterestOpen = 
         </div>
         <ProfileTop
           name={savedName}
-          username={isDesktop ? '' : actualUsername}
+          username={onDevice ? '' : actualUsername}
           colour={selectedColor}
           joined={joinedAt}
           stats={stats}
-          canEdit={isDesktop || canChange}
-          locked={!isDesktop && !canChange ? t('profile.canChangeIn', { days: daysUntilChange }) : null}
-          every={isDesktop ? null : t('profile.nameEvery')}
+          canEdit={onDevice || canChange}
+          locked={!onDevice && !canChange ? t('profile.canChangeIn', { days: daysUntilChange }) : null}
+          every={onDevice ? null : t('profile.nameEvery')}
           onSaveName={saveName}
         />
         <div className="mt-9 grid gap-9 lg:grid-cols-[minmax(0,1fr)_23.25rem] items-start">
-          <AchievementsGrid stats={stats} onToggle={id => setStats(togglePinned(id))} />
+          <AchievementsGrid stats={stats} onToggle={id => { pinsChanged.current = true; setStats(togglePinned(id)) }} />
           <aside data-profile-settings="" aria-labelledby="profile-settings-title" className="enter-up" style={{ '--i': 3 } as CSSProperties}>
             <h2 id="profile-settings-title" className="text-xs font-medium tracking-[0.24em] uppercase text-nier-strong">{t('profile.yours')}</h2>
             <div {...glide.host} className="menu-glide-host hall-ground relative mt-3.5 border border-nier-border/30">

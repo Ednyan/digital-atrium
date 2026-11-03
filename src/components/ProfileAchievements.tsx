@@ -4,16 +4,8 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { useTranslation, type LanguageCode } from '../lib/i18n'
 import ProfilePicture from './ProfilePicture'
-import { earnedAchievements, isEarned, MOST_PINNED, ACHIEVEMENTS, progressOf, type Achievement, type Stats } from '../lib/achievements'
+import { earnedAchievements, isEarned, MOST_PINNED, ACHIEVEMENTS, FAMILY_COLOUR, progressOf, type Achievement, type Stats } from '../lib/achievements'
 import type { TranslationKey } from '../locales/en'
-
-const FAMILY_COLOUR: Record<Achievement['family'], string> = {
-  start: '#FF8A3D',
-  placed: '#E8C15A',
-  deleted: '#C77DFF',
-  days: '#9AD4C4',
-  other: '#A8B6D9',
-}
 
 const nameOf = (one: Achievement) => `achievements.name.${one.id}` as TranslationKey
 const whatOf = (one: Achievement) => `achievements.what.${one.what}` as TranslationKey

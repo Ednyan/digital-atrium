@@ -71,9 +71,9 @@ import { fileNameOf, saveFile } from '../lib/fileSave'
 import type { PresentationFormat } from '../lib/presentationExport'
 import QuickBar, { EmptyCanvasHint, HistoryButtons, QUICK_ORDER, ToolHint, type PlaceTool, type QuickAction, QuickBarEditor, ViewBarEditor } from './QuickBar'
 import { inTutorial, tutorialFinished } from '../lib/tutorial'
-import { count, noteToday, ACHIEVEMENT_EVENT } from '../lib/stats'
+import { count, noteToday } from '../lib/stats'
+import AchievementPopup from './AchievementPopup'
 import { rememberCard } from '../lib/atriumCards'
-import type { TranslationKey } from '../locales/en'
 import { isBoxShape, type BoxShape } from '../lib/shapeStyle'
 import { roundedPolygonPath, shapePolygon } from '../lib/traceGeometry'
 import { formatSize } from '../lib/size'
@@ -4907,14 +4907,8 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
   const [tutorial, setTutorial] = useState(() => inTutorial(lobbyId))
   tutorialRef.current = tutorial
   const [clearRequest, setClearRequest] = useState(0)
-  // Today counted, and an achievement earned said (lib/stats).
-  useEffect(() => {
-    noteToday()
-    const earned = (e: Event) => showToast(t('achievements.earned', { name: t(`achievements.name.${(e as CustomEvent<string>).detail}` as TranslationKey) }))
-    window.addEventListener(ACHIEVEMENT_EVENT, earned)
-    return () => window.removeEventListener(ACHIEVEMENT_EVENT, earned)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  // Today counted (lib/stats); an achievement earned is said by AchievementPopup.
+  useEffect(() => { noteToday() }, [])
   useEffect(() => {
     if (clearRequest) void saveAllChanges()
   }, [clearRequest])
@@ -5289,6 +5283,7 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
         {isDesktop && showOverlay && <OverlayPanel />}
       </div>
       )}
+      <AchievementPopup />
       {!uiHidden && !narrow && (
       <div className="hud-in-bottom fixed bottom-4 right-4 z-[9999] pointer-events-none" style={{ '--base': '180ms', '--i': 3 } as CSSProperties}>
         {/* How much the atrium holds: the size alone, in the unit it has

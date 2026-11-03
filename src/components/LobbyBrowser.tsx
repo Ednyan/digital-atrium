@@ -1612,13 +1612,21 @@ export function LobbyBrowser({ onJoinLobby, onReady, inSight = true, onCardsKnow
   }
 
   const waiting = (
-    <div data-atriums-waiting="" role="status" aria-label={t('common.pleaseWait')}>
-      <div className="h-[2px] mb-6 bg-nier-bg/10 overflow-hidden"><div className="h-full bg-nier-bg/70 animate-nier-slide" /></div>
+    <div data-atriums-waiting="" role="status">
+      <div className="h-[2px] mb-3 bg-nier-bg/10 overflow-hidden"><div className="h-full bg-nier-bg/70 animate-nier-slide" /></div>
+      <p className="mb-6 text-[11px] tracking-[0.2em] uppercase text-nier-bg/75">{t('browser.loadingAtriums')}</p>
       <div className={view === 'grid' ? 'grid gap-4 sm:grid-cols-2 lg:grid-cols-3' : ROW_LIST}>
         {remembered.map(card => (
           <div key={card.id} className={`${ROW} morph-card ${view === 'list' ? 'flex items-center gap-4 py-3' : ''}`} style={ROW_FILL}>
             <AtriumPreview url={card.preview} small={view === 'list'} name={`waiting-${card.id}`} fly={card.id} />
             <h4 className="mt-3 text-nier-bg text-sm tracking-wide break-words">{card.name}</h4>
+          </div>
+        ))}
+        {/* None remembered: the shape of what's coming, not an empty wall. */}
+        {remembered.length === 0 && [0, 1, 2].map(i => (
+          <div key={i} aria-hidden="true" className={`${ROW} animate-pulse ${view === 'list' ? 'flex items-center gap-4 py-3' : ''}`} style={ROW_FILL}>
+            <div className={`aspect-[16/10] bg-nier-bg/5 ${view === 'list' ? 'w-24 sm:w-28 shrink-0' : '-mx-4 -mt-4 mb-3'}`} />
+            <div className="mt-3 h-3 w-1/2 bg-nier-bg/10" />
           </div>
         ))}
       </div>

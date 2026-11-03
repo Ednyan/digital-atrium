@@ -4,13 +4,21 @@
 // nothing: it comes with one's entry, which the atrium browser already asks for.
 
 import { notePictureFrom } from './myPicture'
+import { workerAccount } from './signedIn'
 import { useGameStore } from '../store/gameStore'
 import { earnedAchievements, MOST_PINNED, mergeStats, NO_STATS, onDay, type Counter, type Stats } from './achievements'
 
 export const ACHIEVEMENT_EVENT = 'atrium:achievement'
 const SENT = 'atrium.stats.sent'
 
-const keyOf = () => `atrium.stats.${useGameStore.getState().userId || 'device'}`
+// One's own: the account's, signed in -- on desktop, not its device's person, who
+// it begins from there -- else whoever the app has, else the device's.
+const keyOf = (id = workerAccount()?.id || useGameStore.getState().userId || 'device') => `atrium.stats.${id}`
+function keptStats(): string | null {
+  const own = localStorage.getItem(keyOf())
+  const { userId } = useGameStore.getState()
+  return own ?? (userId ? localStorage.getItem(keyOf(userId)) : null)
+}
 const today = () => {
   const now = new Date()
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
@@ -18,7 +26,7 @@ const today = () => {
 
 export function readStats(): Stats {
   try {
-    const kept = JSON.parse(localStorage.getItem(keyOf()) || 'null')
+    const kept = JSON.parse(keptStats() || 'null')
     return kept && typeof kept === 'object' ? { ...NO_STATS, ...kept } : NO_STATS
   } catch {
     return NO_STATS
@@ -55,7 +63,7 @@ export function togglePinned(id: string): Stats {
   const before = readStats()
   const on = before.pinned.includes(id)
   if (!on && before.pinned.length >= MOST_PINNED) return before
-  const after = { ...before, pinned: on ? before.pinned.filter(other => other !== id) : [...before.pinned, id] }
+  const after = { ...before, pinned: on ? before.pinned.filter(other => other !== id) : [...before.pinned, id], pinnedAt: Date.now() }
   keep(after)
   try { localStorage.removeItem(SENT) } catch { /* the day's look will do */ }
   return after

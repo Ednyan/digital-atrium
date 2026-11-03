@@ -1479,6 +1479,42 @@ input[type='color']::-moz-color-swatch { border: none; }
 .achievement-card:active { transform: translateY(-1px) scale(0.99); }
 .achievement-mark { transition: rotate 420ms cubic-bezier(.16, 1, .3, 1), scale 420ms cubic-bezier(.16, 1, .3, 1); }
 .achievement-card:hover .achievement-mark { rotate: 90deg; scale: 1.14; }
+/* An achievement earned (AchievementPopup): in from the screen's right edge, its
+   mark lit in its family's colour, a light passing over the card once. */
+.achievement-pop {
+  display: flex; align-items: center; gap: 1rem;
+  width: min(21rem, calc(100vw - 2rem));
+  padding: 0.9rem 1.15rem 0.9rem 1.05rem;
+  overflow: hidden;
+  background: rgb(var(--c-ground) / 0.96);
+  border: 1px solid rgb(var(--c-line) / 0.55);
+  border-left: 3px solid var(--achievement);
+  box-shadow: 0 22px 48px -22px rgb(0 0 0 / 0.7), -10px 0 34px -20px var(--achievement);
+  animation: achievement-in 620ms cubic-bezier(.22, 1, .36, 1) both;
+}
+.achievement-pop[data-leaving] { animation: achievement-out 420ms cubic-bezier(.5, 0, .75, 0) both; }
+.achievement-pop::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(105deg, transparent 35%, rgb(255 255 255 / 0.14) 50%, transparent 65%);
+  transform: translateX(-120%);
+  animation: achievement-light 1100ms 420ms cubic-bezier(.4, 0, .2, 1) forwards;
+}
+.achievement-pop-mark {
+  width: 1.15rem; height: 1.15rem; margin: 0 0.35rem; flex-shrink: 0; rotate: 45deg;
+  background: var(--achievement);
+  box-shadow: 0 0 0 4px rgb(var(--c-ground)), 0 0 0 5px var(--achievement), 0 0 22px 4px var(--achievement);
+  animation: achievement-mark 700ms 240ms cubic-bezier(.16, 1, .3, 1) backwards;
+}
+@keyframes achievement-in { from { transform: translateX(calc(100% + 2rem)); } }
+@keyframes achievement-out { to { transform: translateX(calc(100% + 2rem)); } }
+@keyframes achievement-light { to { transform: translateX(120%); } }
+@keyframes achievement-mark { from { rotate: -135deg; scale: 0.2; opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .achievement-pop { animation: enter-fade 300ms ease both; }
+  .achievement-pop[data-leaving] { animation: enter-fade 300ms ease reverse both; }
+  .achievement-pop::after, .achievement-pop-mark { animation: none; }
+  .achievement-pop::after { display: none; }
+}
 .achievement-bar { transform-origin: left; animation: achievement-bar 900ms cubic-bezier(.16, 1, .3, 1) backwards; }
 @keyframes achievement-bar { from { transform: scaleX(0); } }
 

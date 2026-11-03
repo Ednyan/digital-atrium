@@ -11,13 +11,17 @@
 // this atrium's theme" changes what everyone else sees.
 //
 // A person's own themes live on their account (lib/profile: an existing
-// account's profiles.custom_themes, the desktop vault's profiles row, or a
-// Google account's directory entry): three on the web, twelve on the desktop.
-// Loaded once, kept here, and written whole a moment after each change.
+// account's profiles.custom_themes, or the directory's entry): three, online,
+// the same on the web and the desktop. The desktop keeps nine more in its vault,
+// on that device only; signed in there, both are one's own, each marked
+// `online` or not, and one is moved between them as one likes. Loaded once,
+// kept here, and written whole a moment after each change -- the account only
+// when its three have changed.
 
 import { useSyncExternalStore } from 'react'
 import { isDesktop } from './supabase'
 import { loadMyThemes, saveMyThemes } from './profile'
+import { ACCOUNT_EVENT, workerAccount } from './signedIn'
 import { ATRIUM_THEMES } from './atriumThemePresets'
 import { TRACE_PRESETS, defaultPresetFor } from './tracePresets'
 import { presetRowNow, specialThemesNow } from './specialThemes'
@@ -29,9 +33,17 @@ export interface CustomTheme {
   name: string
   mode: ThemeMode
   values: ThemeSettings
+  // On the desktop: one of the account's, rather than the vault's. Never stored.
+  online?: boolean
 }
 
-export const CUSTOM_THEME_LIMIT = isDesktop ? 12 : 3
+export const ONLINE_THEMES = 3
+export const DEVICE_THEMES = 9
+// However many were kept before there were two kinds: none is dropped.
+const MOST_THEMES = 12
+/** How many of one's own there may be: the account's three; on the desktop, its
+ *  nine as well. */
+export const customThemeLimit = () => (!isDesktop ? ONLINE_THEMES : DEVICE_THEMES + (workerAccount() ? ONLINE_THEMES : 0))
 
 // Light or dark by its floor.
 // A theme's grid: as it says, or -- from before there was a choice -- lines,
@@ -139,26 +151,46 @@ export function asCustomThemes(value: unknown): CustomTheme[] {
   if (!Array.isArray(value)) return []
   return value.filter((t): t is CustomTheme =>
     !!t && typeof t.id === 'string' && typeof t.name === 'string' && (t.mode === 'light' || t.mode === 'dark') && !!t.values && typeof t.values === 'object',
-  ).slice(0, CUSTOM_THEME_LIMIT)
+  ).slice(0, MOST_THEMES)
 }
 
+const stored = (list: CustomTheme[]) => list.map(({ online: _online, ...theme }) => theme)
+// The account's three as it has them, so they're only written when they change.
+let accountHas = ''
+let loadedFor: string | null = null
+
 export async function loadCustomThemes(userId: string) {
+  loadedFor = userId
   try {
-    publish(asCustomThemes(await loadMyThemes(userId)))
+    if (!isDesktop) return publish(asCustomThemes(await loadMyThemes(userId)))
+    const [online, device] = await Promise.all([
+      workerAccount() ? loadMyThemes(userId).then(asCustomThemes) : Promise.resolve([]),
+      loadMyThemes(userId, true).then(asCustomThemes),
+    ])
+    accountHas = JSON.stringify(stored(online))
+    publish([...online.map(theme => ({ ...theme, online: true })), ...device.map(theme => ({ ...theme, online: false }))])
   } catch (error) {
     console.warn('Could not load your themes:', error)
   }
 }
+// The desktop's account signed in or out: its three come or go.
+if (isDesktop) window.addEventListener(ACCOUNT_EVENT, () => { if (loadedFor) void loadCustomThemes(loadedFor) })
 
 // Changed here at once; written a moment after the last change, so dragging
 // a slider is one write, not one a step.
 let saveTimer: number | undefined
 export function setCustomThemes(userId: string, next: CustomTheme[], onSaveFailed?: () => void) {
-  publish(next.slice(0, CUSTOM_THEME_LIMIT))
+  publish(next.slice(0, MOST_THEMES))
   window.clearTimeout(saveTimer)
   saveTimer = window.setTimeout(async () => {
     try {
-      await saveMyThemes(userId, themes)
+      if (!isDesktop) return await saveMyThemes(userId, themes)
+      await saveMyThemes(userId, stored(themes.filter(theme => !theme.online)), true)
+      const online = stored(themes.filter(theme => theme.online))
+      if (workerAccount() && JSON.stringify(online) !== accountHas) {
+        await saveMyThemes(userId, online)
+        accountHas = JSON.stringify(online)
+      }
     } catch (error) {
       console.error('Could not save your themes:', error)
       onSaveFailed?.()
