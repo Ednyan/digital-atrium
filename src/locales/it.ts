@@ -936,6 +936,7 @@ const it: Catalogue = {
   'atrium.overlay.exited': 'Sovrapposizione disattivata',
   'atrium.browser.inUse': 'Gli Atrium di questo browser sono aperti in un’altra scheda. Chiudila o continua lì.',
   'atrium.browser.unsupported': 'Questo browser non può conservare atrium: blocca ciò di cui hanno bisogno (WebAssembly o lo spazio del sito). Può dipendere da una finestra privata, dalla modalità di isolamento o da un’impostazione di sicurezza.',
+  'atrium.browser.storageFailed': 'Questo browser non è riuscito ad aprire il suo spazio per gli atrium e non ha detto perché. Chiudi del tutto il browser e riaprilo.',
   'atrium.drive.reconnect': 'Riconnetti Google Drive per salvare',
   'atrium.drive.catchingUp': 'Lo sto prendendo da Google Drive…',
   'atrium.drive.deleted': 'Il proprietario ha eliminato questo atrium.',

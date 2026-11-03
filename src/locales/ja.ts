@@ -902,6 +902,7 @@ const ja: Catalogue = {
   'atrium.overlay.exited': 'オーバーレイを終了しました',
   'atrium.browser.inUse': 'このブラウザの Atrium は別のタブで開かれています。そのタブを閉じるか、そちらで続けてください。',
   'atrium.browser.unsupported': 'このブラウザでは Atrium を保存できません。必要な機能（WebAssembly またはサイトのストレージ）がブロックされています。プライベートウィンドウ、ロックダウンモード、セキュリティ設定が原因のことがあります。',
+  'atrium.browser.storageFailed': 'このブラウザは Atrium 用のストレージを開けませんでした（理由は示されていません）。ブラウザを完全に終了してから、もう一度開いてください。',
   'atrium.drive.reconnect': '保存するには Google ドライブに再接続してください',
   'atrium.drive.catchingUp': 'Google ドライブから取り込み中…',
   'atrium.drive.deleted': 'オーナーがこの Atrium を削除しました。',

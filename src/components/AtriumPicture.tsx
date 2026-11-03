@@ -1,25 +1,50 @@
-// An atrium's picture (lib/atriumPreview) -- read from the vault first, on desktop
-// -- or, with none yet, the atrium's mark on its grid. It fills what it's put in.
+// An atrium's picture (lib/atriumPreview) -- read from the vault, where this tab has
+// it open (the desktop's always is), or else from the copy kept outside it
+// (lib/cardPictures), so Home never opens it -- or, with none, the atrium's mark on
+// its grid. It fills what it's put in, and follows the picture as it's made anew.
 
 import { useEffect, useState } from 'react'
 import { isDesktop } from '../lib/supabase'
+import { cardPicture, keepCardPicture } from '../lib/cardPictures'
+import type { PreviewDetail } from '../lib/atriumPreview'
 
 const inVault = (url?: string | null) => !!url && url.startsWith('local://')
 
 export default function AtriumPicture({ url, className = '' }: { url?: string | null; className?: string }) {
-  // Undefined while the vault's being read: not yet known to be without one.
+  // Undefined while it's being read: not yet known to be without one.
   const [src, setSrc] = useState<string | null | undefined>(() => (inVault(url) ? undefined : url ?? null))
+  // Made anew (lib/atriumPreview), at the same address: read again.
+  const [made, setMade] = useState(0)
+  useEffect(() => {
+    if (!url) return
+    const anew = (event: Event) => { if ((event as CustomEvent<PreviewDetail>).detail?.url === url) setMade(n => n + 1) }
+    window.addEventListener('atrium:preview', anew)
+    return () => window.removeEventListener('atrium:preview', anew)
+  }, [url])
   useEffect(() => {
     if (!url) { setSrc(null); return }
     if (!inVault(url)) { setSrc(url); return }
-    let live = true
-    void import('../lib/localDb').then(async local => {
-      // On the web it opens with the first thing to want it, which may be this.
-      if (!isDesktop) await local.browserVaultOpen()
-      return local.resolveLocalUrl(url)
-    }).catch(() => url).then(resolved => { if (live) setSrc(resolved.startsWith('local://') ? null : resolved) })
-    return () => { live = false }
-  }, [url])
+    let live = true, shown: string | null = null
+    void (async () => {
+      const local = await import('../lib/localDb')
+      if (isDesktop || local.browserVaultIsOpen()) {
+        const resolved = await local.resolveLocalUrl(url).catch(() => url)
+        if (!live) return
+        if (resolved.startsWith('local://')) { setSrc(null); return }
+        setSrc(resolved)
+        if (!isDesktop) void fetch(resolved).then(answer => answer.blob()).then(picture => keepCardPicture(url, picture)).catch(() => {})
+        return
+      }
+      const kept = await cardPicture(url)
+      if (!live || !kept) return
+      shown = URL.createObjectURL(kept)
+      setSrc(shown)
+    })()
+    return () => {
+      live = false
+      if (shown) URL.revokeObjectURL(shown)
+    }
+  }, [url, made])
   if (src === undefined) return null
   if (src) return <img src={src} alt="" loading="lazy" decoding="async" className={`atrium-picture absolute inset-0 w-full h-full object-cover ${className}`} />
   return (

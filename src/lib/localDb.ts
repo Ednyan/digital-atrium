@@ -2477,11 +2477,13 @@ let browserReady: Promise<void> | null = null
  *  and who's making things in it now: the account signed in, or this
  *  browser's guest -- their profile here kept as they are. */
 export async function openBrowserVault(maker: { id: string; name: string; color: string }): Promise<void> {
-  await browserVaultOpen()
+  await (browserReady ??= initLocalDb().then(() => { browserVaultReady = true }, error => { browserReady = null; throw error }))
   await makeAs(maker)
 }
-/** This browser's vault open, to read from: nobody's named as making anything. */
-export const browserVaultOpen = (): Promise<void> => (browserReady ??= initLocalDb().catch(error => { browserReady = null; throw error }))
+let browserVaultReady = false
+/** Whether this tab has the browser's vault open already: what's in it can be read
+ *  without opening it, which would keep it from every other tab (lib/cardPictures). */
+export const browserVaultIsOpen = () => browserVaultReady
 
 /** Who makes what's made from here on, with a profile of their own: the
  *  browser's account or guest -- or, on desktop, the device's person, or

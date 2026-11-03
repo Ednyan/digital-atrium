@@ -126,12 +126,15 @@ async function shareNow(lobbyId: string, blob: Blob, memory: PreviewMemory) {
   if (shared) remember(lobbyId, { ...memory, unshared: false })
   return shared
 }
-/** Whether this device's picture is newer than what's shared of the atrium, so stands
- *  over it (lib/driveSync, takePreview); and it's sent, now, if it can be. */
+/** Whether this device's own picture stands over what's shared of the atrium
+ *  (lib/driveSync, takePreview): one made here, whole. Only its owner's devices make
+ *  them, and one of those taking another's in turn was a picture that changed on
+ *  every look, an older one coming back. Sent now, if it's still owed. */
 export async function ownPictureStands(lobbyId: string): Promise<boolean> {
   let memory: PreviewMemory | null = null
   try { memory = JSON.parse(localStorage.getItem(memoryKey(lobbyId)) || 'null') } catch { /* none */ }
-  if (!memory?.unshared) return false
+  if (!memory?.whole) return false
+  if (!memory.unshared) return true
   const { readLocalFileBytes } = await import('./localDb')
   const bytes = await readLocalFileBytes(`local://traces/${lobbyId}/preview.webp`)
   if (bytes) await shareNow(lobbyId, new Blob([bytes as BlobPart], { type: 'image/webp' }), memory)
@@ -189,6 +192,7 @@ export async function keepPreview(client: any, local: boolean, lobbyId: string, 
     void client.storage.from('traces').remove([decodeURIComponent(previous)]).then(({ error: kept }: { error: unknown }) => { if (kept) console.warn('[preview] old one not removed:', kept) })
   }
   rememberCard(useGameStore.getState().userId, lobbyId, { preview: url })
+  if (local) await (await import('./cardPictures')).keepCardPicture(url, blob)
   window.dispatchEvent(new CustomEvent<PreviewDetail>('atrium:preview', { detail: { lobbyId, url, at } }))
   return true
 }

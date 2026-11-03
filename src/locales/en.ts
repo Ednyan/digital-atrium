@@ -886,6 +886,7 @@ export const en = {
   'atrium.overlay.exited': 'Overlay mode off',
   'atrium.browser.inUse': "This browser's atriums are open in another tab. Close that tab, or carry on there.",
   'atrium.browser.unsupported': "This browser can't keep atriums: it blocks what they need to run (WebAssembly or site storage). A private window, Lockdown Mode or a security setting can do this.",
+  'atrium.browser.storageFailed': "This browser couldn't open its storage for atriums, and didn't say why. Quit the browser completely and open it again.",
   'atrium.drive.reconnect': 'Reconnect to Google Drive to save',
   'atrium.drive.catchingUp': 'Bringing it in from Google Drive…',
   'atrium.drive.deleted': 'Its owner deleted this atrium.',

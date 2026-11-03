@@ -932,6 +932,7 @@ const es: Catalogue = {
   'atrium.overlay.exited': 'Modo superposición desactivado',
   'atrium.browser.inUse': 'Los Atriums de este navegador están abiertos en otra pestaña. Ciérrala o sigue en ella.',
   'atrium.browser.unsupported': 'Este navegador no puede guardar atriums: bloquea lo que necesitan (WebAssembly o el almacenamiento del sitio). Puede deberse a una ventana privada, al modo de aislamiento o a un ajuste de seguridad.',
+  'atrium.browser.storageFailed': 'Este navegador no pudo abrir su almacenamiento para atriums y no dijo por qué. Cierra el navegador por completo y vuelve a abrirlo.',
   'atrium.drive.reconnect': 'Vuelve a conectar Google Drive para guardar',
   'atrium.drive.catchingUp': 'Trayéndolo de Google Drive…',
   'atrium.drive.deleted': 'Su dueño eliminó este atrium.',

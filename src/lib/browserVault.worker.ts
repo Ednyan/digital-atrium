@@ -105,6 +105,12 @@ const bindable = (params: unknown[] | undefined) => (params ?? []).map(value =>
     : value instanceof Uint8Array || value === null || typeof value !== 'object' ? value
     : JSON.stringify(value))
 
+const said = (error: unknown) => `${(error as Error)?.name} ${(error as Error)?.message}`
+// A file another context has open, as the browsers say it.
+const heldElsewhere = (error: unknown) => /NoModificationAllowed|InvalidState|access handle|locked/i.test(said(error))
+// Its private files refused: a private window, or a browser without them.
+const refusedOutright = (error: unknown) => /SecurityError|NotSupported|Missing required OPFS/i.test(said(error))
+
 async function handle(request: Request): Promise<unknown> {
   switch (request.op) {
     case 'open': {
@@ -112,13 +118,31 @@ async function handle(request: Request): Promise<unknown> {
       // What the engine needs that a browser can refuse -- WebAssembly (a site
       // policy, Safari's Lockdown Mode) or its private files (a private
       // window) -- said as one thing the page can explain.
-      let pool: any
+      let sqlite3: any
       try {
-        const sqlite3: any = await sqlite3InitModule()
-        pool = await sqlite3.installOpfsSAHPoolVfs({ name: 'atrium-vault', directory: '/.atrium-db' })
+        sqlite3 = await sqlite3InitModule()
       } catch (error) {
         console.error('[browser vault] refused:', error)
         throw new Error('VAULT_UNSUPPORTED')
+      }
+      // Its files are held by whatever had it last until that lets go: a tab just
+      // reloaded or closed, or one the browser unloaded, can take a moment. Waited
+      // for, as is a fault of the browser's own storage (Firefox's bare
+      // UnknownError); then said for what it is. (A failure is otherwise kept for
+      // good: asked again, fresh.)
+      let pool: any = null, refusal: unknown = null
+      for (let attempt = 0; attempt < 6 && !pool; attempt++) {
+        if (attempt) await new Promise(done => setTimeout(done, 200 * 2 ** (attempt - 1)))
+        try {
+          pool = await sqlite3.installOpfsSAHPoolVfs({ name: 'atrium-vault', directory: '/.atrium-db', forceReinitIfPreviouslyFailed: true })
+        } catch (error) {
+          refusal = error
+          if (refusedOutright(error)) break
+        }
+      }
+      if (!pool) {
+        console.error('[browser vault] refused:', refusal)
+        throw new Error(refusedOutright(refusal) ? 'VAULT_UNSUPPORTED' : heldElsewhere(refusal) ? 'VAULT_IN_USE' : 'VAULT_FAILED')
       }
       database = new pool.OpfsSAHPoolDb('/atrium.db')
       return true

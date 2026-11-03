@@ -935,6 +935,7 @@ const de: Catalogue = {
   'atrium.overlay.exited': 'Overlay-Modus aus',
   'atrium.browser.inUse': 'Die Atriums dieses Browsers sind in einem anderen Tab geöffnet. Schließe ihn oder arbeite dort weiter.',
   'atrium.browser.unsupported': 'Dieser Browser kann keine Atrien speichern: Er blockiert, was sie brauchen (WebAssembly oder Website-Speicher). Das kann an einem privaten Fenster, dem Blockierungsmodus oder einer Sicherheitseinstellung liegen.',
+  'atrium.browser.storageFailed': 'Dieser Browser konnte seinen Speicher für Atrien nicht öffnen und nennt keinen Grund. Beende den Browser vollständig und öffne ihn erneut.',
   'atrium.drive.reconnect': 'Mit Google Drive verbinden, um zu speichern',
   'atrium.drive.catchingUp': 'Wird aus Google Drive geholt…',
   'atrium.drive.deleted': 'Der Besitzer hat dieses Atrium gelöscht.',

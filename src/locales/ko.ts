@@ -906,6 +906,7 @@ const ko: Catalogue = {
   'atrium.overlay.exited': '오버레이 모드 꺼짐',
   'atrium.browser.inUse': '이 브라우저의 Atrium이 다른 탭에서 열려 있어요. 그 탭을 닫거나 거기서 계속하세요.',
   'atrium.browser.unsupported': '이 브라우저는 Atrium을 보관할 수 없어요. 필요한 기능(WebAssembly 또는 사이트 저장소)이 차단되어 있어요. 시크릿 창, 차단 모드, 보안 설정 때문일 수 있어요.',
+  'atrium.browser.storageFailed': '이 브라우저가 Atrium 저장소를 열지 못했어요(이유는 알려 주지 않았어요). 브라우저를 완전히 종료한 뒤 다시 열어 보세요.',
   'atrium.drive.reconnect': '저장하려면 Google 드라이브에 다시 연결하세요',
   'atrium.drive.catchingUp': 'Google 드라이브에서 가져오는 중…',
   'atrium.drive.deleted': '소유자가 이 Atrium을 삭제했어요.',

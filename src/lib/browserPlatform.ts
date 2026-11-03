@@ -30,15 +30,17 @@ function call<T>(op: string, args: Record<string, unknown> = {}, transfer: Trans
   })
 }
 
-// Held for as long as the tab lives; null when another tab has it.
+// Held for as long as the tab lives; false when another tab has it. Waited for a
+// moment first -- the page just reloaded or left, or a tab the browser unloaded,
+// can still be letting go -- and asked again next time, not refused for good.
 let owned: Promise<boolean> | null = null
 function own(): Promise<boolean> {
   if (!navigator.locks) return Promise.resolve(true)
   return owned ??= new Promise<boolean>(resolve => {
-    void navigator.locks.request('atrium-browser-vault', { ifAvailable: true }, lock => {
-      resolve(!!lock)
-      return lock ? new Promise<void>(() => {}) : undefined
-    })
+    navigator.locks.request('atrium-browser-vault', { signal: AbortSignal.timeout(5000) }, () => {
+      resolve(true)
+      return new Promise<void>(() => {})
+    }).catch(() => { owned = null; resolve(false) })
   })
 }
 

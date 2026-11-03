@@ -936,6 +936,7 @@ const ptBR: Catalogue = {
   'atrium.overlay.exited': 'Modo sobreposição desligado',
   'atrium.browser.inUse': 'Os Atriums deste navegador estão abertos em outra aba. Feche-a ou continue nela.',
   'atrium.browser.unsupported': 'Este navegador não consegue guardar atriums: ele bloqueia o que eles precisam (WebAssembly ou o armazenamento do site). Uma janela anônima, o Modo de Isolamento ou uma configuração de segurança pode causar isso.',
+  'atrium.browser.storageFailed': 'Este navegador não conseguiu abrir o armazenamento dos atriums e não disse por quê. Feche o navegador por completo e abra-o de novo.',
   'atrium.drive.reconnect': 'Reconecte o Google Drive para salvar',
   'atrium.drive.catchingUp': 'Trazendo do Google Drive…',
   'atrium.drive.deleted': 'O dono excluiu este atrium.',

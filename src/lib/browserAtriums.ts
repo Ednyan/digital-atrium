@@ -38,11 +38,16 @@ export function forgetBrowserAtrium(lobbyId: string) {
 
 export interface Maker { id: string; name: string; color: string }
 
+const VAULT_PROBLEMS: Record<string, TranslationKey> = {
+  VAULT_IN_USE: 'atrium.browser.inUse',
+  VAULT_UNSUPPORTED: 'atrium.browser.unsupported',
+  VAULT_FAILED: 'atrium.browser.storageFailed',
+}
 /** What to tell somebody when this browser's vault won't open, if it's
- *  something they can act on: open in another tab, or refused by the browser. */
+ *  something they can act on: open in another tab, refused by the browser, or
+ *  its storage failing. */
 export function vaultProblem(error: unknown): TranslationKey | null {
-  const message = error instanceof Error ? error.message : ''
-  return message === 'VAULT_IN_USE' ? 'atrium.browser.inUse' : message === 'VAULT_UNSUPPORTED' ? 'atrium.browser.unsupported' : null
+  return VAULT_PROBLEMS[error instanceof Error ? error.message : ''] ?? null
 }
 
 /** Who's making things now, as the app has them: the account, or the guest. */
