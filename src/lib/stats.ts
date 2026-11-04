@@ -6,7 +6,7 @@
 import { notePictureFrom } from './myPicture'
 import { workerAccount } from './signedIn'
 import { useGameStore } from '../store/gameStore'
-import { earnedAchievements, MOST_PINNED, mergeStats, NO_STATS, onDay, type Counter, type Stats } from './achievements'
+import { earnedAchievements, MOST_PINNED, mergeStats, NO_STATS, onDay, upToDate, type Counter, type Stats } from './achievements'
 
 export const ACHIEVEMENT_EVENT = 'atrium:achievement'
 const SENT = 'atrium.stats.sent'
@@ -27,7 +27,7 @@ const today = () => {
 export function readStats(): Stats {
   try {
     const kept = JSON.parse(keptStats() || 'null')
-    return kept && typeof kept === 'object' ? { ...NO_STATS, ...kept } : NO_STATS
+    return kept && typeof kept === 'object' ? upToDate(kept) : NO_STATS
   } catch {
     return NO_STATS
   }

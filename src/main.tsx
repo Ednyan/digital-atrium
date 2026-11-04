@@ -2,6 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App.tsx'
 import ToastHost from './components/ToastHost.tsx'
+import AchievementPopup from './components/AchievementPopup.tsx'
 import FarewellNotice from './components/FarewellNotice.tsx'
 import PasswordRecovery from './components/PasswordRecovery.tsx'
 import StartupFailure from './components/StartupFailure.tsx'
@@ -38,6 +39,7 @@ Promise.all([localDbReady, languageOrNot]).then(() => {
           each of its many early returns, so there is no single place within
           it that stays mounted across every route. */}
       <ToastHost />
+      <AchievementPopup />
       <FarewellNotice />
       <PasswordRecovery />
     </React.StrictMode>,

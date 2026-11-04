@@ -1,8 +1,10 @@
-// An achievement earned, said as it happens (lib/stats): a card sliding in from
-// the screen's right edge, its mark lit in its family's colour, gone after a few
-// seconds -- one at a time, however many come at once.
+// An achievement earned, said as it happens (lib/stats), wherever one is -- an
+// atrium, Home, a menu open: a card sliding in from the screen's right edge, its
+// mark lit in its family's colour, gone after a few seconds, one at a time however
+// many come at once. In the page's top layer (a popover), over everything on it,
+// whatever opened last: no stacking order to win.
 
-import { useEffect, useRef, useState, type CSSProperties } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
 import { useTranslation, type LanguageCode } from '../lib/i18n'
 import { ACHIEVEMENTS, FAMILY_COLOUR } from '../lib/achievements'
 import { ACHIEVEMENT_EVENT } from '../lib/stats'
@@ -29,14 +31,23 @@ export default function AchievementPopup() {
     return () => { window.clearTimeout(go); window.clearTimeout(next) }
   }, [head?.n])
   const one = head && ACHIEVEMENTS.find(award => award.id === head.id)
+  const card = useRef<HTMLDivElement>(null)
+  // (Set here: React's types don't know the attribute yet.)
+  useLayoutEffect(() => {
+    const shown = card.current
+    if (!shown?.showPopover) return
+    shown.setAttribute('popover', 'manual')
+    try { shown.showPopover() } catch { /* shown in the page, then */ }
+  }, [head?.n, !!one])
   if (!one) return null
   return (
     <div
+      ref={card}
       key={head.n}
       role="status"
       data-achievement-popup={one.id}
       data-leaving={leaving || undefined}
-      className="achievement-pop fixed right-4 bottom-[4.5rem] z-[10000] pointer-events-none"
+      className="achievement-pop pointer-events-none"
       style={{ '--achievement': FAMILY_COLOUR[one.family] } as CSSProperties}
     >
       <span aria-hidden="true" className="achievement-pop-mark" />

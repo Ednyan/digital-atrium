@@ -23,9 +23,17 @@ export interface Stats {
   // the latest choice is the one, on whichever device it was made.
   pinned: string[]
   pinnedAt: number
+  // How it was counted (STATS_VERSION); kept without one, it's from before 2.
+  v: number
 }
 
-export const NO_STATS: Stats = { tutorial: 0, placed: 0, deleted: 0, threads: 0, colours: 0, drawings: 0, templates: 0, streak: 0, bestStreak: 0, daysHere: 0, lastDay: '', firstDay: '', pinned: [], pinnedAt: 0 }
+// 2: a trace counted as placed only when it's made. Before, one only updated,
+// saved, synced or loaded late counted again (components/TraceOverlay), so what
+// was placed, and drawn, is counted afresh: nothing of an older count is taken,
+// on this device or from the account, where it would otherwise come back as the
+// higher of the two (mergeStats).
+export const STATS_VERSION = 2
+export const NO_STATS: Stats = { tutorial: 0, placed: 0, deleted: 0, threads: 0, colours: 0, drawings: 0, templates: 0, streak: 0, bestStreak: 0, daysHere: 0, lastDay: '', firstDay: '', pinned: [], pinnedAt: 0, v: STATS_VERSION }
 export const MOST_PINNED = 3
 
 export interface Achievement {
@@ -97,9 +105,18 @@ export function onDay(stats: Stats, today: string): Stats {
 // This device's and the account's, as one: the higher of each count, as each is
 // only ever added to (work on two devices between looks is counted as the more of
 // the two, not both). The streak is that of whichever was here last.
+/** Stats as kept -- here or on the account -- as counted now: an older count's
+ *  traces placed and drawn gone, and the achievements they'd earned off one's name. */
+export function upToDate(kept: Partial<Stats>): Stats {
+  const stats: Stats = { ...NO_STATS, v: 1, ...kept }
+  if (stats.v >= STATS_VERSION) return stats
+  const fresh = { ...stats, placed: 0, drawings: 0, v: STATS_VERSION }
+  return { ...fresh, pinned: fresh.pinned.filter(id => { const one = ACHIEVEMENTS.find(award => award.id === id); return !one || isEarned(one, fresh) }) }
+}
+
 export function mergeStats(here: Stats, there: Partial<Stats> | null | undefined): Stats {
   if (!there) return here
-  const other = { ...NO_STATS, ...there }
+  const other = upToDate(there)
   const count = (key: Counter | 'bestStreak' | 'daysHere') => Math.max(here[key], Number(other[key]) || 0)
   const latest = other.lastDay > here.lastDay ? other : here
   const pinnedAt = Number(other.pinnedAt) || 0

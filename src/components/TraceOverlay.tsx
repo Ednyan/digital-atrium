@@ -2011,6 +2011,12 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
     if (isLocalData && lobbyId) void import('../lib/localDb').then(m => m.releaseHeldMedia(lobbyId))
   }, [lobbyId])
   const knownTraceIdsRef = useRef<Set<string> | null>(null)
+  // One's achievements count what one makes (lib/stats): a trace by oneself, made
+  // just now, the first time it's seen this visit. The ids above are let go of as
+  // traces leave, so one only updated (taken out and put back), saved, synced,
+  // put back by an undo -- or loaded after the canvas was up -- is "new" to them,
+  // and was counted as placed. These are never let go of.
+  const countedTraceIdsRef = useRef(new Set<string>())
 
   // Keep the configured history depth in sync with the per-atrium profile setting
   useEffect(() => {
@@ -2201,26 +2207,34 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
   // Ctrl+Z only undid one trace of the batch at a time instead of the whole
   // placement.
   useEffect(() => {
+    const counted = countedTraceIdsRef.current
     if (knownTraceIdsRef.current === null) {
       knownTraceIdsRef.current = new Set(traces.map(t => t.id))
+      for (const trace of traces) counted.add(trace.id)
       return
     }
     const known = knownTraceIdsRef.current
+    const me = useGameStore.getState().userId
     const newlyDiscovered: Trace[] = []
+    // One's own, for one's achievements: not someone else's in a shared room, not
+    // an import or a template, which a layer change brings in (below), and made
+    // now -- not yet saved, or saved this last minute.
+    const made: Trace[] = []
     for (const trace of traces) {
       if (!known.has(trace.id)) {
         known.add(trace.id)
+        const firstSeen = !counted.has(trace.id)
+        counted.add(trace.id)
         // One a layer change brought in (a duplicated group, a deleted one
         // restored) is that change's step, not an addition of its own.
-        if (!layerChangeAdopts(trace.id)) newlyDiscovered.push(trace)
+        if (layerChangeAdopts(trace.id)) continue
+        newlyDiscovered.push(trace)
+        if (firstSeen && trace.userId === me && (!trace.createdAt || Date.now() - Date.parse(trace.createdAt) < 60_000)) made.push(trace)
       }
     }
     if (newlyDiscovered.length > 0) {
-      // One's own, for one's achievements: not someone else's in a shared room, and not
-      // an import or a template, which a layer change brings in (above).
-      const mine = newlyDiscovered.filter(trace => trace.userId === useGameStore.getState().userId)
-      count('placed', mine.length)
-      count('drawings', mine.filter(isDrawingTrace).length)
+      count('placed', made.length)
+      count('drawings', made.filter(isDrawingTrace).length)
       pushBatchAddOp(newlyDiscovered)
       joinArrangedRef.current?.(newlyDiscovered)
     }

@@ -72,7 +72,6 @@ import type { PresentationFormat } from '../lib/presentationExport'
 import QuickBar, { EmptyCanvasHint, HistoryButtons, QUICK_ORDER, ToolHint, type PlaceTool, type QuickAction, QuickBarEditor, ViewBarEditor } from './QuickBar'
 import { inTutorial, tutorialFinished } from '../lib/tutorial'
 import { count, noteToday } from '../lib/stats'
-import AchievementPopup from './AchievementPopup'
 import { rememberCard } from '../lib/atriumCards'
 import { isBoxShape, type BoxShape } from '../lib/shapeStyle'
 import { roundedPolygonPath, shapePolygon } from '../lib/traceGeometry'
@@ -4907,7 +4906,7 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
   const [tutorial, setTutorial] = useState(() => inTutorial(lobbyId))
   tutorialRef.current = tutorial
   const [clearRequest, setClearRequest] = useState(0)
-  // Today counted (lib/stats); an achievement earned is said by AchievementPopup.
+  // Today counted (lib/stats); an achievement earned is said by AchievementPopup (main).
   useEffect(() => { noteToday() }, [])
   useEffect(() => {
     if (clearRequest) void saveAllChanges()
@@ -5283,7 +5282,6 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
         {isDesktop && showOverlay && <OverlayPanel />}
       </div>
       )}
-      <AchievementPopup />
       {!uiHidden && !narrow && (
       <div className="hud-in-bottom fixed bottom-4 right-4 z-[9999] pointer-events-none" style={{ '--base': '180ms', '--i': 3 } as CSSProperties}>
         {/* How much the atrium holds: the size alone, in the unit it has

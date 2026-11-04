@@ -3,7 +3,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
-import { earnedAchievements, isEarned, mergeStats, NO_STATS, onDay, ACHIEVEMENTS, progressOf } from '../src/lib/achievements.ts'
+import { earnedAchievements, isEarned, mergeStats, NO_STATS, onDay, ACHIEVEMENTS, progressOf, upToDate } from '../src/lib/achievements.ts'
 
 const pinNamed = (id: string) => ACHIEVEMENTS.find(one => one.id === id)!
 
@@ -53,7 +53,7 @@ test('a daylight-saving change does not break a streak', () => {
 })
 
 test('two devices: the higher of each count', () => {
-  const merged = mergeStats({ ...NO_STATS, placed: 10, deleted: 5 }, { placed: 3, deleted: 9 })
+  const merged = mergeStats({ ...NO_STATS, placed: 10, deleted: 5 }, { placed: 3, deleted: 9, v: 2 })
   assert.deepEqual([merged.placed, merged.deleted], [10, 9])
 })
 
@@ -84,4 +84,17 @@ test('nothing on the account changes nothing; rubbish on it counts for nothing',
   const here = { ...NO_STATS, placed: 4 }
   assert.equal(mergeStats(here, null), here)
   assert.equal(mergeStats(here, { placed: 'lots' as never }).placed, 4)
+})
+
+test('counted before traces were only counted as they are made: placed and drawn start again, everywhere', () => {
+  const old = upToDate({ placed: 5400, drawings: 230, deleted: 40, streak: 7, pinned: ['thousand', 'oneWeek', 'scribbler'] })
+  assert.deepEqual([old.placed, old.drawings, old.deleted, old.v], [0, 0, 40, 2])
+  // What they earned is off one's name; what else was earned stays.
+  assert.deepEqual(old.pinned, ['oneWeek'])
+  // The account's older count never comes back as the higher one.
+  assert.equal(mergeStats({ ...NO_STATS, placed: 3 }, { placed: 9000, v: 1 }).placed, 3)
+  assert.equal(mergeStats({ ...NO_STATS, placed: 3 }, { placed: 9000 }).placed, 3)
+  assert.equal(mergeStats({ ...NO_STATS, placed: 3 }, { placed: 12, v: 2 }).placed, 12)
+  // Counted now: left as it is.
+  assert.equal(upToDate({ placed: 12, v: 2 }).placed, 12)
 })

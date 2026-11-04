@@ -1482,6 +1482,9 @@ input[type='color']::-moz-color-swatch { border: none; }
 /* An achievement earned (AchievementPopup): in from the screen's right edge, its
    mark lit in its family's colour, a light passing over the card once. */
 .achievement-pop {
+  /* A popover's own place undone: the corner, over the atrium's usage. Fixed
+     with an order too, where there's no top layer to put it in. */
+  position: fixed; inset: auto 1rem 4.5rem auto; margin: 0; z-index: 10000; color: inherit;
   display: flex; align-items: center; gap: 1rem;
   width: min(21rem, calc(100vw - 2rem));
   padding: 0.9rem 1.15rem 0.9rem 1.05rem;
