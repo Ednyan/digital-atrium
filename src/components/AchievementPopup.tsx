@@ -9,6 +9,7 @@ import { useTranslation, type LanguageCode } from '../lib/i18n'
 import { ACHIEVEMENTS, FAMILY_COLOUR } from '../lib/achievements'
 import { ACHIEVEMENT_EVENT } from '../lib/stats'
 import type { TranslationKey } from '../locales/en'
+import AchievementIcon from './AchievementIcon'
 
 const SHOWN = 5200
 const LEAVING = 420
@@ -50,7 +51,7 @@ export default function AchievementPopup() {
       className="achievement-pop pointer-events-none"
       style={{ '--achievement': FAMILY_COLOUR[one.family] } as CSSProperties}
     >
-      <span aria-hidden="true" className="achievement-pop-mark" />
+      <AchievementIcon one={one} size={54} className="achievement-pop-icon" />
       <span className="min-w-0">
         <span className="block text-[10px] tracking-[0.24em] uppercase text-nier-bg/75">{t('achievements.unlocked')}</span>
         <span className="block mt-1 text-[15px] leading-tight text-nier-strong truncate">{t(`achievements.name.${one.id}` as TranslationKey)}</span>

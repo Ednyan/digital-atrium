@@ -4,6 +4,7 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { useTranslation, type LanguageCode } from '../lib/i18n'
 import ProfilePicture from './ProfilePicture'
+import AchievementIcon from './AchievementIcon'
 import { earnedAchievements, isEarned, MOST_PINNED, ACHIEVEMENTS, FAMILY_COLOUR, progressOf, type Achievement, type Stats } from '../lib/achievements'
 import type { TranslationKey } from '../locales/en'
 
@@ -202,9 +203,7 @@ export function AchievementsGrid({ stats, onToggle }: { stats: Stats; onToggle: 
               <span className="block mt-1.5 text-[11px] leading-snug text-nier-bg/75">{t(whatOf(one), { n: one.goal.toLocaleString(language as LanguageCode) })}</span>
             </>
           )
-          const mark = got
-            ? <AchievementMark colour={FAMILY_COLOUR[one.family]} />
-            : <span aria-hidden="true" className="block w-[18px] h-[18px] rotate-45 border border-nier-border/60" />
+          const mark = <AchievementIcon one={one} earned={got} size={46} />
           const progress = progressOf(one, stats)
           return (
             <li key={one.id} data-achievement={one.id} data-earned={got || undefined}>
