@@ -112,9 +112,16 @@ export function pickOnAtrium(): Promise<string | null> {
     hint.className = 'pick-hint'
     hint.textContent = t('atrium.palette.pickHint')
     layer.append(hint)
+    // What a press brings after it, kept from the atrium (the press itself: `press`).
+    const PRESS = ['mousedown', 'pointerup', 'mouseup', 'click'] as const
+    const swallow = (event: Event) => { event.preventDefault(); event.stopImmediatePropagation() }
     const done = (colour: string | null) => {
       window.removeEventListener('keydown', key, true)
+      window.removeEventListener('pointerdown', press, true)
       layer.remove()
+      delete document.documentElement.dataset.pickingColour
+      // What the press brings after it is still on its way: kept out a moment more.
+      window.setTimeout(() => { for (const kind of PRESS) window.removeEventListener(kind, swallow, true) }, 400)
       resolve(colour)
     }
     const key = (event: KeyboardEvent) => {
@@ -122,17 +129,24 @@ export function pickOnAtrium(): Promise<string | null> {
       event.stopPropagation()
       done(null)
     }
-    layer.addEventListener('pointerdown', event => {
-      event.preventDefault()
-      event.stopPropagation()
+    // At the window, first: the atrium may hold the pointer (lib TraceOverlay
+    // holdPointer), and a browser that honours it hands it the press, not this.
+    const press = (event: PointerEvent) => {
+      swallow(event)
       layer.remove()
       void colourAt(event.clientX, event.clientY, useGameStore.getState().traces).then(picked => {
         if ('colour' in picked) return done(picked.colour)
         showToast(t(picked.problem === 'unreadable' ? 'atrium.palette.unreadable' : 'atrium.palette.nothing'))
         done(null)
       })
-    })
+    }
+    const scene = document.querySelector<HTMLElement>('.lobby-scene')
+    try { if (scene?.hasPointerCapture(1)) scene.releasePointerCapture(1) } catch { /* nothing held */ }
+    for (const kind of PRESS) window.addEventListener(kind, swallow, true)
+    window.addEventListener('pointerdown', press, true)
     window.addEventListener('keydown', key, true)
+    // The atrium's own cursor kept out of it: only the dropper shows (index.css).
+    document.documentElement.dataset.pickingColour = ''
     document.body.append(layer)
     try { layer.setAttribute('popover', 'manual'); layer.showPopover() } catch { /* fixed over the page, then */ }
   })

@@ -613,6 +613,7 @@ function OwnCursor({ hidden, zIndex, pointerInWindow, crosshair, pan }: {
       <div
         key="player-cursor"
         ref={place}
+        data-own-cursor=""
         style={layer}
       >
         {body}

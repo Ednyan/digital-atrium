@@ -231,9 +231,10 @@ export const useGameStore = create<GameState>((set, get) => ({
     const stored = localStorage.getItem('showTraceTypeLabels')
     return stored !== null ? stored === 'true' : false
   })(),
+  // One's own name by one's cursor: hidden unless it's asked for.
   hideOwnNameTag: (() => {
     const stored = localStorage.getItem('hideOwnNameTag')
-    return stored !== null ? stored === 'true' : false
+    return stored !== null ? stored === 'true' : true
   })(),
   autoOpenCustomization: (() => {
     const stored = localStorage.getItem('autoOpenCustomization')
