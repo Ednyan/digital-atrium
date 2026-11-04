@@ -53,7 +53,8 @@ const ROW_GRID = 'enter-cards grid gap-4 sm:grid-cols-2 lg:grid-cols-3'
 const ROW_LIST = 'enter-cards flex flex-col gap-2'
 const ROW = 'border border-nier-border/25 p-4 hover:border-nier-border/60 transition-colors'
 const ROW_FILL = { backgroundColor: 'rgb(var(--c-ground) / 0.75)' }
-const ICON_BUTTON = 'w-8 h-8 flex items-center justify-center border border-nier-border/30 text-nier-bg/80 hover:text-nier-bg hover:border-nier-border/60 transition-colors disabled:opacity-50'
+// As tall as the row it's in -- the search, Create -- and its icon in its middle.
+const ICON_BUTTON = 'w-11 self-stretch flex items-center justify-center border border-nier-border/30 text-nier-bg/80 hover:text-nier-bg hover:border-nier-border/60 transition-colors disabled:opacity-50'
 const SMALL_BUTTON = 'px-3 h-8 shrink-0 flex items-center justify-center border border-nier-border/30 text-nier-bg/80 text-xs tracking-[0.1em] uppercase hover:text-nier-bg hover:border-nier-border/60 transition-colors disabled:opacity-50'
 const FOOT_BUTTON = 'flex-1 min-w-[10rem] py-3 border border-nier-border/30 text-nier-bg/80 text-xs tracking-[0.15em] uppercase hover:border-nier-border/60 hover:text-nier-bg transition-colors'
 // Which way the lists are shown, kept for the next visit.
@@ -1693,14 +1694,16 @@ export function LobbyBrowser({ onJoinLobby, onReady, inSight = true, onCardsKnow
                 aria-pressed={view === kind}
                 title={t(kind === 'grid' ? 'browser.view.grid' : 'browser.view.list')}
                 aria-label={t(kind === 'grid' ? 'browser.view.grid' : 'browser.view.list')}
-                className={`relative w-9 h-[30px] flex items-center justify-center transition-colors ${view === kind ? 'text-nier-strong' : 'text-nier-bg/60 hover:text-nier-bg'}`}
+                className={`relative w-11 flex items-center justify-center transition-colors ${view === kind ? 'text-nier-strong' : 'text-nier-bg/60 hover:text-nier-bg'}`}
               >
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" aria-hidden="true">{VIEW_ICONS[kind]}</svg>
+                <svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.2" aria-hidden="true">{VIEW_ICONS[kind]}</svg>
               </button>
             ))}
           </div>
           <button onClick={() => { loadLobbies(); lookForInvitations() }} disabled={loading} title={t('browser.refresh')} aria-label={t('browser.refresh')} className={ICON_BUTTON}>
-            <span className={loading ? 'animate-spin' : ''}>↻</span>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className={loading ? 'animate-spin' : ''}>
+              <path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" />
+            </svg>
           </button>
         </div>
 
