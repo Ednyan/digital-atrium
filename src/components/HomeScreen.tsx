@@ -252,7 +252,7 @@ export default function HomeScreen({ view, onGo, onOpenAtrium, guest = false, on
           <div className="home-tools flex items-center gap-2.5">
             <button type="button" data-home-help="" onClick={() => setShowHelp(true)} title={t('help.title')} aria-label={t('help.title')} className={TOP_WORD} style={{ backgroundColor: 'rgb(var(--c-ground) / 0.94)' }}>
               <span aria-hidden="true" className="text-[13px] leading-none">?</span>
-              <span className="hidden sm:inline">{t('help.title')}</span>
+              <span className="hidden xl:inline">{t('help.title')}</span>
             </button>
             {isDesktop && onAbout && (
               <button type="button" data-home-about="" onClick={onAbout} title={t('welcome.about')} aria-label={t('welcome.about')} className={TOP_WORD} style={{ backgroundColor: 'rgb(var(--c-ground) / 0.94)' }}>
@@ -384,6 +384,9 @@ export default function HomeScreen({ view, onGo, onOpenAtrium, guest = false, on
                 <div className="enter-up grid grid-cols-2 gap-2.5" style={{ '--i': 7 } as CSSProperties}>
                   <button type="button" data-welcome-all="" onClick={() => onGo('atriums')} className="welcome-action hall-ground h-[2.9rem] border border-nier-border/50 hover:border-nier-border/90 text-[11px] tracking-[0.14em] uppercase text-nier-strong">{t('welcome.allAtriums')}</button>
                   <button type="button" data-welcome-new="" onClick={event => { const from = event.currentTarget.getBoundingClientRect(); askAtriums(api => api.openNew(from)) }} className="welcome-action hall-ground h-[2.9rem] border border-nier-border/50 hover:border-nier-border/90 text-[11px] tracking-[0.14em] uppercase text-nier-strong">+ {t('welcome.newAtrium')}</button>
+                  {/* An atrium in from a file, or out to one: Atriums' own windows, asked for from here. */}
+                  <button type="button" data-welcome-import="" onClick={() => askAtriums(api => api.importAtrium())} className="welcome-action hall-ground h-[2.4rem] border border-nier-border/30 hover:border-nier-border/70 text-[10px] tracking-[0.14em] uppercase text-nier-bg/85 hover:text-nier-strong">◇ {t('browser.importJson')}</button>
+                  <button type="button" data-welcome-export="" onClick={() => askAtriums(api => api.exportAtrium())} className="welcome-action hall-ground h-[2.4rem] border border-nier-border/30 hover:border-nier-border/70 text-[10px] tracking-[0.14em] uppercase text-nier-bg/85 hover:text-nier-strong">◇ {t('browser.exportJson')}</button>
                 </div>
                 {next && (
                   <button

@@ -244,6 +244,9 @@ export interface AtriumsApi {
   openNew: (from?: DOMRect) => void
   startTutorial: () => void
   enter: (lobbyId: string) => void
+  // An atrium in from a file, or out to one (.atrium).
+  importAtrium: () => void
+  exportAtrium: () => void
 }
 
 interface LobbyBrowserProps {
@@ -1172,9 +1175,14 @@ export function LobbyBrowser({ onJoinLobby, onReady, inSight = true, onCardsKnow
       if (lobby) enterLobby(lobby)
       else if (!listsRead) enterOnceRead.current = id
     },
+    importAtrium: () => { homeAsked.current = true; setShowImport(true) },
+    exportAtrium: () => { homeAsked.current = true; if (isDesktop) setShowExport(true); else setShowDownload(true) },
   }
   useEffect(() => {
-    onReady?.({ openNew: from => api.current!.openNew(from), startTutorial: () => api.current!.startTutorial(), enter: id => api.current!.enter(id) })
+    onReady?.({
+      openNew: from => api.current!.openNew(from), startTutorial: () => api.current!.startTutorial(), enter: id => api.current!.enter(id),
+      importAtrium: () => api.current!.importAtrium(), exportAtrium: () => api.current!.exportAtrium(),
+    })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -2164,13 +2172,15 @@ export function LobbyBrowser({ onJoinLobby, onReady, inSight = true, onCardsKnow
         )
       })()}
 
-      {/* Import Atrium Modal */}
-      {showImport && (
+      {/* Import Atrium Modal -- over the page, as these windows all are: asked for
+          from Home, this wall isn't the one on screen. */}
+      {showImport && createPortal(
         <ImportAtrium
           canCloud={canHost && canCreateMore}
           onClose={() => setShowImport(false)}
           onImported={() => { loadLobbies(); checkCanCreateLobby(); }}
-        />
+        />,
+        document.body,
       )}
 
       {showVaultRecovery && (
@@ -2182,16 +2192,17 @@ export function LobbyBrowser({ onJoinLobby, onReady, inSight = true, onCardsKnow
 
       {/* Lazily loaded, as it is on the welcome screen: it pulls in the whole
           local database layer, which most visits to this browser never need. */}
-      {showExport && (
+      {showExport && createPortal(
         <Suspense fallback={null}>
           <ExportDatabase onClose={() => setShowExport(false)} />
-        </Suspense>
+        </Suspense>,
+        document.body,
       )}
 
       {/* Download picker. Owned and administered atriums first (the ones the
           user is most likely to want), then public ones, de-duplicated since
           an owned atrium that's also public appears in both lists. */}
-      {showDownload && (
+      {showDownload && createPortal(
         <DownloadAtriumPanel
           onClose={() => setShowDownload(false)}
           atriums={(() => {
@@ -2210,7 +2221,8 @@ export function LobbyBrowser({ onJoinLobby, onReady, inSight = true, onCardsKnow
             add(lobbies, 'public')
             return out
           })()}
-        />
+        />,
+        document.body,
       )}
 
     </div>
