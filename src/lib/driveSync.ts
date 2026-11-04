@@ -445,10 +445,13 @@ const PREVIEW = 'atrium.preview'
 
 /** The owner's: its copy's new picture, sent to Drive for everyone. Quietly
  *  not without Drive just now (its window needs a click): the next one goes. */
-export async function sharePreview(lobbyId: string, picture: Blob): Promise<boolean> {
+export async function sharePreview(lobbyId: string, picture: Blob, chosen = false): Promise<boolean> {
   const kept = allKept()[lobbyId]
   // Not its owner's, or not one of these: nothing's owed to anyone.
   if (!kept?.owner) return true
+  // One made, over one its owner chose (on another device): not sent.
+  const wasChosen = !!rostersKept()[kept.roster]?.roster.previewChosen
+  if (wasChosen && !chosen) return true
   if (!storeOf(kept.roster).canWrite()) return false
   const sealed = await seal(await keyringFrom(kept), await bytesOf(picture))
   const write = (place: { id: string } | { parent: string }) => store.write(PREVIEW, sealed, place)
@@ -458,7 +461,9 @@ export async function sharePreview(lobbyId: string, picture: Blob): Promise<bool
     : await write({ parent: kept.folder })
   keep(lobbyId, { ...kept, preview: file.id, previewVersion: await store.version(file.id) })
   mirrorOf(lobbyId, { id: file.id, parent: kept.folder, name: PREVIEW, version: allKept()[lobbyId]?.previewVersion, bytes: sealed })
-  if (file.id !== kept.preview) await changeRoster(lobbyId, signedInHere(), async roster => ({ roster: { ...roster, preview: file.id } }))
+  if (file.id !== kept.preview || wasChosen !== chosen) {
+    await changeRoster(lobbyId, signedInHere(), async roster => ({ roster: { ...roster, preview: file.id, previewChosen: chosen || undefined } }))
+  }
   // Public: its listing too, the picture and the name as they are now.
   if (isPublicAtrium(lobbyId)) await list(lobbyId, await bytesOf(picture)).catch(error => console.warn('[drive] its public listing:', error))
   return true
@@ -471,18 +476,27 @@ export async function sharePreview(lobbyId: string, picture: Blob): Promise<bool
 async function takePreview(lobbyId: string, kept: Kept, roster: Roster, me: string, asked: Promise<string | null> | null = null): Promise<void> {
   if (!roster.preview) return
   // One made here and not yet sent is the newer, whatever version that one is at.
-  const [{ browserEngine }, { keepPreview, ownPictureStands }] = await Promise.all([import('./browserAtriums'), import('./atriumPreview')])
-  if (await ownPictureStands(lobbyId)) return
+  const [{ browserEngine }, { keepPreview, notePictureTaken, ownPictureStands }] = await Promise.all([import('./browserAtriums'), import('./atriumPreview')])
+  // Chosen by its owner, it's theirs whatever was made here; no longer, made here
+  // may be newer.
+  const chosen = !!roster.previewChosen
+  if (!chosen && await ownPictureStands(lobbyId)) return
   const version = (asked && await asked) ?? await store.version(roster.preview)
-  if (version === kept.previewVersion) return
+  if (version === kept.previewVersion) return notePictureTaken(lobbyId, chosen)
   const keys = await newKeys(roster, me, !!kept.viewer, kept.keys)
   if (keys) kept = { ...kept, keys }
   const picture = await unseal(await keyringFrom(kept), await store.readByLink(roster.preview))
-  if (!await keepPreview((await browserEngine()).localClient, true, lobbyId, new Blob([picture as BlobPart], { type: 'image/webp' }))) return
+  if (!await keepPreview((await browserEngine()).localClient, true, lobbyId, new Blob([picture as BlobPart], { type: 'image/webp' }), { over: true })) return
+  notePictureTaken(lobbyId, chosen)
   keep(lobbyId, { ...kept, previewVersion: version }, me)
 }
 /** Its owner's, here: Delete takes it out of Drive; anyone else's leaves. */
 export const isDriveOwner = (lobbyId: string) => !!allKept()[lobbyId]?.owner
+/** Whether its owner chose its picture, as its roster was last read here. */
+export function previewChosen(lobbyId: string): boolean {
+  const kept = allKept()[lobbyId]
+  return !!(kept && rostersKept()[kept.roster]?.roster.previewChosen)
+}
 /** Who its owner and admins are, and whether `me` may edit, as the
  *  atrium's own row has them -- from its roster as last read here (null if it
  *  hasn't been). The roster's to say, so each copy has them from it, and no

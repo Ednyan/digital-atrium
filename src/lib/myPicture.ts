@@ -55,38 +55,39 @@ export const forgetMyPicture = () => keep(null)
 
 const toBlob = (canvas: HTMLCanvasElement, type: string, quality: number) => new Promise<Blob | null>(done => canvas.toBlob(done, type, quality))
 
-/** The crop as the smallest file that still looks right: halved down to its size
- *  (one big step blurs, or shimmers, in some browsers), then WebP, less fine only
- *  if it's still large. JPEG on a white ground where a browser can't write WebP. */
-export async function pictureFile(image: HTMLImageElement, view: CropView, frame: number): Promise<Blob> {
-  const crop = cropOf(view, image.naturalWidth, image.naturalHeight, frame)
-  let from: CanvasImageSource = image, x = crop.x, y = crop.y, side = crop.side
-  const canvasOf = (size: number) => Object.assign(document.createElement('canvas'), { width: size, height: size })
-  while (side > PICTURE_SIDE * 2) {
-    const half = Math.ceil(side / 2)
-    const step = canvasOf(half)
+/** The crop as the smallest file that still looks right, `width` pixels wide:
+ *  halved down to its size (one big step blurs, or shimmers, in some browsers),
+ *  then WebP, less fine only if it's over `enough` bytes. JPEG on a white ground
+ *  where a browser can't write WebP. One's picture, unless said otherwise. */
+export async function pictureFile(image: HTMLImageElement, view: CropView, frame: number, aspect = 1, width = PICTURE_SIDE, enough = ENOUGH_BYTES): Promise<Blob> {
+  const crop = cropOf(view, image.naturalWidth, image.naturalHeight, frame, aspect)
+  const height = Math.round(width / aspect)
+  let from: CanvasImageSource = image, x = crop.x, y = crop.y, w = crop.w, h = crop.h
+  const canvasOf = (cw: number, ch: number) => Object.assign(document.createElement('canvas'), { width: cw, height: ch })
+  while (w > width * 2) {
+    const step = canvasOf(Math.ceil(w / 2), Math.ceil(h / 2))
     const pen = step.getContext('2d')!
     pen.imageSmoothingQuality = 'high'
-    pen.drawImage(from, x, y, side, side, 0, 0, half, half)
-    from = step; x = 0; y = 0; side = half
+    pen.drawImage(from, x, y, w, h, 0, 0, step.width, step.height)
+    from = step; x = 0; y = 0; w = step.width; h = step.height
   }
-  const done = canvasOf(PICTURE_SIDE)
+  const done = canvasOf(width, height)
   const pen = done.getContext('2d')!
   pen.imageSmoothingQuality = 'high'
-  pen.drawImage(from, x, y, side, side, 0, 0, PICTURE_SIDE, PICTURE_SIDE)
+  pen.drawImage(from, x, y, w, h, 0, 0, width, height)
   let blob: Blob | null = null
   for (const quality of [0.8, 0.7, 0.6]) {
     blob = await toBlob(done, 'image/webp', quality)
     if (!blob || blob.type !== 'image/webp') { blob = null; break }
-    if (blob.size <= ENOUGH_BYTES) return blob
+    if (blob.size <= enough) return blob
   }
   if (blob) return blob
   pen.globalCompositeOperation = 'destination-over'
   pen.fillStyle = '#fff'
-  pen.fillRect(0, 0, PICTURE_SIDE, PICTURE_SIDE)
+  pen.fillRect(0, 0, width, height)
   for (const quality of [0.8, 0.65]) {
     blob = await toBlob(done, 'image/jpeg', quality)
-    if (blob && blob.size <= ENOUGH_BYTES) return blob
+    if (blob && blob.size <= enough) return blob
   }
   if (!blob) throw new Error('This browser could not make the picture')
   return blob

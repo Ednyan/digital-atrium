@@ -18,6 +18,7 @@ import type { Lobby, LobbyAccessList, Profile } from '../types/database'
 import { useTranslation } from '../lib/i18n'
 import { Switch } from './Customization'
 import { Nobody, OwnerBadge, REMOVE_BUTTON, SettingsFrame, SettingsGroup, SettingsPerson, SMALL_BUTTON, type SettingsTab } from './AtriumSettingsParts'
+import AtriumPictureSetting from './AtriumPictureSetting'
 
 interface LobbyManagementProps {
   lobby: Lobby
@@ -479,6 +480,8 @@ export function LobbyManagement({ lobby, isOwner, onClose, onUpdate }: LobbyMana
               maxLength={50}
             />
           </div>
+
+          {isOwner && <AtriumPictureSetting lobbyId={lobby.id} />}
 
           <Switch testId="atrium-public" label={t('atrium.manage.public')} hint={t('atrium.manage.publicHint')} on={isPublic} onChange={setIsPublic} />
 

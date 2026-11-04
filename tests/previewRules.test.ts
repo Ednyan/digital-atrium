@@ -3,7 +3,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
-import { previewDue, previewIsWhole } from '../src/lib/previewRules.ts'
+import { isChosenPicture, previewDue, previewIsWhole } from '../src/lib/previewRules.ts'
 
 const EVERY = 180_000
 
@@ -49,4 +49,11 @@ test('a few images out of reach are normal; most of them are not', () => {
   assert.equal(previewIsWhole(made({ images: { tried: 10, missed: 5 } })), true)
   assert.equal(previewIsWhole(made({ images: { tried: 10, missed: 6 } })), false)
   assert.equal(previewIsWhole(made({ images: { tried: 3, missed: 3 } })), false)
+})
+
+test('one its owner chose is never made over, however long it has been', () => {
+  assert.equal(previewDue({ print: '', at: 0, whole: true, chosen: true }, 'changed', 1e13, 1000), false)
+  assert.equal(isChosenPicture('https://x/storage/v1/object/public/traces/L/chosen-1793742411349.webp'), true)
+  assert.equal(isChosenPicture('https://x/storage/v1/object/public/traces/L/preview-1793742411349.webp'), false)
+  assert.equal(isChosenPicture('local://traces/L/preview.webp'), false)
 })

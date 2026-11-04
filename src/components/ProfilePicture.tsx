@@ -5,7 +5,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from '../lib/i18n'
 import { removeMyPicture, saveMyPicture, useMyPicture } from '../lib/myPicture'
-import PictureCropper from './PictureCropper'
+import PictureCropper, { usePictureToCrop } from './PictureCropper'
 
 const CUT = 'polygon(0 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%)'
 
@@ -20,7 +20,7 @@ export default function ProfilePicture({ colour, initial }: { colour: string; in
   const { t } = useTranslation()
   const picture = useMyPicture()
   const [menu, setMenu] = useState(false)
-  const [image, setImage] = useState<HTMLImageElement | null>(null)
+  const { image, open, letGo } = usePictureToCrop()
   const [problem, setProblem] = useState<string | null>(null)
   const input = useRef<HTMLInputElement>(null)
   const root = useRef<HTMLDivElement>(null)
@@ -43,31 +43,9 @@ export default function ProfilePicture({ colour, initial }: { colour: string; in
     }
   }, [menu])
 
-  // Let go of with whatever follows it.
-  const showing = useRef<string | null>(null)
-  const letGo = () => {
-    if (showing.current) URL.revokeObjectURL(showing.current)
-    showing.current = null
-    setImage(null)
-  }
-  useEffect(() => () => { if (showing.current) URL.revokeObjectURL(showing.current) }, [])
-
   const chosen = async (file: File | undefined) => {
     if (!file) return
-    setProblem(null)
-    const url = URL.createObjectURL(file)
-    const opened = new Image()
-    opened.src = url
-    // An SVG's own size means nothing, and it isn't a photograph.
-    const decoded = file.type !== 'image/svg+xml' && await opened.decode().then(() => true, () => false)
-    if (!decoded || !opened.naturalWidth || !opened.naturalHeight) {
-      URL.revokeObjectURL(url)
-      setProblem(t('profile.pictureUnreadable'))
-      return
-    }
-    if (showing.current) URL.revokeObjectURL(showing.current)
-    showing.current = url
-    setImage(opened)
+    setProblem(await open(file))
   }
 
   const remove = async () => {

@@ -7,20 +7,20 @@ import { cropOf, keptInFrame, mostZoom, zoomedAt } from '../src/lib/pictureCrop.
 
 test('a wide picture fills the frame by its height, and takes its middle', () => {
   const crop = cropOf({ zoom: 1, x: 0, y: 0 }, 4000, 2000, 300)
-  assert.deepEqual(crop, { x: 1000, y: 0, side: 2000 })
+  assert.deepEqual(crop, { x: 1000, y: 0, w: 2000, h: 2000 })
 })
 
 test('it can be moved along its long side only as far as its edge', () => {
   assert.deepEqual(keptInFrame({ zoom: 1, x: 9999, y: 50 }, 4000, 2000, 300), { zoom: 1, x: 150, y: 0 })
-  assert.deepEqual(cropOf({ zoom: 1, x: 150, y: 0 }, 4000, 2000, 300), { x: 0, y: 0, side: 2000 })
-  assert.deepEqual(cropOf({ zoom: 1, x: -150, y: 0 }, 4000, 2000, 300), { x: 2000, y: 0, side: 2000 })
+  assert.deepEqual(cropOf({ zoom: 1, x: 150, y: 0 }, 4000, 2000, 300), { x: 0, y: 0, w: 2000, h: 2000 })
+  assert.deepEqual(cropOf({ zoom: 1, x: -150, y: 0 }, 4000, 2000, 300), { x: 2000, y: 0, w: 2000, h: 2000 })
 })
 
 test('a crop never leaves the picture, however it is dragged and zoomed', () => {
   for (const [width, height] of [[4000, 2000], [900, 3000], [512, 512], [40, 30]]) {
     for (const zoom of [0.2, 1, 2.5, 99]) for (const x of [-1e5, -40, 0, 70, 1e5]) for (const y of [-1e5, 33, 1e5]) {
       const crop = cropOf(keptInFrame({ zoom, x, y }, width, height, 280), width, height, 280)
-      assert.ok(crop.x >= -1e-6 && crop.y >= -1e-6 && crop.x + crop.side <= width + 1e-6 && crop.y + crop.side <= height + 1e-6, `${width}x${height} ${zoom} ${x} ${y}`)
+      assert.ok(crop.x >= -1e-6 && crop.y >= -1e-6 && crop.x + crop.w <= width + 1e-6 && crop.y + crop.h <= height + 1e-6, `${width}x${height} ${zoom} ${x} ${y}`)
     }
   }
 })
@@ -36,4 +36,15 @@ test('zoom stops where too few of the picture\'s pixels would be left', () => {
   assert.equal(mostZoom(128, 300), 2)
   assert.equal(mostZoom(40, 30), 1)
   assert.equal(keptInFrame({ zoom: 50, x: 0, y: 0 }, 128, 300, 200).zoom, 2)
+})
+
+test('a wide frame (an atrium\'s picture) takes a wide part, and never leaves the picture', () => {
+  // A square picture under a 16:10 frame: all of its width, the middle of its height.
+  assert.deepEqual(cropOf({ zoom: 1, x: 0, y: 0 }, 1000, 1000, 320, 1.6), { x: 0, y: 187.5, w: 1000, h: 625 })
+  for (const [width, height] of [[4000, 2000], [900, 3000], [512, 512]]) {
+    for (const zoom of [1, 3]) for (const x of [-1e5, 0, 1e5]) for (const y of [-1e5, 0, 1e5]) {
+      const crop = cropOf(keptInFrame({ zoom, x, y }, width, height, 320, 1.6), width, height, 320, 1.6)
+      assert.ok(Math.abs(crop.w / crop.h - 1.6) < 1e-9 && crop.x >= -1e-6 && crop.y >= -1e-6 && crop.x + crop.w <= width + 1e-6 && crop.y + crop.h <= height + 1e-6, `${width}x${height} ${zoom} ${x} ${y}`)
+    }
+  }
 })

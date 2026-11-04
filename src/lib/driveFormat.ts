@@ -312,8 +312,10 @@ export interface Roster {
   // Each generation of the atrium's key, encrypted for each member.
   keys: { n: number; for: Record<string, Wrapped> }[]
   // The picture on its card, its owner's (lib/driveSync, sharePreview): the
-  // sealed file in the owner's folder, written over each time.
+  // sealed file in the owner's folder, written over each time -- and whether
+  // they chose it, so no copy makes one over it (lib/atriumPreview).
   preview?: string
+  previewChosen?: boolean
   // Public (phase 8), made so by its owner: every generation of its key, as
   // text, for anyone to read it with -- a viewer, with no place in it. Gone
   // when it's private again, with a new generation (lib/driveSync).

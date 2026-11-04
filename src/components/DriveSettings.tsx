@@ -4,6 +4,7 @@ import { addPerson, driveMembers, driveProblem, ensureSignedIn, findDeletions, i
 import type { Clock, Member, Role, Roster } from '../lib/driveFormat'
 import { Switch } from './Customization'
 import { FIELD, FIELD_LABEL, Nobody, OwnerBadge, REMOVE_BUTTON, SettingsFrame, SettingsGroup, SettingsPerson, SMALL_BUTTON, type SettingsTab } from './AtriumSettingsParts'
+import AtriumPictureSetting from './AtriumPictureSetting'
 
 // Atrium settings for an atrium kept in Google Drive: the same window, with
 // the same two tabs, as a cloud atrium's (components/LobbyManagement) --
@@ -174,6 +175,7 @@ export default function DriveSettings({ lobbyId, me, name, onRename, onClose }: 
               className={`w-full ${FIELD}`}
             />
           </div>
+          {myRole === 'owner' && <AtriumPictureSetting lobbyId={lobbyId} />}
           {/* Public: the owner's to say -- asked first, as anyone may then
               look at all of it; private again at once. */}
           {roster && (myRole === 'owner' ? (

@@ -35,6 +35,7 @@ import { atriumVisitedAt, sortByLastVisited, mergeRemoteVisits } from '../lib/re
 import { noteToday, syncStats } from '../lib/stats'
 import { forgetCard, readCards, recentCards, rememberCards } from '../lib/atriumCards'
 import AtriumPicture from './AtriumPicture'
+import ReportAtriumModal from './ReportAtriumModal'
 import { cameBefore, markTutorialSeen, tutorialFinished, tutorialSeen, tutorialStarted, unfinishedTutorial } from '../lib/tutorial'
 import { browserAtriumIds, browserEngine, clientFor, forgetBrowserAtrium, leaveBrowserAtrium, rememberBrowserAtrium, vaultProblem } from '../lib/browserAtriums'
 import { checkPlatformAdmin } from '../lib/platformAdmin'
@@ -290,6 +291,8 @@ export function LobbyBrowser({ onJoinLobby, onReady, inSight = true, onCardsKnow
   const [listsRead, setListsRead] = useState(false)
   const [showCreateLobby, setShowCreateLobby] = useState(false)
   const [managingLobbyId, setManagingLobbyId] = useState<string | null>(null)
+  // Someone else's atrium, being reported as breaking the terms of use.
+  const [reporting, setReporting] = useState<{ id: string; name: string } | null>(null)
   const [showJoinById, setShowJoinById] = useState(false)
   const [lobbyIdInput, setLobbyIdInput] = useState('')
   const [newLobbyName, setNewLobbyName] = useState('')
@@ -1528,6 +1531,10 @@ export function LobbyBrowser({ onJoinLobby, onReady, inSight = true, onCardsKnow
       ...(isDesktop && deskAccount && !lobby.inDrive && !lobby.inBrowser && list !== 'public' ? [{ label: t('browser.putOnline'), disabled: converting !== null, onClick: () => openOnline(lobby) }] : []),
       // Someone else's Drive atrium is left, not deleted: it isn't theirs to delete.
       ...(mine ? [{ label: lobby.inDrive && !isDriveOwner(lobby.id) ? t('browser.drive.leave') : t('common.delete'), danger: true, onClick: () => setDeleteConfirmId(lobby.id) }] : []),
+      // Someone else's -- public, or shared with one -- reported as breaking the
+      // terms. Never one's own, nor the desktop's vault's.
+      ...((lobby.inDrive ? !isDriveOwner(lobby.id) : !isDesktop && !lobby.inBrowser && lobby.ownerUserId !== myId)
+        ? [{ label: t('report.atrium.action'), onClick: () => setReporting({ id: lobby.id, name: lobby.name }) }] : []),
     ]
     const renaming = editingLobbyId === lobby.id ? (
       <div className="flex items-center gap-2">
@@ -1961,6 +1968,8 @@ export function LobbyBrowser({ onJoinLobby, onReady, inSight = true, onCardsKnow
           onClose={() => { setDriveSettingsId(null); void loadBrowserLobbies() }}
         />
       )}
+      {reporting && <ReportAtriumModal lobbyId={reporting.id} name={reporting.name} onClose={() => setReporting(null)} />}
+
       {managingLobbyId && (() => {
         const ownedMatch = userLobbies.find(l => l.id === managingLobbyId)
         const managedLobby = ownedMatch ?? adminLobbies.find(l => l.id === managingLobbyId)

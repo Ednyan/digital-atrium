@@ -1,6 +1,7 @@
-// Cropping one's picture to a square, here and now: the frame stays still and the
-// picture moves under it. Dragged; zoomed by the slider, the wheel, a pinch or + and -;
-// moved by the arrow keys too. What's outside the frame shows dimmed.
+// Cropping a picture, here and now -- one's own, square, or an atrium's, wide: the
+// frame stays still and the picture moves under it. Dragged; zoomed by the slider,
+// the wheel, a pinch or + and -; moved by the arrow keys too. What's outside the
+// frame shows dimmed.
 
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import { useTranslation } from '../lib/i18n'
@@ -8,22 +9,59 @@ import { pictureFile } from '../lib/myPicture'
 import { keptInFrame, mostZoom, scaleOf, zoomedAt, type CropView } from '../lib/pictureCrop'
 
 const STAGE = 340
-const FRAME = 260
 
-export default function PictureCropper({ image, onSave, onCancel }: {
+/** A file chosen to be cropped, opened -- or why it couldn't be -- and let go of
+ *  with whatever follows it. */
+export function usePictureToCrop() {
+  const { t } = useTranslation()
+  const [image, setImage] = useState<HTMLImageElement | null>(null)
+  const showing = useRef<string | null>(null)
+  const letGo = () => {
+    if (showing.current) URL.revokeObjectURL(showing.current)
+    showing.current = null
+    setImage(null)
+  }
+  useEffect(() => () => { if (showing.current) URL.revokeObjectURL(showing.current) }, [])
+  /** Opened, or what's wrong with it, to say. */
+  const open = async (file: File): Promise<string | null> => {
+    const url = URL.createObjectURL(file)
+    const opened = new Image()
+    opened.src = url
+    // An SVG's own size means nothing, and it isn't a photograph.
+    const decoded = file.type !== 'image/svg+xml' && await opened.decode().then(() => true, () => false)
+    if (!decoded || !opened.naturalWidth || !opened.naturalHeight) {
+      URL.revokeObjectURL(url)
+      return t('profile.pictureUnreadable')
+    }
+    if (showing.current) URL.revokeObjectURL(showing.current)
+    showing.current = url
+    setImage(opened)
+    return null
+  }
+  return { image, open, letGo }
+}
+
+export default function PictureCropper({ image, onSave, onCancel, aspect = 1, width: outWidth, enough, title }: {
   image: HTMLImageElement
   // The file made. Refused, its reason is said here and it stays open.
   onSave: (file: Blob) => Promise<string | null>
   onCancel: () => void
+  // The frame's width over its height, and the file's width and most bytes
+  // (lib/myPicture): one's picture's, unless said.
+  aspect?: number
+  width?: number
+  enough?: number
+  title?: string
 }) {
   const { t } = useTranslation()
+  const FRAME = aspect === 1 ? 260 : 300
   const width = image.naturalWidth, height = image.naturalHeight
   const [view, setView] = useState<CropView>({ zoom: 1, x: 0, y: 0 })
   const [saving, setSaving] = useState(false)
   const [problem, setProblem] = useState<string | null>(null)
   const stage = useRef<HTMLDivElement>(null)
   const most = mostZoom(width, height)
-  const moved = (next: CropView) => setView(keptInFrame(next, width, height, FRAME))
+  const moved = (next: CropView) => setView(keptInFrame(next, width, height, FRAME, aspect))
   // A point on the screen, from the frame's middle.
   const fromMiddle = (clientX: number, clientY: number) => {
     const box = stage.current!.getBoundingClientRect()
@@ -44,12 +82,12 @@ export default function PictureCropper({ image, onSave, onCancel }: {
     const now = { x: event.clientX, y: event.clientY }
     fingers.current.set(event.pointerId, now)
     if (fingers.current.size === 1) {
-      setView(v => keptInFrame({ ...v, x: v.x + now.x - was.x, y: v.y + now.y - was.y }, width, height, FRAME))
+      setView(v => keptInFrame({ ...v, x: v.x + now.x - was.x, y: v.y + now.y - was.y }, width, height, FRAME, aspect))
       return
     }
     const [a, b] = [...fingers.current.values()]
     const apart = Math.hypot(a.x - b.x, a.y - b.y)
-    if (pinched.current) setView(v => zoomedAt(v, v.zoom * (apart / pinched.current), fromMiddle((a.x + b.x) / 2, (a.y + b.y) / 2), width, height, FRAME))
+    if (pinched.current) setView(v => zoomedAt(v, v.zoom * (apart / pinched.current), fromMiddle((a.x + b.x) / 2, (a.y + b.y) / 2), width, height, FRAME, aspect))
     pinched.current = apart
   }
   const up = (event: ReactPointerEvent) => {
@@ -63,11 +101,11 @@ export default function PictureCropper({ image, onSave, onCancel }: {
     const wheel = (event: WheelEvent) => {
       event.preventDefault()
       const at = fromMiddle(event.clientX, event.clientY)
-      setView(v => zoomedAt(v, v.zoom * Math.exp(-event.deltaY * 0.002), at, width, height, FRAME))
+      setView(v => zoomedAt(v, v.zoom * Math.exp(-event.deltaY * 0.002), at, width, height, FRAME, aspect))
     }
     el.addEventListener('wheel', wheel, { passive: false })
     return () => el.removeEventListener('wheel', wheel)
-  }, [width, height])
+  }, [width, height, FRAME, aspect])
 
   // Escape is this, not the page under it.
   useEffect(() => {
@@ -86,8 +124,8 @@ export default function PictureCropper({ image, onSave, onCancel }: {
       ArrowLeft: { x: view.x - step }, ArrowRight: { x: view.x + step }, ArrowUp: { y: view.y - step }, ArrowDown: { y: view.y + step },
     }
     if (by[event.key]) moved({ ...view, ...by[event.key] })
-    else if (event.key === '+' || event.key === '=') setView(zoomedAt(view, view.zoom * 1.1, { x: 0, y: 0 }, width, height, FRAME))
-    else if (event.key === '-') setView(zoomedAt(view, view.zoom / 1.1, { x: 0, y: 0 }, width, height, FRAME))
+    else if (event.key === '+' || event.key === '=') setView(zoomedAt(view, view.zoom * 1.1, { x: 0, y: 0 }, width, height, FRAME, aspect))
+    else if (event.key === '-') setView(zoomedAt(view, view.zoom / 1.1, { x: 0, y: 0 }, width, height, FRAME, aspect))
     else return
     event.preventDefault()
   }
@@ -95,19 +133,19 @@ export default function PictureCropper({ image, onSave, onCancel }: {
   const save = async () => {
     setSaving(true)
     setProblem(null)
-    const refused = await pictureFile(image, view, FRAME).then(onSave, () => t('profile.pictureFailed'))
+    const refused = await pictureFile(image, view, FRAME, aspect, outWidth, enough).then(onSave, () => t('profile.pictureFailed'))
     if (refused) {
       setProblem(refused)
       setSaving(false)
     }
   }
 
-  const scale = scaleOf(view.zoom, width, height, FRAME)
+  const scale = scaleOf(view.zoom, width, height, FRAME, aspect)
   return (
     <div data-picture-cropper="" data-ui-element="true" className="modal-backdrop fixed inset-0 bg-nier-black/80 flex items-center justify-center z-[10001] p-4">
       <div className="bg-nier-blackLight border border-nier-border/40 w-full max-w-[24rem] max-h-[100dvh] overflow-y-auto relative">
         <div className="flex justify-between items-center gap-3 px-5 pt-5 pb-3">
-          <h2 className="text-sm text-nier-strong tracking-[0.15em] uppercase truncate">{t('profile.pictureCrop')}</h2>
+          <h2 className="text-sm text-nier-strong tracking-[0.15em] uppercase truncate">{title ?? t('profile.pictureCrop')}</h2>
           <button type="button" onClick={onCancel} aria-label={t('common.close')} className="w-8 h-8 shrink-0 flex items-center justify-center border border-nier-border/30 text-nier-bg/80 hover:text-nier-bg hover:border-nier-border/60 transition-colors">×</button>
         </div>
         <div
@@ -132,7 +170,7 @@ export default function PictureCropper({ image, onSave, onCancel }: {
             className="absolute left-1/2 top-1/2 max-w-none pointer-events-none"
             style={{ width, height, transform: `translate(-50%, -50%) translate(${view.x}px, ${view.y}px) scale(${scale})` }}
           />
-          <div aria-hidden="true" data-picture-frame="" className="picture-frame absolute left-1/2 top-1/2 pointer-events-none" style={{ width: FRAME, height: FRAME, translate: '-50% -50%' }} />
+          <div aria-hidden="true" data-picture-frame="" className="picture-frame absolute left-1/2 top-1/2 pointer-events-none" style={{ width: FRAME, height: FRAME / aspect, translate: '-50% -50%' }} />
         </div>
         <div className="px-5 pt-4 pb-5">
           <p className="text-[11px] text-nier-bg/75">{t('profile.pictureCropHint')}</p>
@@ -146,7 +184,7 @@ export default function PictureCropper({ image, onSave, onCancel }: {
               step={0.01}
               disabled={most === 1}
               value={view.zoom}
-              onChange={event => setView(v => zoomedAt(v, Number(event.target.value), { x: 0, y: 0 }, width, height, FRAME))}
+              onChange={event => setView(v => zoomedAt(v, Number(event.target.value), { x: 0, y: 0 }, width, height, FRAME, aspect))}
               className="flex-1 min-w-0 accent-[rgb(var(--c-accent))]"
             />
           </label>

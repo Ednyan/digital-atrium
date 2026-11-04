@@ -9,8 +9,13 @@ import { workerUrl } from './rooms'
 import { toWorker } from './worker'
 import { t } from './i18n'
 
+// An atrium reported as breaking the terms of use (ReportAtriumModal): why, its
+// subject; the atrium's name and id, its atriumName.
+export const ATRIUM_REPORT_REASONS = ['illegal', 'harassment', 'sexual', 'violence', 'spam', 'copyright', 'other'] as const
+export type AtriumReportReason = typeof ATRIUM_REPORT_REASONS[number]
+
 export interface FeedbackReport {
-  motive: 'bug' | 'feature' | 'other'
+  motive: 'bug' | 'feature' | 'other' | 'atrium'
   // User-written subject line, appended after the motive label -- e.g.
   // "Bug Report - Traces disappear on zoom". Optional.
   subject?: string

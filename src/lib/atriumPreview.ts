@@ -21,10 +21,10 @@
 // (add_lobby_preview.sql), so none is left behind. In a vault, one file an
 // atrium, rewritten.
 
-import { supabase, isLocalData } from './supabase'
+import { cloudClient, isDesktop, supabase, isLocalData } from './supabase'
 import { exportImage, loadPicture, pictureOf } from './exportImage'
 import { readCards, rememberCard } from './atriumCards'
-import { previewDue, previewIsWhole, type PreviewMemory } from './previewRules'
+import { isChosenPicture, previewDue, previewIsWhole, type PreviewMemory } from './previewRules'
 import { useGameStore } from '../store/gameStore'
 import type { Layer, Trace } from '../types/database'
 import type { TraceLink } from './traceLinks'
@@ -87,6 +87,8 @@ export function captureAtriumPreview(lobbyId: string, atrium: AtriumAsLeft) {
   let last: PreviewMemory | null = null
   try { last = JSON.parse(localStorage.getItem(memoryKey(lobbyId)) || 'null') } catch { /* none */ }
   if (!previewDue(last, print, Date.now(), AT_MOST_EVERY)) return
+  // Its owner's own, chosen on another device: as its row says.
+  if (isChosenPicture(readCards(useGameStore.getState().userId)[lobbyId]?.preview)) return
   // One made here, or one this device has from anywhere: this device's memory alone
   // would let the first visit from a new place write over everyone's good picture.
   const hasOne = !!last || !!readCards(useGameStore.getState().userId)[lobbyId]?.preview
@@ -115,11 +117,17 @@ export function captureAtriumPreview(lobbyId: string, atrium: AtriumAsLeft) {
   else setTimeout(make, 1500)
 }
 
-const remember = (lobbyId: string, memory: PreviewMemory) => {
-  try { localStorage.setItem(memoryKey(lobbyId), JSON.stringify(memory)) } catch { /* the next leave tries again */ }
+const remember = (lobbyId: string, memory: PreviewMemory | null) => {
+  try {
+    if (memory) localStorage.setItem(memoryKey(lobbyId), JSON.stringify(memory))
+    else localStorage.removeItem(memoryKey(lobbyId))
+  } catch { /* the next leave tries again */ }
+}
+const memoryOf = (lobbyId: string): PreviewMemory | null => {
+  try { return JSON.parse(localStorage.getItem(memoryKey(lobbyId)) || 'null') } catch { return null }
 }
 async function shareNow(lobbyId: string, blob: Blob, memory: PreviewMemory) {
-  const shared = await (await import('./driveSync')).sharePreview(lobbyId, blob).catch(error => {
+  const shared = await (await import('./driveSync')).sharePreview(lobbyId, blob, !!memory.chosen).catch(error => {
     console.warn('[preview] not shared:', error)
     return false
   })
@@ -144,6 +152,8 @@ export async function ownPictureStands(lobbyId: string): Promise<boolean> {
 async function makePreview(client: any, local: boolean, lobbyId: string, traces: Trace[], links: TraceLink[], layers: Layer[], room: RoomSnapshot | null, background: string, print: string, hasOne: boolean) {
   if (!client) return
   try {
+    // A Drive atrium's owner chose its picture, elsewhere: as its roster says.
+    if (local && (await import('./driveSync')).previewChosen(lobbyId)) return
     const under = room && await roomPicture(room)
     if (under?.missed && hasOne) return
     const { blob, images } = await exportImage(traces, links, layers, {
@@ -168,15 +178,18 @@ async function makePreview(client: any, local: boolean, lobbyId: string, traces:
 
 /** A picture kept as an atrium's (`client`'s, `local` if a vault's): its file,
  *  its row, the one it replaces removed, and the atrium browser told. False
- *  if it couldn't be. */
-export async function keepPreview(client: any, local: boolean, lobbyId: string, blob: Blob): Promise<boolean> {
-  const path = local ? `${lobbyId}/preview.webp` : `${lobbyId}/preview-${Date.now()}.webp`
+ *  if it couldn't be -- or one made would go over one its owner chose, unless
+ *  it's `over` it (theirs, as they choose it, take it back, or it's taken from
+ *  Drive). A cloud atrium's `chosen` one is named so (lib/previewRules). */
+export async function keepPreview(client: any, local: boolean, lobbyId: string, blob: Blob, how: { chosen?: boolean; over?: boolean } = {}): Promise<boolean> {
+  const { data: before } = await (client.from('lobbies') as any).select('preview_url').eq('id', lobbyId).maybeSingle()
+  if (!how.over && isChosenPicture(before?.preview_url)) return false
+  const path = local ? `${lobbyId}/preview.webp` : `${lobbyId}/${how.chosen ? 'chosen' : 'preview'}-${Date.now()}.webp`
   const { error } = await client.storage.from('traces').upload(path, blob, { contentType: 'image/webp', upsert: local })
   if (error) { console.warn('[preview] not uploaded:', error); return false }
   const url: string = client.storage.from('traces').getPublicUrl(path).data.publicUrl
   // The vault's file was rewritten in place: what it's read as, read again.
   if (local) await (await import('./localDb')).refreshLocalUrl(url)
-  const { data: before } = await (client.from('lobbies') as any).select('preview_url').eq('id', lobbyId).maybeSingle()
   const at = new Date().toISOString()
   const { error: saved } = await (client.from('lobbies') as any).update({ preview_url: url, preview_at: at }).eq('id', lobbyId)
   // Not kept: the file goes too.
@@ -195,6 +208,46 @@ export async function keepPreview(client: any, local: boolean, lobbyId: string, 
   if (local) await (await import('./cardPictures')).keepCardPicture(url, blob)
   window.dispatchEvent(new CustomEvent<PreviewDetail>('atrium:preview', { detail: { lobbyId, url, at } }))
   return true
+}
+
+/** Whether the atrium's picture is one its owner chose: as this device keeps it,
+ *  or as a cloud atrium's row names it. */
+export const isPictureChosen = (lobbyId: string, url?: string | null) => !!memoryOf(lobbyId)?.chosen || isChosenPicture(url)
+
+/** Its owner's own picture for it (`picture`), kept till they take it back (null):
+ *  never one made as it's left over it, on any of their devices -- a Drive
+ *  atrium's said on its roster, for everyone's copy. Taken back, the one showing
+ *  stays, as a made one would, till the next leave makes one. False if it
+ *  couldn't be kept. */
+export async function chooseAtriumPicture(lobbyId: string, picture: Blob | null): Promise<boolean> {
+  const local = isDesktop || (await import('./browserAtriums')).isBrowserAtrium(lobbyId)
+  const client = local ? (await (await import('./browserAtriums')).browserEngine()).localClient : cloudClient
+  if (!client) return false
+  let blob = picture
+  if (!blob) {
+    // The one showing, kept again as a made one.
+    if (local) {
+      const bytes = await (await import('./localDb')).readLocalFileBytes(`local://traces/${lobbyId}/preview.webp`)
+      blob = bytes ? new Blob([bytes as BlobPart], { type: 'image/webp' }) : null
+    } else {
+      const { data } = await (client.from('lobbies') as any).select('preview_url').eq('id', lobbyId).maybeSingle()
+      blob = data?.preview_url ? await fetch(data.preview_url).then(answer => (answer.ok ? answer.blob() : null)).catch(() => null) : null
+    }
+  }
+  // A cloud atrium's, unread: its row would go on naming it chosen. Said, not left so.
+  if (!blob && !local) return false
+  const memory: PreviewMemory = picture ? { print: '', at: Date.now(), whole: true, chosen: true, unshared: local } : { print: '', at: 0 }
+  if (blob && !await keepPreview(client, local, lobbyId, blob, { chosen: !!picture, over: true })) return false
+  remember(lobbyId, memory)
+  if (local && blob) await shareNow(lobbyId, blob, memory)
+  return true
+}
+
+/** A Drive atrium's picture taken from its owner (lib/driveSync, takePreview):
+ *  chosen by them, none is made over it here either; no longer, it may be again. */
+export function notePictureTaken(lobbyId: string, chosen: boolean) {
+  if (chosen) remember(lobbyId, { print: '', at: Date.now(), whole: true, chosen: true })
+  else if (memoryOf(lobbyId)?.chosen) remember(lobbyId, null)
 }
 
 // The room under the traces, as it was seen: its colour; its picture as

@@ -38,7 +38,8 @@ export async function feedback(request: Request, env: Env, what: string): Promis
   if (!what) {
     const description = text('description', 5000)
     if (!description) return answer(400, { error: 'Description is required' })
-    const motive = asked.motive === 'feature' || asked.motive === 'other' ? asked.motive : 'bug'
+    // 'atrium': an atrium reported as breaking the terms (its reason the subject).
+    const motive = asked.motive === 'feature' || asked.motive === 'other' || asked.motive === 'atrium' ? asked.motive : 'bug'
     const replyTo = who ? await emailOf(env, who) : null
     await db.prepare('insert into feedback (id, at, motive, subject, description, username, atrium, platform, reply_to) values (?, ?, ?, ?, ?, ?, ?, ?, ?)')
       .bind(crypto.randomUUID(), Date.now(), motive, text('subject', 200), description, text('username', 80), text('atriumName', 200), text('platform', 80), replyTo)

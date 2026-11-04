@@ -13,11 +13,16 @@ export interface PreviewMemory {
   // Whole, and newer than what's been shared of it (Google wasn't there to send it
   // to, say). What's shared is older, whatever its version says: never taken over this.
   unshared?: boolean
+  // Its owner's own picture, chosen for it (lib/atriumPreview, chooseAtriumPicture):
+  // none is made over it till they take it back.
+  chosen?: boolean
 }
 
-/** Whether it's time to make one: changed since a whole one, or the last wasn't. */
+/** Whether it's time to make one: changed since a whole one, or the last wasn't --
+ *  and never over one chosen. */
 export function previewDue(last: PreviewMemory | null, print: string, now: number, atMostEvery: number) {
   if (!last) return true
+  if (last.chosen) return false
   if (now - last.at < atMostEvery) return false
   return !(last.whole && last.print === print)
 }
@@ -33,3 +38,8 @@ export function previewIsWhole(made: {
 }) {
   return made.hadRoom && !made.roomPictureLost && made.images.missed * 2 <= made.images.tried
 }
+
+/** Whether a cloud atrium's picture is one its owner chose: its file is named so,
+ *  as every device reads it from the atrium's row. (A vault's says so in each
+ *  device's memory, and a Drive atrium's on its roster.) */
+export const isChosenPicture = (url?: string | null) => !!url && /\/chosen-\d+\.webp/.test(url)

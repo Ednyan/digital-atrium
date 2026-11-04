@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from '../lib/i18n'
 import type { TranslationKey } from '../locales/en'
-import { deleteFeedback, listFeedback, setFeedbackHandled, type FeedbackEntry } from '../lib/feedback'
+import { ATRIUM_REPORT_REASONS, deleteFeedback, listFeedback, setFeedbackHandled, type FeedbackEntry } from '../lib/feedback'
 
 const BUTTON = 'px-3 py-1.5 border border-nier-border/40 text-nier-bg text-[11px] tracking-[0.15em] uppercase hover:border-nier-border/80 transition-colors disabled:opacity-40'
 const MOTIVE: Record<FeedbackEntry['motive'], TranslationKey> = {
   bug: 'report.motiveBug',
   feature: 'report.motiveFeature',
   other: 'report.motiveOther',
+  atrium: 'report.motiveAtrium',
 }
 
 /** The Developers page's reports and suggestions (lib/feedback), newest first:
@@ -40,7 +41,7 @@ export default function FeedbackTool() {
         <article key={entry.id} data-feedback-entry={entry.id} className={`border border-nier-border/20 p-4 text-xs space-y-2 ${entry.handled ? 'opacity-50' : ''}`}>
           <header className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
             <span className="text-nier-strong tracking-[0.1em] uppercase">{t(MOTIVE[entry.motive])}</span>
-            {entry.subject && <span className="text-nier-strong">{entry.subject}</span>}
+            {entry.subject && <span className="text-nier-strong">{entry.motive === 'atrium' && (ATRIUM_REPORT_REASONS as readonly string[]).includes(entry.subject) ? t(`report.atrium.reason.${entry.subject}` as TranslationKey) : entry.subject}</span>}
             <span className="ml-auto text-nier-bg/60">{new Date(entry.at).toLocaleString(language)}</span>
           </header>
           <p className="text-nier-bg/85 leading-relaxed whitespace-pre-wrap break-words">{entry.description}</p>
