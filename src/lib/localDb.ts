@@ -91,6 +91,7 @@ export async function chooseVaultFolder(title: string): Promise<string | null> {
   vaultBasePath = chosen
   mediaBasePath = await getLiveMediaBasePath()
   resolvedUrlCache.clear()
+  filesFound.clear()
   await syncAllLobbiesToVault()
   return vaultBasePath
 }
@@ -131,10 +132,20 @@ async function copyFileToPath(sourcePath: string, destinationPath: string): Prom
 }
 
 async function movePath(sourcePath: string, destinationPath: string): Promise<void> {
+  filesFound.clear()
   await invoke('move_path', { sourcePath, destinationPath })
 }
 
+// Where a vault file was found, and where it is in its atrium's folder: a file at
+// a local:// address stays where it is till it's removed or moved, or the vault
+// itself is, so each is looked for once. Looked for, it's several round trips to
+// the app and a look at the disk -- and a save looked for every trace's, twice
+// (its folder's copy, then its size), each time anything changed. What isn't
+// there yet isn't remembered: it may be written next.
+const filesFound = new Map<string, string>()
+
 async function removePath(path: string): Promise<void> {
+  filesFound.clear()
   await invoke('remove_path', { path })
 }
 
@@ -534,25 +545,28 @@ async function getAtriumMediaFilePath(bucket: string, pathSegments: string[], lo
 }
 
 async function resolveLocalMediaFilePath(url: string): Promise<string | null> {
+  const known = filesFound.get(url)
+  if (known) return known
   const parsed = parseLocalUrl(url)
   if (!parsed) return null
+  const found = (path: string) => { filesFound.set(url, path); return path }
 
   const atriumPath = await getAtriumMediaFilePath(parsed.bucket, parsed.pathSegments)
   if (atriumPath && await vaultPathExists(atriumPath)) {
-    return atriumPath
+    return found(atriumPath)
   }
 
   // Installs from before media was consolidated, and anything the migration
   // couldn't place. Still read from, never written to.
   const runtimePath = await getResolvedRuntimeMediaFilePath(parsed.bucket, parsed.pathSegments)
   if (runtimePath && await vaultPathExists(runtimePath)) {
-    return runtimePath
+    return found(runtimePath)
   }
 
   if (legacyMediaBasePath) {
     const legacyPath = await joinPathSegments(await join(legacyMediaBasePath, parsed.bucket), parsed.pathSegments)
     if (await vaultPathExists(legacyPath)) {
-      return legacyPath
+      return found(legacyPath)
     }
   }
 
@@ -697,6 +711,10 @@ async function copyLocalAssetToVault(localUrl: string, lobbyId: string, lobbyNam
   if (!localUrl.startsWith('local://')) {
     return null
   }
+  // In this atrium's folder, as named now (filesFound).
+  const key = `${lobbyId}\n${lobbyName}\n${localUrl}`
+  const known = filesFound.get(key)
+  if (known) return known
 
   const sourceFilePath = await resolveLocalMediaFilePath(localUrl)
   if (!sourceFilePath || !(await vaultPathExists(sourceFilePath))) {
@@ -727,7 +745,9 @@ async function copyLocalAssetToVault(localUrl: string, lobbyId: string, lobbyNam
     await copyFileToPath(sourceFilePath, destinationFilePath)
   }
 
-  return ['media', bucket, ...pathSegments].join('/')
+  const inFolder = ['media', bucket, ...pathSegments].join('/')
+  filesFound.set(key, inFolder)
+  return inFolder
 }
 
 async function writeLobbyVaultSnapshot(lobbyId: string): Promise<void> {
@@ -804,9 +824,12 @@ function scheduleLobbyVaultSync(lobbyId: string | null | undefined): void {
 
   const timeout = window.setTimeout(() => {
     pendingVaultSyncs.delete(lobbyId)
-    void writeLobbyVaultSnapshot(lobbyId).catch(error => {
+    // When nothing else is being done: it's the atrium's every trace, written whole.
+    const sync = () => void writeLobbyVaultSnapshot(lobbyId).catch(error => {
       console.error('Error syncing atrium vault:', error)
     })
+    if ('requestIdleCallback' in window) requestIdleCallback(sync, { timeout: 5000 })
+    else sync()
   }, VAULT_SYNC_DELAY_MS)
 
   pendingVaultSyncs.set(lobbyId, timeout)

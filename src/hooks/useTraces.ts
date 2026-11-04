@@ -422,9 +422,11 @@ export function useTraces(lobbyId: string | null) {
         if (!cancelled) void fetchLobbySize(useGameStore.getState().traces.length)
       }, delay)
     }
+    // On desktop, measuring is walking the atrium's folder on disk: once a run of
+    // changes has quietened, not after each.
     const onVaultChange = (event: Event) => {
       const changed = (event as CustomEvent).detail?.lobbyId
-      if (!changed || changed === lobbyId) refreshSize()
+      if (!changed || changed === lobbyId) refreshSize(SIZE_REFRESH_AFTER_SAVE_MS)
     }
     window.addEventListener('atrium:vault-synced', onVaultChange)
     window.addEventListener('atrium:vault-write-complete', onVaultChange)
