@@ -58,6 +58,9 @@ export interface ImageExportOptions {
   // it, this picture of the room in place of `background` (PNG only).
   frame?: { x: number; y: number; width: number; height: number }
   underlay?: CanvasImageSource
+  // How fine what can only be pixels is -- a drawing's strokes -- in pixels a
+  // unit, where it's finer than `scale`: an SVG looked at close (lib/atriumPage).
+  density?: number
 }
 
 // Browsers refuse canvases past these; a picture that would be bigger is made
@@ -761,17 +764,18 @@ export async function exportImage(traces: Trace[], links: TraceLink[], layers: L
     let picture: Picture | null = null
     const data = trace.type === 'image' && trace.width && trace.height ? asStrokeData(trace.strokeData) : null
     const t = storedTransformOf(trace)
+    const fine = Math.max(options.scale, options.density ?? 0) * Math.max(Math.abs(t.scaleX), Math.abs(t.scaleY))
     if (data) {
-      const ppw = strokeDensity(options.scale * Math.max(Math.abs(t.scaleX), Math.abs(t.scaleY)), trace.width!, trace.height!)
+      const ppw = strokeDensity(fine, trace.width!, trace.height!)
       picture = canvasPicture(renderStrokeData(data, trace.width!, trace.height!, ppw))
     } else if (trace.type === 'image' && (trace.mediaUrl || trace.imageUrl)) {
       picture = await loadPicture((trace.mediaUrl || trace.imageUrl)!)
       images.tried++
       if (!picture) images.missed++
     } else if (trace.type === 'sheet' || trace.type === 'chart') {
-      picture = await sheetPicture(trace, options.scale * Math.max(Math.abs(t.scaleX), Math.abs(t.scaleY)))
+      picture = await sheetPicture(trace, fine)
     } else if (trace.type === 'document' && isDeckFile(trace.mediaUrl)) {
-      picture = await deckPicture(trace, options.scale * Math.max(Math.abs(t.scaleX), Math.abs(t.scaleY)))
+      picture = await deckPicture(trace, fine)
     } else if (trace.type === 'embed' || trace.type === 'video') {
       // A preview it keeps, where it has one; else one found for it.
       picture = (trace.imageUrl ? await loadPicture(trace.imageUrl) : null) ?? await mediaPicture(trace)

@@ -1,6 +1,9 @@
 // The whole atrium as one web page anyone can look around (the atrium menu's
-// Export as web page): its picture drawn from the data as SVG (lib/
-// exportImage), so it stays sharp however close one looks, in a page that
+// Export as web page): drawn from the data as SVG (lib/exportImage) and put in
+// the page as it is -- its text text, its shapes and lines shapes and lines,
+// its pictures their own files -- so it stays sharp however close one looks;
+// a drawing, which can only be pixels, at four to a unit. Not as an image of
+// itself: one image is drawn once, at a size, then stretched. In a page that
 // pans and zooms as the atrium does -- drag, wheel, pinch, keys -- and flies
 // to its locations. One file: opened anywhere, offline, or put up on any site
 // as it is. Looked at, never edited.
@@ -8,13 +11,16 @@
 import type { LobbyLocation, Trace, Layer } from '../types/database'
 import type { TraceLink } from './traceLinks'
 import { exportImage } from './exportImage'
-import { base64, escape } from './presentationExport'
+import { escape } from './presentationExport'
+
+// A drawing's pixels a unit: sharp at most of the page's closest look (`most`).
+const DRAWN_DENSITY = 4
 
 export async function atriumPageOf(
   traces: Trace[], links: TraceLink[], layers: Layer[], locations: LobbyLocation[], title: string, background: string,
 ): Promise<Blob> {
-  const picture = await exportImage(traces, links, layers, { format: 'svg', scale: 1, background })
-  const svg = new Uint8Array(await picture.blob.arrayBuffer())
+  const picture = await exportImage(traces, links, layers, { format: 'svg', scale: 1, background, density: DRAWN_DENSITY })
+  const svg = (await picture.blob.text()).replace('<svg ', `<svg id="atrium" role="img" aria-label="${escape(title)}" `)
   // Each location's middle on the picture, and its zoom.
   const spots = [...locations].sort((a, b) => a.orderIndex - b.orderIndex)
     .map(location => ({ name: location.name, x: location.positionX - picture.x, y: location.positionY - picture.y, zoom: location.zoom }))
@@ -30,8 +36,8 @@ export async function atriumPageOf(
   html, body { height: 100%; background: ${escape(background)}; color: #e8e8e8; font: 12px/1.4 ui-monospace, Menlo, Consolas, monospace; overflow: hidden; }
   #space { position: fixed; inset: 0; cursor: grab; touch-action: none; }
   #space.held { cursor: grabbing; }
-  #space img { position: absolute; left: 0; top: 0; transform-origin: 0 0; user-select: none; -webkit-user-drag: none; }
-  .moving img { will-change: transform; }
+  #space svg { position: absolute; left: 0; top: 0; transform-origin: 0 0; user-select: none; overflow: visible; }
+  .moving svg { will-change: transform; }
   header { position: fixed; left: 16px; top: 14px; display: flex; flex-direction: column; gap: 8px; max-width: min(320px, 70vw); }
   h1 { font-size: 12px; font-weight: 600; letter-spacing: .2em; text-transform: uppercase; background: rgb(0 0 0 / .45); padding: 7px 10px; }
   nav { display: flex; flex-direction: column; background: rgb(0 0 0 / .45); max-height: 50vh; overflow: auto; }
@@ -43,7 +49,7 @@ export async function atriumPageOf(
 </style>
 </head>
 <body>
-<main id="space" aria-label="${escape(title)}"><img id="atrium" alt="${escape(title)}" draggable="false" src="data:image/svg+xml;base64,${base64(svg)}"></main>
+<main id="space" aria-label="${escape(title)}">${svg}</main>
 <header><h1>${escape(title)}</h1>${spots.length ? `<nav aria-label="Locations">${spots.map((spot, i) => `<button type="button" data-spot="${i}">${escape(spot.name)}</button>`).join('')}</nav>` : ''}</header>
 <footer><button type="button" data-zoom="-1" aria-label="Zoom out">&minus;</button><button type="button" id="fit">Fit</button><button type="button" data-zoom="1" aria-label="Zoom in">+</button></footer>
 <small>Made with The Digital Atrium</small>
