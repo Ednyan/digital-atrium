@@ -1498,6 +1498,20 @@ input[type='color']::-moz-color-swatch { border: none; }
   color: rgb(var(--c-fg)); background: rgb(var(--c-ground) / 0.92); border: 1px solid rgb(var(--c-line) / 0.4);
 }
 
+/* About (AboutPage): its tiles lift a little under the pointer, their icon in a
+   lit square; the creator's portrait warms from grey; the controls fold. */
+.about-tile { transition: transform 320ms cubic-bezier(.16, 1, .3, 1), border-color 220ms ease, box-shadow 320ms ease; }
+.about-tile:hover { transform: translateY(-2px); border-color: rgb(var(--c-line) / 0.8); box-shadow: 0 18px 40px -26px rgb(var(--c-fg) / 0.45); }
+.about-tile-icon { display: inline-flex; align-items: center; justify-content: center; width: 2.6rem; height: 2.6rem; color: rgb(var(--c-fg));
+  border: 1px solid rgb(var(--c-line) / 0.5); background: radial-gradient(circle at 50% 30%, rgb(var(--c-accent) / 0.22), transparent 70%); }
+.about-portrait img { filter: grayscale(1) contrast(1.05); transition: filter 600ms ease, transform 900ms cubic-bezier(.16, 1, .3, 1); }
+.about-portrait:hover img { filter: grayscale(0.2); transform: scale(1.03); }
+.about-controls summary { list-style: none; }
+.about-controls summary::-webkit-details-marker { display: none; }
+.about-controls-mark { display: inline-block; width: 1rem; text-align: center; transition: rotate 300ms cubic-bezier(.16, 1, .3, 1); }
+.about-controls[open] .about-controls-mark { rotate: 45deg; }
+@media (prefers-reduced-motion: reduce) { .about-tile, .about-tile:hover, .about-portrait img { transition: none; transform: none; } }
+
 /* A window that must be answered first (DriveStatus's opening, ReportAtriumModal):
    a modal <dialog>, in the top layer -- over everything, whatever's open, and
    what's behind it out of reach -- in the app's look, not the browser's. */
