@@ -943,6 +943,7 @@ const ptPT: Catalogue = {
   'atrium.browser.storageFailed': 'Este browser não conseguiu abrir o armazenamento dos atriums e não disse porquê. Feche o browser por completo e volte a abri-lo.',
   'atrium.drive.reconnect': 'Volte a ligar o Google Drive para guardar',
   'atrium.drive.catchingUp': 'A trazer do Google Drive…',
+  'atrium.drive.openingWait': 'Vais poder trabalhar nele assim que tudo chegar.',
   'atrium.drive.deleted': 'O dono eliminou este atrium.',
   'atrium.drive.private': 'O dono tornou este átrio privado. Agora só as pessoas que ele adicionar o podem abrir.',
   'atrium.drive.asks': '{name} pede para entrar neste atrium',

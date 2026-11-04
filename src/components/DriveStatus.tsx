@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from '../lib/i18n'
 import { letInAsker, putOffAsker, reconnectDrive, watchDriveStatus, type DriveStatus as Status } from '../lib/driveSync'
 import { showToast } from '../lib/toast'
@@ -9,14 +9,60 @@ import { showToast } from '../lib/toast'
 // past the page), a button, since Google's window needs a click to open.
 // Saves wait in the browser meanwhile, and go up after. And, to its owner
 // and admins, whoever asks to be let in.
-export default function DriveStatus() {
-  const [status, setStatus] = useState<Status>({ catchingUp: false, signInNeeded: false, asking: [] })
+export default function DriveStatus({ onLeave }: { onLeave: () => void }) {
+  const [status, setStatus] = useState<Status>({ catchingUp: false, signInNeeded: false, opening: false, asking: [] })
   useEffect(() => watchDriveStatus(setStatus), [])
   return (
-    <div className="fixed bottom-8 right-8 z-[500] flex flex-col items-end gap-2">
-      <Asking status={status} />
-      <Doing status={status} />
-    </div>
+    <>
+      <div className="fixed bottom-8 right-8 z-[500] flex flex-col items-end gap-2">
+        <Asking status={status} />
+        {!status.opening && <Doing status={status} />}
+      </div>
+      <DriveOpening opening={status.opening} onLeave={onLeave} />
+    </>
+  )
+}
+
+// Opening, while all of it comes in from Drive: the atrium behind, seen but out of
+// reach -- a modal dialog makes it so, pointer and focus -- and nothing typed,
+// pasted or dropped reaches it. The way out stays.
+const KEPT_OUT = ['keydown', 'keyup', 'keypress', 'paste', 'copy', 'cut', 'drop', 'dragover', 'wheel'] as const
+export function DriveOpening({ opening, onLeave }: { opening: boolean; onLeave: () => void }) {
+  const { t } = useTranslation()
+  const box = useRef<HTMLDialogElement>(null)
+  const still = useRef(opening)
+  still.current = opening
+  useEffect(() => {
+    const dialog = box.current
+    if (!dialog) return
+    if (opening && !dialog.open) dialog.showModal()
+    else if (!opening && dialog.open) dialog.close()
+  }, [opening])
+  useEffect(() => {
+    const dialog = box.current!
+    const stop = (event: Event) => {
+      event.stopPropagation()
+      if (event.type === 'drop' || event.type === 'dragover') event.preventDefault()
+    }
+    for (const kind of KEPT_OUT) dialog.addEventListener(kind, stop)
+    return () => { for (const kind of KEPT_OUT) dialog.removeEventListener(kind, stop) }
+  }, [])
+  return (
+    <dialog
+      ref={box}
+      data-drive-opening=""
+      aria-labelledby="drive-opening-title"
+      // Not closed by Escape -- and, closed anyway (a browser lets a second one
+      // through), opened again while it's still coming.
+      onCancel={event => event.preventDefault()}
+      onClose={() => { if (still.current) box.current?.showModal() }}
+      className="atrium-dialog w-[min(24rem,calc(100%-2rem))] p-6 font-mono select-none"
+    >
+      <p id="drive-opening-title" className="text-nier-strong text-xs tracking-[0.14em] uppercase">◇ {t('atrium.drive.catchingUp')}</p>
+      <p className="mt-2 text-nier-bg/75 text-[11px] leading-relaxed">{t('atrium.drive.openingWait')}</p>
+      <div className="mt-4 h-[3px] bg-nier-bg/15 overflow-hidden"><div className="h-full bg-nier-bg/80 animate-nier-slide" /></div>
+      <button type="button" data-drive-opening-leave="" onClick={onLeave} className={`mt-5 ${BUTTON}`}>{t('atrium.leave')}</button>
+    </dialog>
   )
 }
 

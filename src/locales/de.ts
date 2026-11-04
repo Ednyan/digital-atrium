@@ -939,6 +939,7 @@ const de: Catalogue = {
   'atrium.browser.storageFailed': 'Dieser Browser konnte seinen Speicher für Atrien nicht öffnen und nennt keinen Grund. Beende den Browser vollständig und öffne ihn erneut.',
   'atrium.drive.reconnect': 'Mit Google Drive verbinden, um zu speichern',
   'atrium.drive.catchingUp': 'Wird aus Google Drive geholt…',
+  'atrium.drive.openingWait': 'Du kannst darin arbeiten, sobald alles angekommen ist.',
   'atrium.drive.deleted': 'Der Besitzer hat dieses Atrium gelöscht.',
   'atrium.drive.private': 'Der Besitzer hat dieses Atrium privat gemacht. Öffnen können es jetzt nur noch die Personen, die er hinzufügt.',
   'atrium.drive.asks': '{name} bittet darum, diesem Atrium beizutreten',

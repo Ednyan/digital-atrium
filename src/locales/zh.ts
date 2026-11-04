@@ -909,6 +909,7 @@ const zh: Catalogue = {
   'atrium.browser.storageFailed': '此浏览器无法打开 Atrium 的存储，也没有说明原因。请完全退出浏览器后重新打开。',
   'atrium.drive.reconnect': '重新连接 Google 云端硬盘以保存',
   'atrium.drive.catchingUp': '正在从 Google 云端硬盘载入…',
+  'atrium.drive.openingWait': '全部到达后就可以在里面工作了。',
   'atrium.drive.deleted': '所有者删除了这个 Atrium。',
   'atrium.drive.private': '所有者已将此中庭设为私密。现在只有所有者添加的人才能打开。',
   'atrium.drive.asks': '{name} 请求加入此 Atrium',

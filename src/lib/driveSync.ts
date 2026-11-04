@@ -1306,7 +1306,7 @@ export async function startDriveSync(lobbyId: string, me: string): Promise<void>
   }
   session = s
   mirrored = kept.viewer && !isHostedId(kept.roster) ? mirroredStore(lobbyId, driveStore) : null
-  setStatus({ ended: undefined })
+  setStatus({ ended: undefined, opening: true })
   local.listenToLocalWrites(() => {
     window.clearTimeout(s.quiet)
     s.quiet = window.setTimeout(() => { if (session === s) void run(s, up) }, QUIET_MS)
@@ -1340,7 +1340,10 @@ export async function startDriveSync(lobbyId: string, me: string): Promise<void>
     document.removeEventListener('visibilitychange', hidden)
     window.removeEventListener('beforeunload', closing)
   }
-  look()
+  // The opening look: waited for, in the atrium (status.opening), then it's free --
+  // or failed, its copy here free to use, as any look's failure leaves it.
+  s.lookedAt = Date.now()
+  void run(s, both).then(() => { if (session === s) setStatus({ opening: false }) })
   // Who's asking to be let in, for one who may let them in -- as the roster
   // last read here has it: read with the opening look, in its request.
   const lastRoster = rostersKept()[kept.roster]?.roster
@@ -1377,7 +1380,7 @@ export function stopDriveSync(): Promise<void> {
   window.addEventListener('beforeunload', holdPage)
   stopping = run(s, x => up(x, true)).then(() => {
     window.removeEventListener('beforeunload', holdPage)
-    setStatus({ signInNeeded: false, catchingUp: false, asking: status.asking.length ? [] : status.asking })
+    setStatus({ signInNeeded: false, catchingUp: false, opening: false, asking: status.asking.length ? [] : status.asking })
   })
   return stopping
 }
@@ -1392,13 +1395,15 @@ function holdPage(event: BeforeUnloadEvent) {
 // (components/DriveStatus): bringing saves in from Drive, waiting for a
 // sign-in -- which needs a click, so saves wait here meanwhile; reading
 // doesn't need it -- or over for this member: removed, or deleted.
-export interface DriveStatus { catchingUp: boolean; signInNeeded: boolean; ended?: DriveEnd; asking: Asker[] }
+// `opening`: the look it opened with, under way -- until it's in, nothing's done
+// in it (components/DriveStatus): what was made would be made on what's coming.
+export interface DriveStatus { catchingUp: boolean; signInNeeded: boolean; opening: boolean; ended?: DriveEnd; asking: Asker[] }
 export interface Asker { user: string; username: string; name: string }
-let status: DriveStatus = { catchingUp: false, signInNeeded: false, asking: [] }
+let status: DriveStatus = { catchingUp: false, signInNeeded: false, opening: false, asking: [] }
 const statusWatchers = new Set<(status: DriveStatus) => void>()
 function setStatus(change: Partial<DriveStatus>) {
   const next = { ...status, ...change }
-  if (next.catchingUp === status.catchingUp && next.signInNeeded === status.signInNeeded && next.ended === status.ended && next.asking === status.asking) return
+  if (next.catchingUp === status.catchingUp && next.signInNeeded === status.signInNeeded && next.opening === status.opening && next.ended === status.ended && next.asking === status.asking) return
   status = next
   statusWatchers.forEach(watcher => watcher(status))
 }

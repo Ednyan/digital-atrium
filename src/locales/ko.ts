@@ -910,6 +910,7 @@ const ko: Catalogue = {
   'atrium.browser.storageFailed': '이 브라우저가 Atrium 저장소를 열지 못했어요(이유는 알려 주지 않았어요). 브라우저를 완전히 종료한 뒤 다시 열어 보세요.',
   'atrium.drive.reconnect': '저장하려면 Google 드라이브에 다시 연결하세요',
   'atrium.drive.catchingUp': 'Google 드라이브에서 가져오는 중…',
+  'atrium.drive.openingWait': '모두 도착하면 작업할 수 있어요.',
   'atrium.drive.deleted': '소유자가 이 Atrium을 삭제했어요.',
   'atrium.drive.private': '소유자가 이 아트리움을 비공개로 바꿨습니다. 이제 소유자가 추가한 사람만 열 수 있습니다.',
   'atrium.drive.asks': '{name}님이 이 Atrium에 들어오고 싶어 해요',

@@ -936,6 +936,7 @@ const es: Catalogue = {
   'atrium.browser.storageFailed': 'Este navegador no pudo abrir su almacenamiento para atriums y no dijo por qué. Cierra el navegador por completo y vuelve a abrirlo.',
   'atrium.drive.reconnect': 'Vuelve a conectar Google Drive para guardar',
   'atrium.drive.catchingUp': 'Trayéndolo de Google Drive…',
+  'atrium.drive.openingWait': 'Podrás trabajar en él cuando haya llegado todo.',
   'atrium.drive.deleted': 'Su dueño eliminó este atrium.',
   'atrium.drive.private': 'Su propietario ha hecho privado este atrio. Ahora solo pueden abrirlo las personas que añada.',
   'atrium.drive.asks': '{name} pide unirse a este atrium',

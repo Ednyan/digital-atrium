@@ -2421,7 +2421,7 @@ function AppInner() {
         <>
           <Suspense fallback={<PageLoading />}>
             <LobbyScene lobbyId={route.lobbyId} onLeaveLobby={handleLeaveLobby} onKicked={(blacklisted, drive) => setKickedNotice({ blacklisted, drive })} />
-            <DriveStatus />
+            <DriveStatus onLeave={handleLeaveLobby} />
           </Suspense>
           {transitionLobbyId === route.lobbyId && <AtriumRevealOverlay />}
         </>

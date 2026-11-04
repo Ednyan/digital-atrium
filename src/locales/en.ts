@@ -890,6 +890,7 @@ export const en = {
   'atrium.browser.storageFailed': "This browser couldn't open its storage for atriums, and didn't say why. Quit the browser completely and open it again.",
   'atrium.drive.reconnect': 'Reconnect to Google Drive to save',
   'atrium.drive.catchingUp': 'Bringing it in from Google Drive…',
+  'atrium.drive.openingWait': 'You can work in it once everything has arrived.',
   'atrium.drive.deleted': 'Its owner deleted this atrium.',
   'atrium.drive.private': 'Its owner made this atrium private. Only the people they add can open it now.',
   'atrium.drive.asks': '{name} asks to join this atrium',

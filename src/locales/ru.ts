@@ -942,6 +942,7 @@ const ru: Catalogue = {
   'atrium.browser.storageFailed': 'Этот браузер не смог открыть хранилище атриумов и не сообщил причину. Полностью закройте браузер и откройте его снова.',
   'atrium.drive.reconnect': 'Подключите Google Диск снова, чтобы сохранить',
   'atrium.drive.catchingUp': 'Загружаем из Google Диска…',
+  'atrium.drive.openingWait': 'Работать в нём можно будет, когда всё загрузится.',
   'atrium.drive.deleted': 'Владелец удалил этот атриум.',
   'atrium.drive.private': 'Владелец сделал этот атриум приватным. Теперь его могут открыть только те, кого он добавит.',
   'atrium.drive.asks': '{name} просит впустить в этот атриум',

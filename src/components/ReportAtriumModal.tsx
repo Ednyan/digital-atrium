@@ -2,7 +2,7 @@
 // Atrium's operator (Developers > Feedback, lib/feedback) -- with its name and id,
 // and, signed in, who's reporting it (the worker's to know, not the form's).
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from '../lib/i18n'
 import { sendFeedbackReport, ATRIUM_REPORT_REASONS, type AtriumReportReason } from '../lib/feedback'
 import type { TranslationKey } from '../locales/en'
@@ -14,6 +14,9 @@ export default function ReportAtriumModal({ lobbyId, name, onClose }: { lobbyId:
   const [sending, setSending] = useState(false)
   const [sent, setSent] = useState(false)
   const [problem, setProblem] = useState<string | null>(null)
+  // A modal dialog: over everything, a card's menu or an atrium's controls alike.
+  const box = useRef<HTMLDialogElement>(null)
+  useEffect(() => { box.current?.showModal() }, [])
 
   const send = async () => {
     if (!reason) return
@@ -32,8 +35,16 @@ export default function ReportAtriumModal({ lobbyId, name, onClose }: { lobbyId:
   }
 
   return (
-    <div data-report-atrium="" className="modal-backdrop fixed inset-0 bg-nier-black/80 flex items-center justify-center z-[100] p-4" onClick={onClose}>
-      <div className="relative max-w-md w-full max-h-[100dvh] overflow-y-auto border border-nier-border/40 p-6" style={{ backgroundColor: 'rgb(var(--c-ground))' }} onClick={event => event.stopPropagation()}>
+    <dialog
+      ref={box}
+      data-report-atrium=""
+      aria-label={t('report.atrium.title')}
+      onCancel={event => { event.preventDefault(); onClose() }}
+      // Pressed outside it -- on its backdrop, which is the dialog's own.
+      onClick={event => { if (event.target === box.current) onClose() }}
+      className="atrium-dialog w-[min(28rem,calc(100%-2rem))] p-0"
+    >
+      <div className="p-6">
         <div className="flex justify-between items-start gap-3 mb-3">
           <h3 className="text-nier-strong tracking-[0.15em] uppercase text-sm">◇ {t('report.atrium.title')}</h3>
           <button type="button" onClick={onClose} aria-label={t('common.close')} className="w-8 h-8 shrink-0 flex items-center justify-center border border-nier-border/30 text-nier-bg/80 hover:text-nier-bg hover:border-nier-border/60 transition-colors">×</button>
@@ -79,6 +90,6 @@ export default function ReportAtriumModal({ lobbyId, name, onClose }: { lobbyId:
           </>
         )}
       </div>
-    </div>
+    </dialog>
   )
 }

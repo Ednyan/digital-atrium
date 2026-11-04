@@ -35,7 +35,8 @@ import PalettePanel from './PalettePanel'
 import OverlayPanel from './OverlayPanel'
 import { inOverlayMode, overlayNow, seeingThrough, setOverlay, useOverlay } from '../lib/overlay'
 import { LOBBY_CHANGED_EVENT, liveTable } from '../lib/liveChanges'
-import { endedFor, isDriveAtrium, isDriveViewer, isHostedAtrium, spaceOf, watchDriveStatus, type DriveEnd } from '../lib/driveSync'
+import { endedFor, isDriveAtrium, isDriveOwner, isDriveViewer, isHostedAtrium, spaceOf, watchDriveStatus, type DriveEnd } from '../lib/driveSync'
+import ReportAtriumModal from './ReportAtriumModal'
 import DriveSettings from './DriveSettings'
 import { takeColourAt } from '../lib/eyedropper'
 import { tCount, useTranslation } from '../lib/i18n'
@@ -691,6 +692,8 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
   const [zoom, setZoom] = useState(1.0)
   const [worldOffset, setWorldOffset] = useState({ x: 0, y: 0 })
   const [showOnlineUsersList, setShowOnlineUsersList] = useState(false)
+  // Reporting it (ReportAtriumModal): someone else's, shared with one or public.
+  const [reporting, setReporting] = useState(false)
   // Forces the online-users list to re-render its "time in atrium" values
   // periodically while open, rather than only on other state changes.
   const [, setOnlineUsersListTick] = useState(0)
@@ -5154,6 +5157,8 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
         )}
       </div>
 
+      {reporting && <ReportAtriumModal lobbyId={lobbyId} name={currentLobby?.name ?? ''} onClose={() => setReporting(false)} />}
+
       {/* The things that are about the session rather than the canvas: who's
           here, the interface's light or dark, and the way out -- in that
           order, so the one you press by accident least often is furthest from
@@ -5217,6 +5222,11 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
                 </div>
               )}
             </div>
+            {/* Someone else's -- a Drive atrium shared with one, or a public one -- reported
+                as breaking the terms of use, as from its card. Never one's own. */}
+            {!tutorial && (isDriveAtrium(lobbyId) ? !isDriveOwner(lobbyId) : !!currentLobby?.isPublic && currentLobby.ownerUserId !== userId) && (
+              <HudIconButton icon={MENU_ICONS.flag} label={t('report.atrium.title')} data-report-atrium-open="" onClick={() => setReporting(true)} />
+            )}
             {!(tutorial && narrow) && <ThemeToggle variant="atrium" onToggle={followSwitch} />}
           </>
         )}

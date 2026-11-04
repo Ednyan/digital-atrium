@@ -906,6 +906,7 @@ const ja: Catalogue = {
   'atrium.browser.storageFailed': 'このブラウザは Atrium 用のストレージを開けませんでした（理由は示されていません）。ブラウザを完全に終了してから、もう一度開いてください。',
   'atrium.drive.reconnect': '保存するには Google ドライブに再接続してください',
   'atrium.drive.catchingUp': 'Google ドライブから取り込み中…',
+  'atrium.drive.openingWait': 'すべて届いたら作業できます。',
   'atrium.drive.deleted': 'オーナーがこの Atrium を削除しました。',
   'atrium.drive.private': 'オーナーがこのアトリウムを非公開にしました。今後はオーナーが追加した人だけが開けます。',
   'atrium.drive.asks': '{name} さんがこの Atrium への参加をリクエストしています',
