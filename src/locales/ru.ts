@@ -1312,7 +1312,6 @@ const ru: Catalogue = {
   'atrium.controls.missingFile': 'Файл отсутствует',
   'atrium.error.duplicateFailed': 'Не удалось продублировать trace: {message}',
   'atrium.error.frameFailed': 'Не удалось создать рамку: {message}',
-  'atrium.error.pickerUnsupported': 'Пипетка цвета не поддерживается этим браузером.\n\nИспользуйте Chrome, Edge или другой браузер на Chromium.',
   'atrium.hud.hiddenBadge': 'Скрыты — вас никто не видит в этом atrium',
   'atrium.hud.viewOnlyBadge': 'Только просмотр — у вас нет прав на изменение этого atrium',
   'atrium.error.pathFailed': 'Не удалось создать путь: {message}',

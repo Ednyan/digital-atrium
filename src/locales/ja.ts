@@ -1288,7 +1288,6 @@ const ja: Catalogue = {
   'atrium.controls.missingFile': 'ファイルが見つかりません',
   'atrium.error.duplicateFailed': 'この trace を複製できませんでした：{message}',
   'atrium.error.frameFailed': 'フレームを作れませんでした：{message}',
-  'atrium.error.pickerUnsupported': 'このブラウザーはスポイトツールに対応していません。\n\nこの機能を使うには Chrome、Edge、またはほかの Chromium 系ブラウザーをお使いください。',
   'atrium.hud.hiddenBadge': '非表示中——この atrium では誰にも見えていません',
   'atrium.hud.viewOnlyBadge': '閲覧のみ——この atrium を編集する権限がありません',
   'atrium.error.pathFailed': 'パスを作成できませんでした：{message}',

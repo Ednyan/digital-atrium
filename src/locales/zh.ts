@@ -1291,7 +1291,6 @@ const zh: Catalogue = {
   'atrium.controls.missingFile': '文件缺失',
   'atrium.error.duplicateFailed': '无法复制这个 trace：{message}',
   'atrium.error.frameFailed': '无法创建框架：{message}',
-  'atrium.error.pickerUnsupported': '这个浏览器不支持取色器。\n\n请使用 Chrome、Edge 或其他基于 Chromium 的浏览器来使用这个功能。',
   'atrium.hud.hiddenBadge': '隐身中——这个 atrium 里没有人能看到你',
   'atrium.hud.viewOnlyBadge': '只读——你没有编辑这个 atrium 的权限',
   'atrium.error.pathFailed': '无法创建路径：{message}',

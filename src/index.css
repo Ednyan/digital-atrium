@@ -1490,6 +1490,30 @@ input[type='color']::-moz-color-swatch { border: none; }
 }
 .atrium-dialog::backdrop { background: rgb(0 0 0 / 0.6); animation: backdrop-in 140ms ease-out both; }
 
+/* Picking a colour off the atrium (lib/eyedropper, pickOnAtrium): all of it under
+   a pointer that's a dropper, its tip where it picks -- a popover, over everything. */
+.pick-layer {
+  position: fixed; inset: 0; width: auto; height: auto; max-width: none; max-height: none;
+  margin: 0; padding: 0; border: 0; background: transparent; z-index: 10000;
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M11 7l6 6M4 16l11.7-11.7a1 1 0 0 1 1.4 0l2.6 2.6a1 1 0 0 1 0 1.4L8 20H4z' stroke='%23000' stroke-width='4'/%3E%3Cpath d='M11 7l6 6M4 16l11.7-11.7a1 1 0 0 1 1.4 0l2.6 2.6a1 1 0 0 1 0 1.4L8 20H4z' stroke='%23fff' stroke-width='1.8'/%3E%3C/svg%3E") 3 21, crosshair;
+}
+.pick-hint {
+  position: absolute; top: 5rem; left: 50%; translate: -50% 0; pointer-events: none;
+  padding: 0.375rem 0.75rem; font: 12px ui-monospace, Consolas, monospace;
+  color: rgb(var(--c-fg)); background: rgb(var(--c-ground) / 0.92); border: 1px solid rgb(var(--c-line) / 0.4);
+}
+
+/* A window that must be answered first (DriveStatus's opening, ReportAtriumModal):
+   a modal <dialog>, in the top layer -- over everything, whatever's open, and
+   what's behind it out of reach -- in the app's look, not the browser's. */
+.atrium-dialog {
+  margin: auto; max-height: calc(100dvh - 2rem); overflow-y: auto;
+  color: rgb(var(--c-fg)); background: rgb(var(--c-ground));
+  border: 1px solid rgb(var(--c-line) / 0.5);
+  animation: modal-in 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.atrium-dialog::backdrop { background: rgb(0 0 0 / 0.6); animation: backdrop-in 140ms ease-out both; }
+
 /* An achievement earned (AchievementPopup): in from the screen's right edge, its
    mark lit in its family's colour, a light passing over the card once. */
 .achievement-pop {

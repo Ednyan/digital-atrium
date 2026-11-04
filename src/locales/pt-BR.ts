@@ -1310,7 +1310,6 @@ const ptBR: Catalogue = {
   'atrium.controls.missingFile': 'Arquivo ausente',
   'atrium.error.duplicateFailed': 'Não foi possível duplicar o trace: {message}',
   'atrium.error.frameFailed': 'Não foi possível criar a moldura: {message}',
-  'atrium.error.pickerUnsupported': 'A ferramenta de seleção de cor não é suportada neste navegador.\n\nUse o Chrome, o Edge ou outro navegador baseado em Chromium para usar este recurso.',
   'atrium.hud.hiddenBadge': 'Oculto — você não está visível para ninguém neste atrium',
   'atrium.hud.viewOnlyBadge': 'Apenas leitura — você não tem permissão para editar este atrium',
   'atrium.error.pathFailed': 'Não foi possível criar o caminho: {message}',

@@ -1306,7 +1306,6 @@ const es: Catalogue = {
   'atrium.controls.missingFile': 'Falta el archivo',
   'atrium.error.duplicateFailed': 'No se pudo duplicar el trace: {message}',
   'atrium.error.frameFailed': 'No se pudo crear el marco: {message}',
-  'atrium.error.pickerUnsupported': 'El selector de color no es compatible con este navegador.\n\nUsa Chrome, Edge u otro navegador basado en Chromium para usar esta función.',
   'atrium.hud.hiddenBadge': 'Oculto — no eres visible para nadie en este atrium',
   'atrium.hud.viewOnlyBadge': 'Solo lectura — no tienes permiso para editar este atrium',
   'atrium.error.pathFailed': 'No se pudo crear el trazado: {message}',

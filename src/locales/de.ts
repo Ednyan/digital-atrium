@@ -1309,7 +1309,6 @@ const de: Catalogue = {
   'atrium.controls.missingFile': 'Datei fehlt',
   'atrium.error.duplicateFailed': 'Trace konnte nicht dupliziert werden: {message}',
   'atrium.error.frameFailed': 'Der Rahmen konnte nicht erstellt werden: {message}',
-  'atrium.error.pickerUnsupported': 'Die Farbpipette wird von diesem Browser nicht unterstützt.\n\nNutze Chrome, Edge oder einen anderen Chromium-Browser für diese Funktion.',
   'atrium.hud.hiddenBadge': 'Verborgen — du bist für niemanden in diesem Atrium sichtbar',
   'atrium.hud.viewOnlyBadge': 'Nur Ansicht — du darfst dieses Atrium nicht bearbeiten',
   'atrium.error.pathFailed': 'Pfad konnte nicht erstellt werden: {message}',

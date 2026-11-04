@@ -1260,7 +1260,6 @@ export const en = {
   'atrium.controls.missingFile': 'Missing file',
   'atrium.error.duplicateFailed': 'Failed to duplicate trace: {message}',
   'atrium.error.frameFailed': 'Failed to make the frame: {message}',
-  'atrium.error.pickerUnsupported': 'The color picker tool is not supported in this browser.\n\nPlease use Chrome, Edge, or another Chromium-based browser to use this feature.',
   'atrium.hud.hiddenBadge': 'Hidden — You are not visible to anyone in this atrium',
   'atrium.hud.viewOnlyBadge': "View Only — You don't have permission to edit this atrium",
   'atrium.error.pathFailed': 'Failed to create path: {message}',

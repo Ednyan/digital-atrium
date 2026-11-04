@@ -1310,7 +1310,6 @@ const it: Catalogue = {
   'atrium.controls.missingFile': 'File mancante',
   'atrium.error.duplicateFailed': 'Impossibile duplicare il trace: {message}',
   'atrium.error.frameFailed': 'Impossibile creare la cornice: {message}',
-  'atrium.error.pickerUnsupported': 'Il selettore di colore non è supportato da questo browser.\n\nUsa Chrome, Edge o un altro browser basato su Chromium per questa funzione.',
   'atrium.hud.hiddenBadge': 'Nascosto — non sei visibile a nessuno in questo atrium',
   'atrium.hud.viewOnlyBadge': 'Sola lettura — non hai il permesso di modificare questo atrium',
   'atrium.error.pathFailed': 'Impossibile creare il percorso: {message}',

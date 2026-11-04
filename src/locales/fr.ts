@@ -1308,7 +1308,6 @@ const fr: Catalogue = {
   'atrium.controls.missingFile': 'Fichier manquant',
   'atrium.error.duplicateFailed': 'Impossible de dupliquer le trace : {message}',
   'atrium.error.frameFailed': 'Impossible de créer le cadre : {message}',
-  'atrium.error.pickerUnsupported': 'Le sélecteur de couleur n’est pas pris en charge par ce navigateur.\n\nUtilisez Chrome, Edge ou un autre navigateur basé sur Chromium pour cette fonctionnalité.',
   'atrium.hud.hiddenBadge': 'Masqué — vous n’êtes visible par personne dans cet atrium',
   'atrium.hud.viewOnlyBadge': 'Lecture seule — vous n’avez pas le droit de modifier cet atrium',
   'atrium.error.pathFailed': 'Impossible de créer le tracé : {message}',

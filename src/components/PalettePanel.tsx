@@ -7,11 +7,10 @@
 // where the pointer is (LobbyScene).
 
 import { useEffect, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
 import { useTranslation } from '../lib/i18n'
 import { APPLY_COLOUR_EVENT, PALETTE_ROW, PALETTE_SIZE, setColour, usePalette, type ApplyColour } from '../lib/palette'
-import { hasNativePicker, nativePick, takeColour, takeColourAt } from '../lib/eyedropper'
-import { useGameStore } from '../store/gameStore'
+import { hasNativePicker, pickColour, takeColour } from '../lib/eyedropper'
+import { count } from '../lib/stats'
 import { showToast } from '../lib/toast'
 import { MenuIcon } from './AtriumMenu'
 
@@ -29,13 +28,6 @@ export default function PalettePanel({ open }: { open: boolean }) {
 
   // Closed, it's still there for its slide: out of reach of Tab and readers.
   useEffect(() => { if (root.current) root.current.inert = !open }, [open])
-  useEffect(() => { if (!open) setPicking(false) }, [open])
-  useEffect(() => {
-    if (!picking) return
-    const stop = (e: KeyboardEvent) => { if (e.key === 'Escape') setPicking(false) }
-    window.addEventListener('keydown', stop)
-    return () => window.removeEventListener('keydown', stop)
-  }, [picking])
 
   const use = (colour: string) => {
     const ask: ApplyColour = { colour, applied: false }
@@ -53,10 +45,15 @@ export default function PalettePanel({ open }: { open: boolean }) {
       chooser.current.click()
     }
   }
+  // The browser's picker, or a press on the atrium (lib/eyedropper): lit till it's done.
   const drop = async () => {
-    if (!hasNativePicker()) { setPicking(on => !on); return }
-    const colour = await nativePick()
-    if (colour) takeColour(colour)
+    if (picking) return
+    setPicking(true)
+    const colour = await pickColour()
+    setPicking(false)
+    if (!colour) return
+    takeColour(colour)
+    count('colours')
   }
 
   const swatch = (index: number) => {
@@ -164,26 +161,6 @@ export default function PalettePanel({ open }: { open: boolean }) {
         className="sr-only"
         onChange={e => { if (choosing.current !== null) setColour(choosing.current, e.target.value) }}
       />
-      {/* Picking off the canvas, where the browser has no picker of its own:
-          the next press takes the colour under it. Over the page, so it's
-          fixed to the screen (the bar it opens from is moved by a transform). */}
-      {picking && createPortal(
-        <div
-          data-palette-picking=""
-          className="fixed inset-0 z-[10000] cursor-crosshair"
-          onPointerDown={e => {
-            e.preventDefault()
-            e.stopPropagation()
-            setPicking(false)
-            void takeColourAt(e.clientX, e.clientY, useGameStore.getState().traces)
-          }}
-        >
-          <div className="absolute top-20 left-1/2 -translate-x-1/2 px-3 py-1.5 text-xs font-mono text-nier-bg border border-nier-border/40 pointer-events-none" style={{ backgroundColor: 'rgb(var(--c-ground) / 0.92)' }}>
-            {t('atrium.palette.pickHint')}
-          </div>
-        </div>,
-        document.body,
-      )}
     </div>
   )
 }

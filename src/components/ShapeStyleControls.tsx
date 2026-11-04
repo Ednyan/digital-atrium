@@ -12,7 +12,7 @@
 
 import { useEffect, useState } from 'react'
 import { useTranslation } from '../lib/i18n'
-import { showToast } from '../lib/toast'
+import { pickColour } from '../lib/eyedropper'
 import { BOX_SHAPES, type ArrowKind, type ShapeKind, type ShapeStyle } from '../lib/shapeStyle'
 import { Choices, Row, ToggleTrack } from './Customization'
 import { MenuIcon } from './AtriumMenu'
@@ -95,17 +95,10 @@ export function ColourField({ label, value, onChange, onReset }: { label: string
     else setDraft(value)
   }
 
+  // The browser's picker, or a press on the atrium where there's none (lib/eyedropper).
   const pick = async () => {
-    if (!('EyeDropper' in window)) {
-      showToast(t('atrium.error.pickerUnsupported'))
-      return
-    }
-    try {
-      const result = await new (window as any).EyeDropper().open()
-      onChange(result.sRGBHex)
-    } catch {
-      // Cancelled.
-    }
+    const colour = await pickColour()
+    if (colour) onChange(colour)
   }
 
   const tool = 'w-8 h-8 shrink-0 flex items-center justify-center border border-nier-border/30 text-nier-bg hover:border-nier-border/60 hover:text-nier-strong transition-colors'

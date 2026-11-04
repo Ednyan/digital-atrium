@@ -1292,7 +1292,6 @@ const ko: Catalogue = {
   'atrium.controls.missingFile': '파일이 없어요',
   'atrium.error.duplicateFailed': '이 trace를 복제하지 못했어요: {message}',
   'atrium.error.frameFailed': '프레임을 만들지 못했어요: {message}',
-  'atrium.error.pickerUnsupported': '이 브라우저는 스포이드 도구를 지원하지 않아요.\n\n이 기능을 쓰려면 Chrome, Edge 또는 다른 Chromium 계열 브라우저를 써 주세요.',
   'atrium.hud.hiddenBadge': '숨김 — 이 atrium에서는 아무에게도 보이지 않아요',
   'atrium.hud.viewOnlyBadge': '보기 전용 — 이 atrium을 편집할 권한이 없어요',
   'atrium.error.pathFailed': '패스를 만들지 못했어요: {message}',
