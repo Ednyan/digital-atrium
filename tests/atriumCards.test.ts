@@ -46,6 +46,6 @@ test('the next achievement is the nearest, not just the next in the list', () =>
 
 test('with nothing begun, the first; with everything earned, none', () => {
   assert.equal(nextAchievement(NO_STATS)?.id, 'firstSteps')
-  const all = { ...NO_STATS, tutorial: 1, placed: 1e6, deleted: 1e4, streak: 365, bestStreak: 365, threads: 100, colours: 100, drawings: 100, templates: 10 }
+  const all = { ...NO_STATS, tutorial: 1, placed: 1e6, deleted: 1e4, streak: 365, bestStreak: 365, threads: 100, colours: 100, drawings: 100, templates: 10, templatesMade: 1 }
   assert.equal(nextAchievement(all), null)
 })

@@ -3,7 +3,7 @@
 // row per event. Nothing depends on them, and they're counted by the app itself,
 // so they're for pleasure, not proof: no leaderboards on these numbers.
 
-export type Counter = 'tutorial' | 'placed' | 'deleted' | 'streak' | 'threads' | 'colours' | 'drawings' | 'templates'
+export type Counter = 'tutorial' | 'placed' | 'deleted' | 'streak' | 'threads' | 'colours' | 'drawings' | 'templates' | 'templatesMade'
 
 export interface Stats {
   tutorial: number
@@ -13,6 +13,8 @@ export interface Stats {
   colours: number
   drawings: number
   templates: number
+  // Templates of one's own, made (custom templates: to come).
+  templatesMade: number
   // Days in a row, the most ever, days in all, and the last (YYYY-MM-DD, local).
   streak: number
   bestStreak: number
@@ -33,7 +35,7 @@ export interface Stats {
 // on this device or from the account, where it would otherwise come back as the
 // higher of the two (mergeStats).
 export const STATS_VERSION = 2
-export const NO_STATS: Stats = { tutorial: 0, placed: 0, deleted: 0, threads: 0, colours: 0, drawings: 0, templates: 0, streak: 0, bestStreak: 0, daysHere: 0, lastDay: '', firstDay: '', pinned: [], pinnedAt: 0, v: STATS_VERSION }
+export const NO_STATS: Stats = { tutorial: 0, placed: 0, deleted: 0, threads: 0, colours: 0, drawings: 0, templates: 0, templatesMade: 0, streak: 0, bestStreak: 0, daysHere: 0, lastDay: '', firstDay: '', pinned: [], pinnedAt: 0, v: STATS_VERSION }
 export const MOST_PINNED = 3
 
 export interface Achievement {
@@ -61,7 +63,6 @@ export const ACHIEVEMENTS: Achievement[] = [
   award('thousand', 'placed', 1_000, 'placed', 'placed'),
   award('tenThousand', 'placed', 10_000, 'placed', 'placed'),
   award('hundredThousand', 'placed', 100_000, 'placed', 'placed'),
-  award('million', 'placed', 1_000_000, 'placed', 'placed'),
   award('secondThoughts', 'deleted', 1, 'deletedFirst', 'deleted'),
   award('tidyingUp', 'deleted', 100, 'deleted', 'deleted'),
   award('springCleaning', 'deleted', 1_000, 'deleted', 'deleted'),
@@ -75,6 +76,7 @@ export const ACHIEVEMENTS: Achievement[] = [
   award('colourist', 'colours', 100, 'colours', 'other'),
   award('scribbler', 'drawings', 100, 'drawings', 'other'),
   award('offTheShelf', 'templates', 10, 'templates', 'other'),
+  award('itsABoy', 'templatesMade', 1, 'templateMade', 'other'),
 ]
 
 // A streak's achievement stays once earned, however the streak ends after.
@@ -125,7 +127,7 @@ export function mergeStats(here: Stats, there: Partial<Stats> | null | undefined
   return {
     ...here,
     tutorial: count('tutorial'), placed: count('placed'), deleted: count('deleted'), threads: count('threads'),
-    colours: count('colours'), drawings: count('drawings'), templates: count('templates'),
+    colours: count('colours'), drawings: count('drawings'), templates: count('templates'), templatesMade: count('templatesMade'),
     streak: latest.lastDay === here.lastDay && latest.lastDay === other.lastDay ? count('streak') : latest.streak,
     bestStreak: count('bestStreak'), daysHere: count('daysHere'),
     lastDay: latest.lastDay,
