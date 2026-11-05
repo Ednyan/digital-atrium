@@ -57,3 +57,9 @@ test('one its owner chose is never made over, however long it has been', () => {
   assert.equal(isChosenPicture('https://x/storage/v1/object/public/traces/L/preview-1793742411349.webp'), false)
   assert.equal(isChosenPicture('local://traces/L/preview.webp'), false)
 })
+
+test('one made smaller than pictures are made now is made again, unchanged or not', () => {
+  assert.equal(previewDue({ print: 'p', at: 0, whole: true }, 'p', 1e13, 1000, 1600), true)
+  assert.equal(previewDue({ print: 'p', at: 0, whole: true, side: 960 }, 'p', 1e13, 1000, 1600), true)
+  assert.equal(previewDue({ print: 'p', at: 0, whole: true, side: 1600 }, 'p', 1e13, 1000, 1600), false)
+})

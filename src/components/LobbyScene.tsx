@@ -1018,7 +1018,9 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
     try {
       if (arrows) arrows.visible = false
       const drawn = app.renderer.extract.canvas(app.stage, new Rectangle(0, 0, width, height)) as HTMLCanvasElement
-      const k = Math.min(1, maxSide / Math.max(width, height))
+      // At the picture's own size, from the canvas at its own resolution: a window
+      // smaller than the picture is drawn up to it, not stretched after.
+      const k = maxSide / Math.max(width, height)
       layer = document.createElement('canvas')
       layer.width = Math.max(1, Math.round(width * k))
       layer.height = Math.max(1, Math.round(height * k))

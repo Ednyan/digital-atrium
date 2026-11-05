@@ -36,6 +36,7 @@ import { noteToday, syncStats } from '../lib/stats'
 import { forgetCard, readCards, recentCards, rememberCards } from '../lib/atriumCards'
 import AtriumPicture from './AtriumPicture'
 import ReportAtriumModal from './ReportAtriumModal'
+import { AtriumPictureWindow } from './AtriumPictureSetting'
 import { cameBefore, markTutorialSeen, tutorialFinished, tutorialSeen, tutorialStarted, unfinishedTutorial } from '../lib/tutorial'
 import { browserAtriumIds, browserEngine, clientFor, forgetBrowserAtrium, leaveBrowserAtrium, rememberBrowserAtrium, vaultProblem } from '../lib/browserAtriums'
 import { checkPlatformAdmin } from '../lib/platformAdmin'
@@ -297,6 +298,8 @@ export function LobbyBrowser({ onJoinLobby, onReady, inSight = true, onCardsKnow
   const [managingLobbyId, setManagingLobbyId] = useState<string | null>(null)
   // Someone else's atrium, being reported as breaking the terms of use.
   const [reporting, setReporting] = useState<{ id: string; name: string } | null>(null)
+  // One kept in this browser alone, its settings open: its picture is all it has.
+  const [picturing, setPicturing] = useState<string | null>(null)
   const [showJoinById, setShowJoinById] = useState(false)
   const [lobbyIdInput, setLobbyIdInput] = useState('')
   const [newLobbyName, setNewLobbyName] = useState('')
@@ -1526,7 +1529,8 @@ export function LobbyBrowser({ onJoinLobby, onReady, inSight = true, onCardsKnow
     // a cloud one's for its owner and admins.
     const side: CardAction | undefined = lobby.inDrive && !lobby.publicRoster && !viewer
       ? { label: t('browser.manage'), onClick: () => setDriveSettingsId(lobby.id) }
-      : cloud && list !== 'public' ? { label: t('browser.manage'), onClick: () => setManagingLobbyId(lobby.id) } : undefined
+      : cloud && list !== 'public' ? { label: t('browser.manage'), onClick: () => setManagingLobbyId(lobby.id) }
+      : lobby.inBrowser && !lobby.inDrive && mine ? { label: t('browser.manage'), onClick: () => setPicturing(lobby.id) } : undefined
     const menu: CardAction[] = [
       ...(mine && !viewer ? [{ label: t('browser.rename'), onClick: () => { setEditingLobbyId(lobby.id); setEditingLobbyName(lobby.name) } }] : []),
       ...(mine && lobby.inBrowser && !lobby.inDrive && canDrive ? [{ label: t('browser.drive.convert'), disabled: converting !== null, onClick: () => void toDrive(lobby) }] : []),
@@ -1980,6 +1984,7 @@ export function LobbyBrowser({ onJoinLobby, onReady, inSight = true, onCardsKnow
         />
       )}
       {reporting && <ReportAtriumModal lobbyId={reporting.id} name={reporting.name} onClose={() => setReporting(null)} />}
+      {picturing && <AtriumPictureWindow lobbyId={picturing} onClose={() => setPicturing(null)} />}
 
       {managingLobbyId && (() => {
         const ownedMatch = userLobbies.find(l => l.id === managingLobbyId)

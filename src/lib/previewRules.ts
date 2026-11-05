@@ -16,15 +16,18 @@ export interface PreviewMemory {
   // Its owner's own picture, chosen for it (lib/atriumPreview, chooseAtriumPicture):
   // none is made over it till they take it back.
   chosen?: boolean
+  // How many pixels its longer side was made at: one made smaller than pictures are
+  // made now is made again, as if it had changed.
+  side?: number
 }
 
 /** Whether it's time to make one: changed since a whole one, or the last wasn't --
  *  and never over one chosen. */
-export function previewDue(last: PreviewMemory | null, print: string, now: number, atMostEvery: number) {
+export function previewDue(last: PreviewMemory | null, print: string, now: number, atMostEvery: number, side = 0) {
   if (!last) return true
   if (last.chosen) return false
   if (now - last.at < atMostEvery) return false
-  return !(last.whole && last.print === print)
+  return !(last.whole && last.print === print && (last.side ?? 0) >= side)
 }
 
 /** Whether a picture made as it was left shows the atrium as it looks. Some images

@@ -60,6 +60,10 @@ export default function PictureCropper({ image, onSave, onCancel, aspect = 1, wi
   const [saving, setSaving] = useState(false)
   const [problem, setProblem] = useState<string | null>(null)
   const stage = useRef<HTMLDivElement>(null)
+  // A modal dialog, in the top layer: over the window it's opened from (an atrium's
+  // settings, one's profile), whatever that is, with nothing to stack it above.
+  const box = useRef<HTMLDialogElement>(null)
+  useEffect(() => { box.current?.showModal() }, [])
   const most = mostZoom(width, height)
   const moved = (next: CropView) => setView(keptInFrame(next, width, height, FRAME, aspect))
   // A point on the screen, from the frame's middle.
@@ -107,11 +111,13 @@ export default function PictureCropper({ image, onSave, onCancel, aspect = 1, wi
     return () => el.removeEventListener('wheel', wheel)
   }, [width, height, FRAME, aspect])
 
-  // Escape is this, not the page under it.
+  // Escape is this, not the page under it: no listener after this one, and not the
+  // browser's own closing either -- that would close the window it's open over.
   useEffect(() => {
     const key = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return
       event.stopImmediatePropagation()
+      event.preventDefault()
       onCancel()
     }
     window.addEventListener('keydown', key, true)
@@ -142,8 +148,8 @@ export default function PictureCropper({ image, onSave, onCancel, aspect = 1, wi
 
   const scale = scaleOf(view.zoom, width, height, FRAME, aspect)
   return (
-    <div data-picture-cropper="" data-ui-element="true" className="modal-backdrop fixed inset-0 bg-nier-black/80 flex items-center justify-center z-[10001] p-4">
-      <div className="bg-nier-blackLight border border-nier-border/40 w-full max-w-[24rem] max-h-[100dvh] overflow-y-auto relative">
+    <dialog ref={box} data-picture-cropper="" data-ui-element="true" onCancel={event => event.preventDefault()} className="atrium-dialog w-[min(24rem,calc(100%-2rem))] p-0">
+      <div className="bg-nier-blackLight relative">
         <div className="flex justify-between items-center gap-3 px-5 pt-5 pb-3">
           <h2 className="text-sm text-nier-strong tracking-[0.15em] uppercase truncate">{title ?? t('profile.pictureCrop')}</h2>
           <button type="button" onClick={onCancel} aria-label={t('common.close')} className="w-8 h-8 shrink-0 flex items-center justify-center border border-nier-border/30 text-nier-bg/80 hover:text-nier-bg hover:border-nier-border/60 transition-colors">×</button>
@@ -195,6 +201,6 @@ export default function PictureCropper({ image, onSave, onCancel, aspect = 1, wi
           </div>
         </div>
       </div>
-    </div>
+    </dialog>
   )
 }

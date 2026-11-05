@@ -29,7 +29,8 @@ import { useGameStore } from '../store/gameStore'
 import type { Layer, Trace } from '../types/database'
 import type { TraceLink } from './traceLinks'
 
-const MAX_SIDE = 960
+// As many pixels as Home's largest showing of it wants on a sharp screen.
+const MAX_SIDE = 1600
 // Not again within this long of the last, changed or not (ms).
 const AT_MOST_EVERY = 3 * 60 * 1000
 const memoryKey = (lobbyId: string) => `atrium.preview.${lobbyId}`
@@ -86,7 +87,7 @@ export function captureAtriumPreview(lobbyId: string, atrium: AtriumAsLeft) {
   const print = fingerprint(traces, atrium.look)
   let last: PreviewMemory | null = null
   try { last = JSON.parse(localStorage.getItem(memoryKey(lobbyId)) || 'null') } catch { /* none */ }
-  if (!previewDue(last, print, Date.now(), AT_MOST_EVERY)) return
+  if (!previewDue(last, print, Date.now(), AT_MOST_EVERY, MAX_SIDE)) return
   // Its owner's own, chosen on another device: as its row says.
   if (isChosenPicture(readCards(useGameStore.getState().userId)[lobbyId]?.preview)) return
   // One made here, or one this device has from anywhere: this device's memory alone
@@ -168,7 +169,7 @@ async function makePreview(client: any, local: boolean, lobbyId: string, traces:
     if (!await keepPreview(client, local, lobbyId, blob)) return
     // A Drive atrium's is everyone's: sent there too, if it's fit to be. Said to be
     // waiting first, so a page closed on the way doesn't lose that it is.
-    const memory: PreviewMemory = { print, at: Date.now(), whole, unshared: local && whole }
+    const memory: PreviewMemory = { print, at: Date.now(), whole, unshared: local && whole, side: MAX_SIDE }
     remember(lobbyId, memory)
     if (local && whole) await shareNow(lobbyId, blob, memory)
   } catch (error) {
@@ -254,7 +255,8 @@ export function notePictureTaken(lobbyId: string, chosen: boolean) {
 // placed, under a veil of the colour as strong as the picture is faint (as
 // the scene's backdrop paints it); then the canvas's own layers.
 async function roomPicture(room: RoomSnapshot): Promise<{ canvas: HTMLCanvasElement; missed: boolean }> {
-  const k = Math.min(1, MAX_SIDE / Math.max(room.width, room.height))
+  // As large as the picture made over it: never stretched up under sharp traces.
+  const k = MAX_SIDE / Math.max(room.width, room.height)
   const canvas = document.createElement('canvas')
   canvas.width = Math.max(1, Math.round(room.width * k))
   canvas.height = Math.max(1, Math.round(room.height * k))

@@ -3,7 +3,6 @@
 // (lib/myPicture) -- or the one made as it's left, again (lib/atriumPreview).
 
 import { useEffect, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
 import { useTranslation } from '../lib/i18n'
 import { readCards } from '../lib/atriumCards'
 import { chooseAtriumPicture, isPictureChosen, type PreviewDetail } from '../lib/atriumPreview'
@@ -12,10 +11,10 @@ import AtriumPicture from './AtriumPicture'
 import PictureCropper, { usePictureToCrop } from './PictureCropper'
 import { FIELD_LABEL, SMALL_BUTTON } from './AtriumSettingsParts'
 
-// The card's shape, and wide enough for Home's largest showing of it.
+// The card's shape, and wide enough for Home's largest showing of it on a sharp screen.
 const ASPECT = 16 / 10
-const WIDTH = 1280
-const ENOUGH_BYTES = 120 * 1024
+const WIDTH = 1920
+const ENOUGH_BYTES = 240 * 1024
 
 export default function AtriumPictureSetting({ lobbyId }: { lobbyId: string }) {
   const { t } = useTranslation()
@@ -26,7 +25,6 @@ export default function AtriumPictureSetting({ lobbyId }: { lobbyId: string }) {
   const [busy, setBusy] = useState(false)
   const { image, open, letGo } = usePictureToCrop()
   const input = useRef<HTMLInputElement>(null)
-  const here = useRef<HTMLDivElement>(null)
   // Kept anew, from here or as it's left: shown at once.
   useEffect(() => {
     const kept = (event: Event) => {
@@ -46,10 +44,8 @@ export default function AtriumPictureSetting({ lobbyId }: { lobbyId: string }) {
     else setProblem(t('atrium.manage.pictureFailed'))
   }
 
-  // Over the settings, beside them: inside them, it'd be placed by their window.
-  const over = here.current?.closest('.modal-backdrop') ?? document.body
   return (
-    <div ref={here} data-atrium-picture-setting="">
+    <div data-atrium-picture-setting="">
       <span className={FIELD_LABEL}>{t('atrium.manage.picture')}</span>
       <div className="flex flex-wrap gap-4 items-start">
         <div className="relative w-40 aspect-[16/10] shrink-0 overflow-hidden border border-nier-border/30 bg-nier-black">
@@ -76,7 +72,7 @@ export default function AtriumPictureSetting({ lobbyId }: { lobbyId: string }) {
           if (file) { setProblem(null); void open(file).then(setProblem) }
         }}
       />
-      {image && createPortal(
+      {image && (
         <PictureCropper
           image={image}
           aspect={ASPECT}
@@ -90,9 +86,34 @@ export default function AtriumPictureSetting({ lobbyId }: { lobbyId: string }) {
             letGo()
             return null
           }}
-        />,
-        over,
+        />
       )}
     </div>
+  )
+}
+
+/** The picture setting in a window of its own: an atrium kept in this browser alone,
+ *  which has no settings window (LobbyBrowser). */
+export function AtriumPictureWindow({ lobbyId, onClose }: { lobbyId: string; onClose: () => void }) {
+  const { t } = useTranslation()
+  const box = useRef<HTMLDialogElement>(null)
+  useEffect(() => { box.current?.showModal() }, [])
+  return (
+    <dialog
+      ref={box}
+      data-atrium-picture-window=""
+      aria-label={t('atrium.manage.title')}
+      onCancel={event => { event.preventDefault(); onClose() }}
+      onClick={event => { if (event.target === box.current) onClose() }}
+      className="atrium-dialog w-[min(34rem,calc(100%-2rem))] p-0"
+    >
+      <div className="p-6">
+        <div className="flex justify-between items-center gap-3 mb-5">
+          <h2 className="text-nier-strong text-sm tracking-[0.15em] uppercase">◇ {t('atrium.manage.title')}</h2>
+          <button type="button" onClick={onClose} aria-label={t('common.close')} className="w-8 h-8 shrink-0 flex items-center justify-center border border-nier-border/30 text-nier-bg/80 hover:text-nier-bg hover:border-nier-border/60 transition-colors">×</button>
+        </div>
+        <AtriumPictureSetting lobbyId={lobbyId} />
+      </div>
+    </dialog>
   )
 }
