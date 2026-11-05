@@ -154,6 +154,7 @@ export default function ImportAtrium({ onClose, onImported, canCloud }: ImportAt
               order_key: layerKeyOf.get(layer) ?? null,
               is_group: !!layer.is_group,
               parent_id: layer.parent_id ? layerIdMap[layer.parent_id] || null : null,
+              ...(layer.template ? { template: layer.template } : {}),
               user_id: user.id,
               lobby_id: lobbyId,
             })

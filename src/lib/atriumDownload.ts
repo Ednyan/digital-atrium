@@ -54,6 +54,7 @@ export function atriumEnvelope(
       z_index: layerRank.get(l.id) ?? 0,
       is_group: l.is_group,
       parent_id: l.parent_id,
+      ...(l.template ? { template: l.template } : {}),
       _local_id: l.id,
     })),
     locations: locations.map((l: any) => ({

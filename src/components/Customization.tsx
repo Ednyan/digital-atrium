@@ -8,6 +8,7 @@
 // setting is a row: its name on the left, what sets it on the right. Its
 // foot is a row of actions.
 
+import { LinkButton } from './ValueLink'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from '../lib/i18n'
 import { kindOf, type TraceKind } from '../lib/traceKinds'
@@ -16,7 +17,7 @@ import type { Trace } from '../types/database'
 import { MenuIcon, SlideLabel } from './AtriumMenu'
 import { useGamePick } from '../store/gameStore'
 
-export type SectionId = 'name' | 'style' | 'fill' | 'outline' | 'text' | 'shape' | 'content' | 'effects' | 'size' | 'brush' | 'colour' | 'stroke' | 'exr' | 'look'
+export type SectionId = 'values' | 'name' | 'style' | 'fill' | 'outline' | 'text' | 'shape' | 'content' | 'effects' | 'size' | 'brush' | 'colour' | 'stroke' | 'exr' | 'look'
   | 'background' | 'border' | 'shadow' | 'light' | 'captions' | 'arrange'
   // Atrium Themes (ThemeCustomization).
   | 'presets' | 'mine' | 'grid' | 'room' | 'particles' | 'ground'
@@ -102,13 +103,15 @@ export function CustomizationPanel({ subtitle, onClose, closeLabel, actions, zIn
 // `summary`: how it's set, beside the title, so a folded one still tells.
 // `on`/`onSwitch`: a section that can be off (a border, a light) has its
 // switch in its heading; off, there is nothing in it to set.
-export function Section({ id, title, note, summary, on, onSwitch, children }: {
+// `link`: the trace setting its switch sets, given a link button as a Row's is.
+export function Section({ id, title, note, summary, on, onSwitch, link, children }: {
   id: SectionId
   title: string
   note?: string | null
   summary?: string | null
   on?: boolean
   onSwitch?: (on: boolean) => void
+  link?: keyof Trace
   children?: ReactNode
 }) {
   const { t } = useTranslation()
@@ -137,6 +140,7 @@ export function Section({ id, title, note, summary, on, onSwitch, children }: {
           <span className="shrink-0">{title}</span>
           {aside && <span data-section-summary="" className="ml-auto min-w-0 text-nier-bg/55 text-[10px] tracking-wide normal-case truncate">{aside}</span>}
         </button>
+        {link && <LinkButton field={link} />}
         {onSwitch && (
           <button
             type="button"
@@ -158,11 +162,14 @@ export function Section({ id, title, note, summary, on, onSwitch, children }: {
 
 // One setting: its name on the left, what sets it on the right -- or, for
 // one too wide to share the line (`stacked`), under it.
-export function Row({ label, hint, stacked, children }: { label: ReactNode; hint?: string; stacked?: boolean; children: ReactNode }) {
+// `link`: the trace setting it sets, given a link button where the panel can link
+// it to a value (ValueLink).
+export function Row({ label, hint, stacked, link, children }: { label: ReactNode; hint?: string; stacked?: boolean; link?: keyof Trace; children: ReactNode }) {
   return (
     <div className={stacked ? 'space-y-1.5' : 'flex items-center gap-3 min-h-8'} title={hint}>
       <span className={`${stacked ? 'block' : 'w-[5.75rem] shrink-0'} text-nier-bg/70 text-[11px] tracking-[0.06em] leading-tight`}>{label}</span>
       {stacked ? children : <div className="flex-1 min-w-0">{children}</div>}
+      {link && <LinkButton field={link} />}
     </div>
   )
 }

@@ -1,4 +1,5 @@
 import { useEffect, useId, useLayoutEffect, useState, useMemo, useRef, lazy, Suspense, type CSSProperties, type ReactNode } from 'react'
+import { endWorkshop, isWorkshop, workshopLeft } from '../lib/workshop'
 import { createPortal, flushSync } from 'react-dom'
 import { supabase, isDesktop } from '../lib/supabase'
 import DesktopAccount from './DesktopAccount'
@@ -855,7 +856,8 @@ export function LobbyBrowser({ onJoinLobby, onReady, inSight = true, onCardsKnow
   const loadBrowserLobbies = async (lookAtCards = true) => {
     // Another account's Drive atriums on this browser aren't this one's.
     // On desktop: those shared with the account (the vault's own are listed as ever).
-    const ids = browserAtriumIds().filter(id => !anotherAccountsDriveAtrium(id) && (!isDesktop || isDriveAtrium(id)))
+    // Not the template editor's (lib/workshop): it's no atrium of anyone's.
+    const ids = browserAtriumIds().filter(id => !anotherAccountsDriveAtrium(id) && (!isDesktop || isDriveAtrium(id)) && !isWorkshop(id))
     if (ids.length === 0) { setBrowserLobbies([]); return }
     try {
       const { localClient } = await browserEngine()
@@ -883,6 +885,8 @@ export function LobbyBrowser({ onJoinLobby, onReady, inSight = true, onCardsKnow
       forgetCard(useGameStore.getState().userId, left)
       tutorialFinished()
     }
+    // A template editor left some other way than Save or Cancel (a closed tab): let go, as a tutorial is.
+    if (workshopLeft()) await endWorkshop()
     const browserRead = loadBrowserLobbies()
     void loadPublicDrive()
 

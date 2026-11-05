@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { liveTable } from '../lib/liveChanges'
 import { useGameStore } from '../store/gameStore'
 import type { Layer } from '../types/database'
+import type { TemplateValues } from '../lib/templateValues'
 import { keysOnTop, topLevel } from '../lib/order'
 
 export function mapRowToLayer(row: any): Layer {
@@ -13,6 +14,7 @@ export function mapRowToLayer(row: any): Layer {
     orderKey: row.order_key ?? null,
     isGroup: row.is_group,
     parentId: row.parent_id,
+    template: row.template && Array.isArray(row.template.values) ? row.template : null,
     userId: row.user_id,
     lobbyId: row.lobby_id,
   }
@@ -44,13 +46,29 @@ export async function writeGroupKey(layer: Layer, orderKey: string, lobbyId: str
   }
 }
 
+// A group's template values (lib/templateValues), changed: as a group's place is.
+// Not undone with its traces: a value undone away from them stays, used by none.
+export async function writeGroupTemplate(layer: Layer, template: TemplateValues | null, lobbyId: string) {
+  if (!supabase) return
+  // Onto the group as it is now: an undo writes long after `layer` was read.
+  const live = useGameStore.getState().layers.find(l => l.id === layer.id) ?? layer
+  useGameStore.getState().putLayer({ ...live, template })
+  const { data, error } = await (supabase.from('layers') as any)
+    .update({ template }).eq('id', layer.id).select('id')
+  if (error || !Array.isArray(data) || data.length === 0) {
+    console.error('Error keeping the values:', error ?? 'no row updated -- gone, or write access denied')
+    await reloadLayers(lobbyId)
+  }
+  window.dispatchEvent(new Event('atrium:layers-changed'))
+}
+
 // A new group -- on top of everything, unless given its place in the stack --
 // put in the store and announced. Two people doing this at the same moment
 // may pick the same key; the tie is broken by id, the same way for everyone.
-export async function createGroup(lobbyId: string, name: string, userId: string | null, orderKey?: string): Promise<Layer> {
+export async function createGroup(lobbyId: string, name: string, userId: string | null, orderKey?: string, template: TemplateValues | null = null): Promise<Layer> {
   const { traces, layers } = useGameStore.getState()
   const { data, error } = await (supabase!.from('layers') as any)
-    .insert({ name, order_key: orderKey ?? keysOnTop(topLevel(traces, layers))[0], is_group: true, user_id: userId, lobby_id: lobbyId })
+    .insert({ name, order_key: orderKey ?? keysOnTop(topLevel(traces, layers))[0], is_group: true, user_id: userId, lobby_id: lobbyId, ...(template ? { template } : {}) })
     .select()
     .single()
   if (error || !data) throw new Error(error?.message || 'the group was not made')

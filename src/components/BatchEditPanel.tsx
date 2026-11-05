@@ -7,6 +7,7 @@
 // shows a dash; a value shown is the first of them's. Every change is one
 // step of undo (TraceOverlay's onChange).
 
+import { ValuesSection } from './ValueLink'
 import type { ReactNode } from 'react'
 import { useTranslation } from '../lib/i18n'
 import type { TranslationKey } from '../locales/en'
@@ -58,7 +59,7 @@ export default function BatchEditPanel({ traces, lobbyId, userId, zIndex, fontOp
         return lobbyId ? [{ id: 'fill', node: <StrokeStyleField key={ids(targets).join(',')} traceIds={ids(targets)} lobbyId={lobbyId} userId={userId} /> }] : []
 
       case 'bars':
-        return [{ id: 'look', node: <ColourField label={t('atrium.customize.barColour')} value={targets[0].shapeColor || targets[0].borderColor || '#cbcbcb'} onChange={shapeColor => set(targets, { shapeColor })} /> }]
+        return [{ id: 'look', node: <ColourField field="shapeColor" label={t('atrium.customize.barColour')} value={targets[0].shapeColor || targets[0].borderColor || '#cbcbcb'} onChange={shapeColor => set(targets, { shapeColor })} /> }]
 
       case 'shape':
       case 'line': {
@@ -85,7 +86,7 @@ export default function BatchEditPanel({ traces, lobbyId, userId, zIndex, fontOp
         const mixedValign = targets.some(tr => (tr.textValign ?? 'middle') !== valign)
         return [{ id: 'text', node: (
           <div className="space-y-2.5">
-            <Row label={t('atrium.customize.fontFamily')}>
+            <Row label={t('atrium.customize.fontFamily')} link="fontFamily">
               <select value={mixedFamily ? '' : family} onChange={e => { if (e.target.value) onFont(ids(targets), e.target.value) }} className={SELECT}>
                 {/* Only while they disagree, and not to be picked. */}
                 {mixedFamily && <option value="" disabled>{t('common.mixed')}</option>}
@@ -102,7 +103,7 @@ export default function BatchEditPanel({ traces, lobbyId, userId, zIndex, fontOp
                 ]}
               />
             </Row>
-            <ColourField label={t('atrium.customize.textColour')} value={targets[0].textColor ?? '#ffffff'} onChange={c => set(targets, { textColor: c })} />
+            <ColourField field="textColor" label={t('atrium.customize.textColour')} value={targets[0].textColor ?? '#ffffff'} onChange={c => set(targets, { textColor: c })} />
             <TextAlignField value={mixedAlign ? null : align} onChange={textAlign => set(targets, { textAlign })} />
             <TextValignField value={mixedValign ? null : valign} onChange={textValign => set(targets, { textValign })} />
           </div>
@@ -144,11 +145,11 @@ export default function BatchEditPanel({ traces, lobbyId, userId, zIndex, fontOp
           ) },
           { id: 'fill', node: (
             <>
-              <Check row {...background} label={t('atrium.customize.showBackground')} onChange={on => set(targets, { showBackground: on })} />
+              <Check row field="showBackground" {...background} label={t('atrium.customize.showBackground')} onChange={on => set(targets, { showBackground: on })} />
               {(background.checked || background.mixed) && (
                 <>
-                  <ColourField label={t('atrium.customize.fillColour')} value={first.fillColor || '#191919'} onChange={c => set(targets, { fillColor: c })} />
-                  <Slider
+                  <ColourField field="fillColor" label={t('atrium.customize.fillColour')} value={first.fillColor || '#191919'} onChange={c => set(targets, { fillColor: c })} />
+                  <Slider field="fillOpacity"
                     label={t('atrium.customize.rowOpacity')} shown={`${Math.round((first.fillOpacity ?? 0.95) * 100)}%`}
                     min={0} max={1} step={0.01} value={first.fillOpacity ?? 0.95}
                     onChange={v => set(targets, { fillOpacity: v })}
@@ -159,23 +160,23 @@ export default function BatchEditPanel({ traces, lobbyId, userId, zIndex, fontOp
           ) },
           { id: 'outline', node: (
             <>
-              <Check row {...border} label={t('atrium.customize.showBorder')} onChange={on => set(targets, { showBorder: on })} />
+              <Check row field="showBorder" {...border} label={t('atrium.customize.showBorder')} onChange={on => set(targets, { showBorder: on })} />
               {(border.checked || border.mixed) && (
                 <>
-                  <ColourField label={t('atrium.customize.borderColour')} value={first.borderColor || borderColourOf(first.type)} onChange={c => set(targets, { borderColor: c })} />
-                  <Slider
+                  <ColourField field="borderColor" label={t('atrium.customize.borderColour')} value={first.borderColor || borderColourOf(first.type)} onChange={c => set(targets, { borderColor: c })} />
+                  <Slider field="borderOpacity"
                     label={t('atrium.customize.rowOpacity')} shown={`${Math.round((first.borderOpacity ?? 1) * 100)}%`}
                     min={0} max={1} step={0.01} value={first.borderOpacity ?? 1}
                     onChange={v => set(targets, { borderOpacity: v })}
                   />
-                  <Slider
+                  <Slider field="borderWidth"
                     label={t('atrium.customize.rowThickness')} shown={`${first.borderWidth ?? 2} px`}
                     min={1} max={20} step={1} value={first.borderWidth ?? 2}
                     onChange={v => set(targets, { borderWidth: v })}
                   />
                 </>
               )}
-              <Slider
+              <Slider field="borderRadius"
                 label={t('atrium.customize.rowCorners')} shown={`${first.borderRadius ?? 0} px`}
                 min={0} max={50} step={1} value={first.borderRadius ?? 0}
                 onChange={v => set(targets, { borderRadius: v })}
@@ -208,7 +209,7 @@ export default function BatchEditPanel({ traces, lobbyId, userId, zIndex, fontOp
             <Check row {...lit} label={glowOnly ? t('atrium.controls.enableGlow') : t('atrium.controls.enableLight')} onChange={on => set(targets, { illuminate: on })} />
             {(lit.checked || lit.mixed) && (
               <>
-                <ColourField label={glowOnly ? t('atrium.controls.glowColour') : t('atrium.controls.lightColour')} value={first.lightColor ?? '#ffffff'} onChange={c => set(targets, { lightColor: c })} />
+                <ColourField field="lightColor" label={glowOnly ? t('atrium.controls.glowColour') : t('atrium.controls.lightColour')} value={first.lightColor ?? '#ffffff'} onChange={c => set(targets, { lightColor: c })} />
                 <Slider
                   label={t('atrium.customize.rowIntensity')} shown={`${(first.lightIntensity ?? 1).toFixed(1)}×`}
                   min={0} max={2} step={0.1} value={first.lightIntensity ?? 1}
@@ -256,6 +257,7 @@ export default function BatchEditPanel({ traces, lobbyId, userId, zIndex, fontOp
       zIndex={zIndex}
       actions={actions}
     >
+      <ValuesSection />
       {ORDER.map(id => {
         const here = parts.filter(part => part.id === id)
         if (here.length === 0) return null

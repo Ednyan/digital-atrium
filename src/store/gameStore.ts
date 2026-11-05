@@ -53,6 +53,8 @@ interface GameState {
   showTraceIndicators: boolean
   showTraceTypeLabels: boolean
   hideOwnNameTag: boolean
+  // A template made is shown off (TemplateReveal); off, it's just said.
+  templateReveal: boolean
   // A trace clicked opens its Customization panel (User Preferences).
   autoOpenCustomization: boolean
   // Deleting asks first (User Preferences); its dialog's Don't ask again
@@ -109,6 +111,7 @@ interface GameState {
   setShowTraceIndicators: (show: boolean) => void
   setShowTraceTypeLabels: (show: boolean) => void
   setHideOwnNameTag: (hide: boolean) => void
+  setTemplateReveal: (on: boolean) => void
   setAutoOpenCustomization: (on: boolean) => void
   setConfirmDelete: (on: boolean) => void
   setQuickBarOrder: (order: string[] | null) => void
@@ -236,6 +239,9 @@ export const useGameStore = create<GameState>((set, get) => ({
     const stored = localStorage.getItem('hideOwnNameTag')
     return stored !== null ? stored === 'true' : true
   })(),
+  templateReveal: (() => {
+    try { return localStorage.getItem('templateReveal') !== 'false' } catch { return true }
+  })(),
   autoOpenCustomization: (() => {
     const stored = localStorage.getItem('autoOpenCustomization')
     return stored !== null ? stored === 'true' : true
@@ -336,6 +342,10 @@ export const useGameStore = create<GameState>((set, get) => ({
   setHideOwnNameTag: (hide) => {
     localStorage.setItem('hideOwnNameTag', String(hide))
     set({ hideOwnNameTag: hide })
+  },
+  setTemplateReveal: (on) => {
+    try { localStorage.setItem('templateReveal', String(on)) } catch { /* for this visit */ }
+    set({ templateReveal: on })
   },
   setAutoOpenCustomization: (on) => {
     localStorage.setItem('autoOpenCustomization', String(on))

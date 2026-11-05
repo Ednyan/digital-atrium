@@ -527,6 +527,8 @@ export default function LayerPanel({ lobbyId, onClose, selectedTraceId, multiSel
           is_group: true,
           user_id: userId,
           lobby_id: lobbyId,
+          // A placed template's copy keeps its values, as its traces keep their links.
+          ...(source.template ? { template: source.template } : {}),
         })
         .select()
         .single()

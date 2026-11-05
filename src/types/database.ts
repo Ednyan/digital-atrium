@@ -2,6 +2,8 @@ import type { StrokeStyle } from '../lib/strokeStyle'
 import type { StrokeData } from '../lib/brushes'
 import type { ExrGrade } from '../lib/exr'
 import type { TraceLook } from '../lib/traceLook'
+import type { TemplateValues, ValueLinks } from '../lib/templateValues'
+import type { SlotFit } from '../lib/frames'
 export interface Database {
   public: {
     Tables: {
@@ -99,6 +101,8 @@ export interface Trace {
   // Any other picture's colour -- exposure, brightness, contrast -- drawn
   // over it, not into its file (lib/traceLook).
   look?: TraceLook
+  // Its settings linked to its group's values (lib/templateValues): setting -> value id.
+  valueLinks?: ValueLinks | null
   shapePoints?: Array<{
     x: number
     y: number
@@ -191,7 +195,7 @@ export interface Trace {
   frameId?: string | null
   // A frame's: lays out what it holds by itself (lib/frames masonry); null
   // or missing, as it's put.
-  frameArrange?: 'masonry' | null
+  frameArrange?: 'masonry' | SlotFit | null
   // Lobby association
   lobbyId?: string
 }
@@ -204,6 +208,8 @@ export interface Layer {
   orderKey?: string | null
   isGroup: boolean
   parentId?: string | null
+  // A template's values, kept by the group it was placed as (lib/templateValues).
+  template?: TemplateValues | null
   userId: string
   lobbyId?: string | null
 }

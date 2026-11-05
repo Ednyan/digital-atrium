@@ -92,6 +92,8 @@ export function buildTraceInsertRow(
   if (trace.exr) newTrace.exr = trace.exr
   // Another picture's look (lib/traceLook): the same, once it's been set.
   if (trace.look) newTrace.look = trace.look
+  // Its links to its group's values (lib/templateValues), once it has any.
+  if (trace.valueLinks) newTrace.value_links = trace.valueLinks
 
   if (trace.type === 'shape') {
     if (trace.shapeType) newTrace.shape_type = trace.shapeType
@@ -205,6 +207,9 @@ export function traceColumns(trace: Trace): Record<string, any> {
   if (trace.exr) columns.exr = trace.exr
   // Reset is a neutral look, not none: written only once set, as above.
   if (trace.look) columns.look = trace.look
+  // Linked, or unlinked again (null): a trace never linked sends nothing, so an
+  // atrium whose database lacks the column (add_template_values.sql) saves as ever.
+  if (trace.valueLinks !== undefined) columns.value_links = trace.valueLinks
 
   // Shape properties
   if (trace.type === 'shape') {

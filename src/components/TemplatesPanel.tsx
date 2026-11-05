@@ -8,6 +8,7 @@ import { useTranslation } from '../lib/i18n'
 import { isCanvasTarget } from '../lib/editableTarget'
 import { allTemplates, DIGITAL_ATRIUM_FOLDER, type TemplateContext, type TemplateFolder, type TemplateItem, type TemplateNode } from '../lib/templates'
 import type { AtriumFile } from '../lib/atriumFormat'
+import { forgetTemplate, templateFile, templatePicture, useMyTemplates } from '../lib/myTemplates'
 
 const PINS_KEY = 'atrium.templates.quick'
 const MOST_PINNED = 8
@@ -48,15 +49,39 @@ function Thumb({ file, size = 44 }: { file: AtriumFile; size?: number }) {
   )
 }
 
-export default function TemplatesPanel({ context, onPlace, onClose }: {
+// One's own (lib/myTemplates), among the panel's: by its id with this before it.
+const MINE = 'mine:'
+
+export default function TemplatesPanel({ context, onPlace, onClose, onNew }: {
   context: TemplateContext
   // A template to place: where the pointer let go, or (none) the middle of the view.
   onPlace: (file: AtriumFile, screen?: { x: number; y: number }) => void
   onClose: () => void
+  // A new one begun, in the template editor (lib/workshop): developers only, for now.
+  onNew?: () => void
 }) {
   const { t } = useTranslation()
   const [pins, setPins] = useState(readPins)
-  const [open, setOpen] = useState<Set<string>>(() => new Set(['digital-atrium', 'boards', 'diagrams', 'pieces']))
+  const [open, setOpen] = useState<Set<string>>(() => new Set(['mine', 'digital-atrium', 'boards', 'diagrams', 'pieces']))
+  // One's own: their files and pictures read from the device as they're listed.
+  const mine = useMyTemplates()
+  const [mineFiles, setMineFiles] = useState(() => new Map<string, AtriumFile>())
+  const [minePictures, setMinePictures] = useState(() => new Map<string, string>())
+  const [deleting, setDeleting] = useState<string | null>(null)
+  useEffect(() => {
+    let live = true
+    for (const { id } of mine) {
+      if (mineFiles.has(id)) continue
+      void templateFile(id).then(file => { if (live && file) setMineFiles(now => new Map(now).set(id, file)) })
+      void templatePicture(id).then(blob => { if (live && blob) setMinePictures(now => new Map(now).set(id, URL.createObjectURL(blob))) })
+    }
+    return () => { live = false }
+  }, [mine])
+  useEffect(() => () => { for (const url of minePictures.values()) URL.revokeObjectURL(url) }, [])
+  const mineFolder: TemplateFolder = {
+    kind: 'folder', id: 'mine', name: 'templates.mine',
+    items: mine.filter(({ id }) => mineFiles.has(id)).map(({ id, name }) => ({ kind: 'template', id: MINE + id, name, build: () => mineFiles.get(id)! })),
+  }
   const [ghost, setGhost] = useState<{ template: TemplateItem; x: number; y: number } | null>(null)
   const press = useRef<{ template: TemplateItem; x: number; y: number; dragging: boolean } | null>(null)
 
@@ -109,9 +134,18 @@ export default function TemplatesPanel({ context, onPlace, onClose }: {
     onPointerCancel: () => { press.current = null; setGhost(null) },
   })
 
+  const thumbOf = (id: string, size?: number) => {
+    const own = id.startsWith(MINE) ? id.slice(MINE.length) : null
+    const picture = own && minePictures.get(own)
+    if (picture) return <img src={picture} alt="" className="shrink-0 object-contain" style={{ width: size ?? 44, height: (size ?? 44) * 0.72 }} />
+    const file = own ? mineFiles.get(own) : files.get(id)
+    return file ? <Thumb file={file} size={size} /> : null
+  }
+
   const renderNode = (node: TemplateNode, depth: number) => {
     if (node.kind === 'folder') return renderFolder(node, depth)
     const pin = pins.includes(node.id)
+    const own = node.id.startsWith(MINE) ? node.id.slice(MINE.length) : null
     return (
       <div key={node.id} className="group flex items-center gap-1" style={{ paddingLeft: depth * 12 }}>
         <button
@@ -121,9 +155,23 @@ export default function TemplatesPanel({ context, onPlace, onClose }: {
           title={t('templates.hint')}
           className="flex-1 min-w-0 flex items-center gap-2 p-1.5 border border-transparent hover:border-nier-border/50 cursor-grab active:cursor-grabbing select-none touch-pan-y text-left transition-colors"
         >
-          <Thumb file={files.get(node.id)!} />
-          <span className="min-w-0 truncate text-nier-strong text-xs">{nameOf(node.name)}</span>
+          {thumbOf(node.id)}
+          <span className="min-w-0 truncate text-nier-strong text-xs">{own ? node.name : nameOf(node.name)}</span>
         </button>
+        {/* One's own: let go of, asked once. */}
+        {own ? (
+          <button
+            type="button"
+            data-template-delete={own}
+            aria-label={t('templates.deleteMine', { name: node.name })}
+            title={t('templates.deleteMine', { name: node.name })}
+            onClick={() => { if (deleting === own) { setDeleting(null); void forgetTemplate(own) } else setDeleting(own) }}
+            onBlur={() => setDeleting(null)}
+            className={`shrink-0 h-7 px-1.5 flex items-center justify-center text-[10px] transition-opacity ${deleting === own ? 'danger-word opacity-100' : 'text-nier-bg/70 opacity-0 group-hover:opacity-100 focus:opacity-100 [@media(hover:none)]:opacity-100'}`}
+          >
+            {deleting === own ? t('common.delete') : '×'}
+          </button>
+        ) : (
         <button
           type="button"
           data-template-pin={node.id}
@@ -136,6 +184,7 @@ export default function TemplatesPanel({ context, onPlace, onClose }: {
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill={pin ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" aria-hidden="true"><path d="M9 3.5 H15 L14 9 L17 12 H7 L10 9 Z M12 12 V20.5" /></svg>
         </button>
+        )}
       </div>
     )
   }
@@ -176,7 +225,15 @@ export default function TemplatesPanel({ context, onPlace, onClose }: {
         <button type="button" data-templates-close="" onClick={onClose} aria-label={t('common.close')} className="w-7 h-7 flex items-center justify-center text-nier-bg/70 hover:text-nier-strong transition-colors">×</button>
       </div>
       <p className="shrink-0 px-3 pt-3 text-nier-bg/60 text-[11px] leading-relaxed">{t('templates.hint')}</p>
-      <div className="flex-1 min-h-0 overflow-y-auto p-3">{renderFolder(DIGITAL_ATRIUM_FOLDER, 0)}</div>
+      {onNew && (
+        <div className="shrink-0 px-3 pt-3">
+          <button type="button" data-template-new="" onClick={onNew} className="w-full atrium-btn cut-corner justify-center">+ {t('templates.newTemplate')}</button>
+        </div>
+      )}
+      <div className="flex-1 min-h-0 overflow-y-auto p-3">
+        {(onNew || mine.length > 0) && renderFolder(mineFolder, 0)}
+        {renderFolder(DIGITAL_ATRIUM_FOLDER, 0)}
+      </div>
       {/* To hand: what's pinned, dragged or clicked as it is above. */}
       <div data-template-quick="" className="shrink-0 border-t border-nier-border/30 p-3">
         <p className="mb-2 text-nier-bg/70 text-[10px] tracking-[0.15em] uppercase">{t('templates.quick')}</p>
@@ -194,7 +251,7 @@ export default function TemplatesPanel({ context, onPlace, onClose }: {
                 aria-label={nameOf(template.name)}
                 className="flex items-center justify-center p-1.5 border border-nier-border/30 hover:border-nier-bg cursor-grab active:cursor-grabbing select-none touch-none transition-colors"
               >
-                <Thumb file={files.get(template.id)!} size={48} />
+                {thumbOf(template.id, 48)}
               </button>
             ))}
           </div>
@@ -206,8 +263,8 @@ export default function TemplatesPanel({ context, onPlace, onClose }: {
           className="fixed z-[10000300] pointer-events-none flex items-center gap-2 px-2 py-1.5 border border-nier-bg text-nier-strong text-xs"
           style={{ left: ghost.x + 12, top: ghost.y + 12, backgroundColor: 'rgb(var(--c-ground) / 0.92)' }}
         >
-          <Thumb file={files.get(ghost.template.id)!} />
-          {nameOf(ghost.template.name)}
+          {thumbOf(ghost.template.id)}
+          {ghost.template.id.startsWith(MINE) ? ghost.template.name : nameOf(ghost.template.name)}
         </div>
       )}
     </div>

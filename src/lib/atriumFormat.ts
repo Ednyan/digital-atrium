@@ -2,6 +2,7 @@
 // and where each of its traces and groups goes in its stack. Free of the
 // app, so it can be tested; lib/atriumFile writes and imports them.
 
+import type { TemplateValues } from './templateValues.ts'
 import { flattenLegacyOrder, keysFromNumbers } from './order.ts'
 
 export interface AtriumFile {
@@ -21,6 +22,8 @@ export interface AtriumFile {
     order_key?: string | null
     is_group: boolean | number
     parent_id: string | null
+    // A placed template's values (lib/templateValues), where it has them.
+    template?: TemplateValues | null
     _local_id: string
   }>
   // Only present from version 3 onward. Older files simply have none.

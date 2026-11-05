@@ -283,14 +283,14 @@ function TraceLinksLayer({
                 showed darker where the two overlapped. Together they're
                 made whole, then seen through, as a path is. */}
             <g opacity={link.opacity}>
-              <path ref={part(link.id, 'line')} fill="none" stroke={colour} strokeWidth={isSelected ? width + 1 : width} strokeLinecap="round" {...dashProps(link.strokeStyle, link.width, zoom)} />
+              <path ref={part(link.id, 'line')} data-value-thread={link.inert ? '' : undefined} fill="none" stroke={colour} strokeWidth={isSelected ? width + 1 : width} strokeLinecap="round" {...dashProps(link.strokeStyle, link.width, zoom)} />
               {headsTo(link) && <polygon ref={part(link.id, 'headTo')} fill={colour} />}
               {headsFrom(link) && <polygon ref={part(link.id, 'headFrom')} fill={colour} />}
             </g>
             {/* Wider than it looks, and invisible, so a thin thread can still
                 be hovered and clicked. Where a trace above covers it, the
                 trace gets the click. */}
-            <path
+            {!link.inert && <path
               ref={part(link.id, 'hit')}
               data-link={link.id}
               fill="none"
@@ -301,7 +301,7 @@ function TraceLinksLayer({
               onContextMenu={e => onMenu(link.id, e)}
               onPointerEnter={() => setHovered(link.id)}
               onPointerLeave={() => setHovered(h => (h === link.id ? null : h))}
-            />
+            />}
           </g>
         )
       })}

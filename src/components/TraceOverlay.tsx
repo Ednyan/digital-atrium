@@ -11,7 +11,7 @@ import { dashProps } from '../lib/strokeStyle'
 import { UNSUPPORTED } from '../lib/atriumFile'
 import React, { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo, useSyncExternalStore } from 'react'
 import { flushSync } from 'react-dom'
-import type { Trace } from '../types/database'
+import type { Layer, Trace } from '../types/database'
 import { supabase, isDesktop, isLocalData } from '../lib/supabase'
 import { useGameStore, lobbyFullMessage, useGamePick } from '../store/gameStore'
 import { useLatestHandlers } from '../hooks/useLatestHandlers'
@@ -36,9 +36,9 @@ import { useClampedMenuPosition } from '../hooks/useClampedMenuPosition'
 import { openExternalUrl } from '../lib/openExternal'
 import { privately, throughRelay, toEmbedUrl, withPlayerApi } from '../lib/embedUrl'
 import { compareOrder, drawRanks, groupIdOf, inOrder, keyAt, keysAt, keysBetween, keysOnTop, keysOnTopOfGroup, reorder, siblingsOf, topLevel, type Ordered } from '../lib/order'
-import { createGroup, reloadLayers, writeGroupKey } from '../hooks/useLayers'
+import { createGroup, reloadLayers, writeGroupKey, writeGroupTemplate } from '../hooks/useLayers'
 import { buildTraceInsertRow } from '../lib/traceInsert'
-import { boxContains, frameAround, heldBy, isFrame, masonry, newFrame, placeUnits, putInFrame, readingOrder, unitMiddle, unitsOf, withHeld, type FrameBox } from '../lib/frames'
+import { boxContains, fillCrop, frameAround, heldBy, isFrame, isSlot, masonry, newFrame, placeUnits, putInFrame, readingOrder, slotPlacement, unitMiddle, unitsOf, withHeld, type FrameBox, type SlotFit } from '../lib/frames'
 import { APPLY_COLOUR_EVENT, type ApplyColour } from '../lib/palette'
 import { ELBOW_RADIUS, elbowRoute, lineCrosses } from '../lib/elbow'
 import { alignedHandle, boxHolds, borderMarks, handlesAt, pathLine, pathOutline, pointBetween, shiftPoints, snapToBorder, type PathCurve, type PathPoint, type TurnedBox } from '../lib/pathGeometry'
@@ -49,6 +49,10 @@ import BatchEditPanel from './BatchEditPanel'
 import HeldImage from './HeldImage'
 import { has } from '../lib/traceKinds'
 import { copiedStyle, copyStyle, shownValue, stylePatchFor } from '../lib/traceStyle'
+import { isLinkable, membersOf, scopeOf, spread, valuesHome, valueThreads, wordsUnread, type Change } from '../lib/templateValues'
+import { LinkButton, TemplateColumn, ValueLinkContext, ValuesSection, WordsLinkRow, type ValueLinking } from './ValueLink'
+import type { TemplateValue } from '../lib/templateValues'
+import { knownTemplateMaker } from '../lib/platformAdmin'
 import FontSizeField from './FontSizeField'
 import TraceNameField from './TraceNameField'
 import { ARROW_SCALE, multiSelectionInk, previewFrameColour, rememberShapeStyle, selectionInk, shapePaint, shapeStyleOf, type ShapeStyle } from '../lib/shapeStyle'
@@ -56,6 +60,7 @@ import { copyTraces } from '../lib/traceCopy'
 import { ACTION_ICONS, ChoiceButton, Choices, CustomizationPanel, PanelFooter, Row, Section, Switch, TextAlignField, TextValignField, traceKindLabel, type FooterAction } from './Customization'
 import { MENU_ICONS, MenuIcon } from './AtriumMenu'
 import PinterestMark from './PinterestMark'
+import { isPin } from '../lib/pinterest'
 import ConfirmBox, { ConfirmButtons } from './ConfirmBox'
 import { useMenuGlide } from './MenuGlide'
 import DeckSlide from './DeckSlide'
@@ -221,6 +226,8 @@ interface TraceOverlayProps {
   // a user whose writes would be rejected anyway. Defaults to true so
   // callers that don't pass it (none currently) aren't silently locked out.
   canEdit?: boolean
+  // In the template editor (lib/workshop): the template's values, and how they're kept.
+  templateValues?: { values: TemplateValue[]; keep: (values: TemplateValue[]) => void } | null
 }
 type TransformMode = 'none' | 'move' | 'scale' | 'rotate' | 'crop' | 'point' | 'control-in' | 'control-out' | 'move-path' | 'group-scale' | 'group-rotate'
 
@@ -325,8 +332,6 @@ function holdPointer() {
   try { document.querySelector('.lobby-scene')?.setPointerCapture(1) } catch { /* a touch, or no pointer down: nothing to hold */ }
 }
 
-// A pin imported from Pinterest, by the link the import keeps (PinterestImportPanel).
-const PIN_LINK = /^https:\/\/www\.pinterest\.com\/pin\//
 
 // An embed's link to a picture, by its extension: drawn as an <img>, not a page.
 const PICTURE_LINK = /\.(jpg|jpeg|png|gif|webp|svg|bmp)(\?.*)?$/i
@@ -360,6 +365,8 @@ const normalizeAngle = (deg: number) => ((deg % 360) + 360) % 360
 
 const TRACE_CLIPBOARD_MIME = 'application/x-digital-atrium-traces'
 const TRACE_CLIPBOARD_TEXT_SENTINEL = '__DIGITAL_ATRIUM_TRACE_CLIPBOARD__'
+// Whether template values' links are shown as threads ("Show links"), on this device.
+const VALUE_THREADS = 'atrium.valueThreads'
 
 // A trace's z-index is its place in the drawing order (lib/order's
 // drawRanks: 1 at the bottom, up to the number of traces). Selection handles (the `z-[1000000]` Tailwind classes below),
@@ -691,7 +698,7 @@ const TraceSlot = React.memo(
 // runs before it has to be laid out again.
 export const CULL_MARGIN = 500
 
-export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackground, gridLineSpacing, zoom, worldOffset, worldLayerRef, onEdgePan, lobbyId, selectedTraceId, setSelectedTraceId, multiSelectRequest, areaSelectRequest, lassoSelectRequest, selecting = false, customizeRequest, newPathRequest, newTextRequest, directSelect = false, frameRequest, isDrawingMode, hideCursor, panning = false, connectTool = false, clearRequest = 0, placing = false, onEditDrawing, hiddenTraceIds, toolSwitch = 0, onMultiSelectionChange, onExport, onCustomizeOpen, canEdit = true }: TraceOverlayProps) {
+export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackground, gridLineSpacing, zoom, worldOffset, worldLayerRef, onEdgePan, lobbyId, selectedTraceId, setSelectedTraceId, multiSelectRequest, areaSelectRequest, lassoSelectRequest, selecting = false, customizeRequest, newPathRequest, newTextRequest, directSelect = false, frameRequest, isDrawingMode, hideCursor, panning = false, connectTool = false, clearRequest = 0, placing = false, onEditDrawing, hiddenTraceIds, toolSwitch = 0, onMultiSelectionChange, onExport, onCustomizeOpen, canEdit = true, templateValues = null }: TraceOverlayProps) {
   const { t, language } = useTranslation()
   // A crop under way: the trace as cropped so far, in place of the store's,
   // and into the store as it ends (handleMouseUp). Written on every step,
@@ -3588,10 +3595,26 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
     pushBatchUpdateOp(batchOps)
   }
 
-  const updateTraceCustomization = (traceId: string, updates: Partial<Trace>, options?: { skipUndo?: boolean }) => {
+  // `alone`: this trace only, not what's linked to it (a step already spreading it).
+  const updateTraceCustomization = (traceId: string, updates: Partial<Trace>, options?: { skipUndo?: boolean; alone?: boolean }) => {
     // Find the trace
     const trace = traces.find(t => t.id === traceId)
     if (!trace) return
+
+    // A setting linked to its group's values (lib/templateValues): every other
+    // setting linked to them follows -- its own included, in this same change.
+    const linked = options?.alone ? [] : linkedChanges({ ...trace, ...updates }, Object.keys(updates))
+    const own = linked.find(change => change.id === traceId)
+    if (own) updates = { ...updates, ...own.changes }
+    const others = linked.filter(change => change.id !== traceId)
+    // In one step of undo with them.
+    if (others.length && !options?.skipUndo) {
+      inOneStep(() => {
+        updateTraceCustomization(traceId, updates, { alone: true })
+        for (const change of others) updateTraceCustomization(change.id, change.changes, { alone: true })
+      })
+      return
+    }
 
     // As it showed, defaults included: undone, a field that had no value
     // gets its default written back (lib/traceStyle shownValue).
@@ -3614,13 +3637,105 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
 
     // Mark as having pending changes
     markTraceChanged(traceId)
+
+    // With no step of its own, as a text is typed in: what the others were is
+    // kept, for the step its typing becomes (endTextEdit).
+    if (others.length) {
+      const typing = textEditStartRef.current?.id === traceId ? textEditStartRef.current : null
+      const all = useGameStore.getState().traces
+      for (const change of others) {
+        const was = all.find(t => t.id === change.id)
+        if (typing && was) {
+          const before: Partial<Trace> = {}
+          for (const key of Object.keys(change.changes) as (keyof Trace)[]) (before as any)[key] = shownValue(was, key)
+          ;(typing.linked ??= new Map()).set(change.id, { ...before, ...typing.linked.get(change.id) })
+        }
+        updateTraceCustomization(change.id, change.changes, { skipUndo: true, alone: true })
+      }
+    }
+  }
+
+  // The panel's traces' values (ValueLink): for developers, for now; only where
+  // they're all kept by the one group, and are this person's to change.
+  const linkingFor = (targets: Trace[], column = false): ValueLinking | null => {
+    if ((!targets.length && !column) || !canEdit || !lobbyId || !knownTemplateMaker()) return null
+    const shared = { traces: targets, fonts: FONT_FAMILY_OPTIONS, threads: valueThreadsOn, showThreads }
+    // In the template editor, every trace is the template's, and its values are the workshop's.
+    if (templateValues) {
+      const group: Layer = { id: 'workshop', name: '', isGroup: true, userId: userId ?? '', createdAt: '', template: { values: templateValues.values } }
+      return { ...shared, group, members: traces, values: templateValues.values, change: valueChange(templateValues.values, templateValues.keep) }
+    }
+    const homes = targets.map(trace => valuesHome(trace, layers))
+    const group = homes[0]
+    if (!group || homes.some(home => home?.id !== group.id)) return null
+    const values = group.template?.values ?? []
+    return {
+      ...shared, group, members: membersOf(group, traces, layers), values,
+      change: valueChange(values, next => void writeGroupTemplate(group, next.length || group.template ? { values: next } : null, lobbyId)),
+    }
+  }
+  // Traces changed and, given, the values written (`keep`, from `before`): one
+  // step of undo, taking both back. The values set again and again straight
+  // after -- a colour dragged, linked to nothing -- stay that one step.
+  const valuesStepRef = useRef<{ op: UndoOp; after: TemplateValue[]; ts: number } | null>(null)
+  const valueChange = (before: TemplateValue[], keep: (values: TemplateValue[]) => void) => (changes: Change[], values?: TemplateValue[]) => {
+    const top = undoStackRef.current[undoStackRef.current.length - 1]
+    inOneStep(() => { for (const { id, changes: c } of changes) updateTraceCustomization(id, c, { alone: true }) })
+    if (!values) return
+    keep(values)
+    const stack = undoStackRef.current
+    const traced = stack[stack.length - 1] !== top ? stack.pop() : undefined
+    const last = valuesStepRef.current
+    if (!traced && last && stack[stack.length - 1] === last.op && Date.now() - last.ts < UNDO_COALESCE_WINDOW_MS) {
+      last.after = values
+      last.ts = Date.now()
+      return
+    }
+    const step = { after: values }
+    const op: UndoOp = { kind: 'action', entry: {
+      label: 'values',
+      undo: () => { if (traced) applyUndoOp(traced, 'undo'); keep(before) },
+      redo: () => { if (traced) applyUndoOp(traced, 'redo'); keep(step.after) },
+    } }
+    pushUndo(op)
+    valuesStepRef.current = Object.assign(step, { op, ts: Date.now() })
+  }
+
+  // "Show links": every value's links drawn as threads between its traces, in
+  // its colour (lib/templateValues valueThreads), with the atrium's own.
+  const [valueThreadsOn, setValueThreadsOn] = useState(() => { try { return localStorage.getItem(VALUE_THREADS) === 'on' } catch { return false } })
+  const showThreads = (on: boolean) => {
+    setValueThreadsOn(on)
+    try { localStorage.setItem(VALUE_THREADS, on ? 'on' : 'off') } catch { /* this visit only */ }
+  }
+  const shownLinks = useMemo(() => {
+    if (!valueThreadsOn || !lobbyId || !knownTemplateMaker()) return links
+    const scopes = templateValues
+      ? [{ key: 'workshop', members: traces, values: templateValues.values }]
+      : layers.filter(group => group.template?.values.length).map(group => ({ key: group.id, members: membersOf(group, traces, layers), values: group.template!.values }))
+    const threads: TraceLink[] = scopes.flatMap(({ key, members, values }) => valueThreads(members, values).map(thread => ({
+      id: `value:${key}:${thread.valueId}:${thread.from}:${thread.to}`, lobbyId, from: thread.from, to: thread.to, color: thread.colour,
+      arrow: 'none' as const, width: 1.5, label: '', labelOnHover: true, straight: false, toCenter: false, labelSize: DEFAULT_LABEL_SIZE,
+      elbow: false, elbowAt: 0.5, opacity: 0.9, strokeStyle: 'dashed' as const, inert: true,
+    })))
+    return threads.length ? [...links, ...threads] : links
+  }, [valueThreadsOn, lobbyId, templateValues, traces, layers, links])
+
+  // What a change to `after`'s `keys` makes of the settings linked to them.
+  const linkedChanges = (after: Trace, keys: string[]) => {
+    if (!after.valueLinks || !keys.some(key => isLinkable(key) && after.valueLinks?.[key])) return []
+    const { traces: all, layers } = useGameStore.getState()
+    if (templateValues) return spread(all, templateValues.values, after, keys).changes
+    const scope = scopeOf(after, all, layers)
+    return scope ? spread(scope.members, scope.group.template!.values, after, keys).changes : []
   }
 
   // A text box fits its text as it is typed, not only once typing stops.
   // Each keystroke resizes the trace without an undo entry of its own; the
   // edit as a whole becomes one entry when it ends, measured from how the
   // trace was before the first keystroke.
-  const textEditStartRef = useRef<{ id: string; content: string; width?: number; height?: number } | null>(null)
+  // `linked`: settings linked to its words, as they were before they followed them.
+  const textEditStartRef = useRef<{ id: string; content: string; width?: number; height?: number; linked?: Map<string, Partial<Trace>> } | null>(null)
   // The text box last dragged out for new text, whose size its typing keeps.
   const drawnTextIdRef = useRef<string | null>(null)
   const fitTextLive = (trace: Trace, content: string, fontSize: number, fontFamily: string) => {
@@ -3661,7 +3776,16 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
     }
     const live = useGameStore.getState().traces.find(t => t.id === traceId)
     if (live && live.content !== start.content) {
-      pushUpdateOp(traceId, before, { content: live.content, width: live.width, height: live.height })
+      const step = () => {
+        pushUpdateOp(traceId, before, { content: live.content, width: live.width, height: live.height })
+        // What followed its words, linked to them: undone with them, in one step.
+        for (const [id, was] of start.linked ?? []) {
+          const now = useGameStore.getState().traces.find(t => t.id === id)
+          if (now) pushUpdateOp(id, was, Object.fromEntries(Object.keys(was).map(key => [key, now[key as keyof Trace]])))
+        }
+      }
+      if (start.linked?.size) inOneStep(step)
+      else step()
     }
   }
 
@@ -5501,7 +5625,7 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
     const resized = all.find(t => t.id === frameId)
     // An arranged frame keeps what it holds, laid out to its new width; a
     // trace resized in one goes back to its column.
-    if (resized?.frameArrange === 'masonry') { arrangeFrames([frameId], 'fold'); return }
+    if (resized?.frameArrange === 'masonry' || (resized && isSlot(resized))) { arrangeFrames([frameId], 'fold'); return }
     if (resized && !isFrame(resized) && resized.frameId) { arrangeFrames([resized.frameId], 'fold'); return }
     const frames = framesNow(all)
     const frame = frames.find(f => f.id === frameId)
@@ -5520,7 +5644,8 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
   // of the stack) so what it holds is over it. It takes in the
   // traces in `wrap`, whole groups with them, from whatever frame they were
   // in; without `wrap`, what lies loose inside it. Then it's selected.
-  const createFrame = async (box: FrameBox, wrap?: string[], customize = false) => {
+  // `slot`: a template's slot (lib/frames isSlot), made empty, its border dashed.
+  const createFrame = async (box: FrameBox, wrap?: string[], customize = false, slot?: SlotFit) => {
     if (!lobbyId || !canEdit) return
     if (useGameStore.getState().isLobbyFull()) {
       showToast(lobbyFullMessage())
@@ -5529,9 +5654,10 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
     const store = useGameStore.getState()
     const groups = new Set(store.layers.map(l => l.id))
     const stack = topLevel(store.traces, store.layers)
-    const name = firstFreeName(store.traces.filter(isFrame).map(f => f.content), n => t('atrium.frame.numbered', { n }))
+    const name = firstFreeName(store.traces.filter(isFrame).map(f => f.content), n => t(slot ? 'templates.slotNumbered' : 'atrium.frame.numbered', { n }))
     // Under everything, so what it holds is drawn over it.
-    const draft = newFrame(box, name, { userId, username }, currentTracePreset(lobbyId), keyAt(stack, 0) ?? keysOnTop(stack)[0])
+    const framed = newFrame(box, name, { userId, username }, currentTracePreset(lobbyId), keyAt(stack, 0) ?? keysOnTop(stack)[0])
+    const draft: Trace = slot ? { ...framed, frameArrange: slot, strokeStyle: 'dashed' } : framed
     // There at once (lib/traceWrites), written behind.
     const frame = insertTrace(buildTraceInsertRow(draft, userId, username, lobbyId, 0, 0), message => showToast(t('atrium.error.frameFailed', { message })))
     const all = useGameStore.getState().traces
@@ -5542,7 +5668,7 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
           const middle = unitMiddle(unit, storedBox)
           return boxContains(box, middle.x, middle.y)
         })
-    applyFrameChanges(putInFrame(units, frame.id), 'none')
+    if (!slot) applyFrameChanges(putInFrame(units, frame.id), 'none')
     setMultiSelectedIds(new Set())
     setSelectedTraceId(frame.id)
     if (customize) setEditingTrace(frame)
@@ -5560,9 +5686,67 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
   // What laying out an arranged frame changes: each unit (a trace, a group
   // whole) brought to its column and its width, and the frame grown or shrunk
   // to end below the tallest column. None for a frame not arranged, or empty.
+  // `unit` moved so its point (ux, uy) lands on (cx, cy), scaled fx across and fy
+  // down about it: each trace's change, a path's by its points.
+  const movedOps = (unit: Trace[], ux: number, uy: number, cx: number, cy: number, fx: number, fy: number) => {
+    const to = (x: number, y: number) => ({ x: cx + (x - ux) * fx, y: cy + (y - uy) * fy })
+    const ops: { traceId: string; before: Partial<Trace>; after: Partial<Trace> }[] = []
+    for (const t of unit) {
+      if (isPathTrace(t) && t.shapePoints) {
+        const shapePoints = t.shapePoints.map(p => {
+          const at = to(p.x, p.y)
+          const next = { ...p, x: at.x, y: at.y }
+          if (p.cp1x !== undefined && p.cp1y !== undefined) { const c = to(p.cp1x, p.cp1y); next.cp1x = c.x; next.cp1y = c.y }
+          if (p.cp2x !== undefined && p.cp2y !== undefined) { const c = to(p.cp2x, p.cp2y); next.cp2x = c.x; next.cp2y = c.y }
+          return next
+        })
+        ops.push({ traceId: t.id, before: { shapePoints: t.shapePoints }, after: { shapePoints } })
+        continue
+      }
+      const now = storedTransformOf(t)
+      const at = to(now.x, now.y)
+      ops.push({
+        traceId: t.id,
+        before: { x: now.x, y: now.y, scaleX: now.scaleX, scaleY: now.scaleY },
+        after: { x: at.x, y: at.y, scaleX: now.scaleX * fx, scaleY: now.scaleY * fy },
+      })
+    }
+    return ops
+  }
+
+  // A slot's (lib/frames isSlot): what it holds -- one thing, or several fitted as
+  // one -- put on it and sized to it. Filling it, a picture is cropped about its
+  // middle to the slot's shape; anything else is fitted, as a group always is.
+  const slotArrangement = (frame: Trace, all: Trace[]) => {
+    const held = new Set(all.filter(t => t.frameId === frame.id && !isFrame(t)).map(t => t.id))
+    if (held.size === 0) return []
+    const unit = unitsOf(all, groupIdsNow(), held).flat()
+    const boxes = unit.map(storedBox)
+    const one = unit.length === 1 ? unit[0] : null
+    const box = one ? boxes[0] : frameAround(boxes, 0)
+    const edge = one && !isPathTrace(one) && one.type !== 'shape' && (one.showBorder ?? true) ? (one.borderWidth ?? 2) : 0
+    const outer = storedBox(frame), border = (frame.showBorder ?? true) ? (frame.borderWidth ?? 2) : 0
+    const inside = { cx: outer.cx, cy: outer.cy, halfW: Math.max(1, outer.halfW - border), halfH: Math.max(1, outer.halfH - border) }
+    const near = (a: number, b: number) => Math.abs(a - b) < 0.001
+    if (frame.frameArrange === 'fill' && one && (one.type === 'image' || one.type === 'video')) {
+      const base = getTraceSize(one)
+      const w = Math.max(0.5, inside.halfW - edge), h = Math.max(0.5, inside.halfH - edge)
+      const crop = fillCrop(base.width / base.height, w / h)
+      const scale = (2 * w) / (base.width * crop.w)
+      const now = storedTransformOf(one)
+      const before = { x: now.x, y: now.y, scaleX: now.scaleX, scaleY: now.scaleY, cropX: one.cropX ?? 0, cropY: one.cropY ?? 0, cropWidth: one.cropWidth ?? 1, cropHeight: one.cropHeight ?? 1 }
+      const after = { x: inside.cx, y: inside.cy, scaleX: scale, scaleY: scale, cropX: crop.x, cropY: crop.y, cropWidth: crop.w, cropHeight: crop.h }
+      return (Object.keys(after) as (keyof typeof after)[]).every(key => near(before[key], after[key])) ? [] : [{ traceId: one.id, before, after }]
+    }
+    const place = slotPlacement(inside, { ...box, edge }, frame.frameArrange === 'stretch' && !!one)
+    if (near(place.fx, 1) && near(place.fy, 1) && near(place.cx, box.cx) && near(place.cy, box.cy)) return []
+    return movedOps(unit, box.cx, box.cy, place.cx, place.cy, place.fx, place.fy)
+  }
+
   const arrangementOf = (frameId: string): { traceId: string; before: Partial<Trace>; after: Partial<Trace> }[] => {
     const all = useGameStore.getState().traces
     const frame = all.find(t => t.id === frameId)
+    if (frame && isSlot(frame)) return slotArrangement(frame, all)
     if (!frame || frame.frameArrange !== 'masonry') return []
     const held = new Set(all.filter(t => t.frameId === frameId && !isFrame(t)).map(t => t.id))
     if (held.size === 0) return []
@@ -5581,28 +5765,8 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
     laid.placed.forEach((place, i) => {
       const { unit, cx: ux, cy: uy } = ordered[i]
       const f = place.factor
-      const to = (x: number, y: number) => ({ x: place.cx + (x - ux) * f, y: place.cy + (y - uy) * f })
       if (near(f, 1) && near(place.cx, ux) && near(place.cy, uy)) return
-      for (const t of unit) {
-        if (isPathTrace(t) && t.shapePoints) {
-          const shapePoints = t.shapePoints.map(p => {
-            const at = to(p.x, p.y)
-            const next = { ...p, x: at.x, y: at.y }
-            if (p.cp1x !== undefined && p.cp1y !== undefined) { const c = to(p.cp1x, p.cp1y); next.cp1x = c.x; next.cp1y = c.y }
-            if (p.cp2x !== undefined && p.cp2y !== undefined) { const c = to(p.cp2x, p.cp2y); next.cp2x = c.x; next.cp2y = c.y }
-            return next
-          })
-          ops.push({ traceId: t.id, before: { shapePoints: t.shapePoints }, after: { shapePoints } })
-          continue
-        }
-        const now = storedTransformOf(t)
-        const at = to(now.x, now.y)
-        ops.push({
-          traceId: t.id,
-          before: { x: now.x, y: now.y, scaleX: now.scaleX, scaleY: now.scaleY },
-          after: { x: at.x, y: at.y, scaleX: now.scaleX * f, scaleY: now.scaleY * f },
-        })
-      }
+      ops.push(...movedOps(unit, ux, uy, place.cx, place.cy, f, f))
     })
     // The frame: its top where it was, its height (a whole number, as the
     // database keeps it) to end below the tallest column.
@@ -5642,6 +5806,21 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
   const arrangeRef = useRef(arrangeFrames)
   arrangeRef.current = arrangeFrames
 
+  // A slot's fit (its panel): what it holds fitted again at once, one step with it.
+  const setSlotFit = (frameId: string, fit: SlotFit) => {
+    const live = useGameStore.getState().traces.find(tr => tr.id === frameId)
+    if (!live || live.frameArrange === fit) return
+    const change = { traceId: frameId, before: { frameArrange: live.frameArrange ?? null }, after: { frameArrange: fit } }
+    applyUpdateTarget(useGameStore.getState(), frameId, change.after)
+    if (editingTrace?.id === frameId) setEditingTrace({ ...editingTrace, frameArrange: fit })
+    arrangeFrames([frameId], { withOps: [change] })
+  }
+  // A slot made from the template editor's column, in the middle of the view.
+  const newSlot = () => {
+    const cx = (window.innerWidth / 2 - worldOffset.x) / zoom, cy = (window.innerHeight / 2 - worldOffset.y) / zoom
+    void createFrame({ cx, cy, halfW: 140, halfH: 100 }, [], true, 'fill')
+  }
+
   // The switch (the frame's menu): on, laid out at once -- one undo step with it.
   const setFrameArrange = (frameId: string, on: boolean) => {
     const live = useGameStore.getState().traces.find(tr => tr.id === frameId)
@@ -5658,7 +5837,7 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
   // it's moved into one; others' arrive placed.)
   const joinArrangedFrames = (fresh: Trace[]) => {
     const all = useGameStore.getState().traces
-    const arranged = framesNow(all).filter(f => all.find(t => t.id === f.id)?.frameArrange === 'masonry')
+    const arranged = framesNow(all).filter(f => { const frame = all.find(t => t.id === f.id); return frame?.frameArrange === 'masonry' || (!!frame && isSlot(frame)) })
     if (arranged.length === 0 || !canEdit) return
     const known = new Set(all.map(t => t.id))
     const mine = fresh.filter(t => t.userId === userId && !isFrame(t) && Date.now() - Date.parse(t.createdAt) < 2 * 60_000)
@@ -5676,7 +5855,7 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
   useEffect(() => {
     if (!canEdit) return
     const timer = window.setTimeout(() => {
-      const frames = useGameStore.getState().traces.filter(f => f.frameArrange === 'masonry').map(f => f.id)
+      const frames = useGameStore.getState().traces.filter(f => f.frameArrange === 'masonry' || isSlot(f)).map(f => f.id)
       if (frames.length > 0) arrangeRef.current(frames, 'none')
     }, 250)
     return () => window.clearTimeout(timer)
@@ -6343,6 +6522,8 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
   // drawing can't either, and TraceSlot keeps it. What its handlers read later
   // is here too, where it isn't taken through `on`. tests/traceSlot.test.ts
   // checks that nothing renderTrace reads is missing.
+  // Slots holding something (lib/frames isSlot): an empty one says what it's for.
+  const filledSlots = useMemo(() => new Set(traces.flatMap(t => (t.frameId ? [t.frameId] : []))), [traces])
   const traceSignature = (trace: Trace): unknown[] => {
     // A path is drawn by renderPathSvg, which reads the whole selection and
     // every trace: drawn afresh every time rather than traced through. There
@@ -6367,6 +6548,9 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
       sheetEditAt?.traceId === id ? sheetEditAt : null,
       pressedClickableId === id, pendingLinkTraceId === id,
       documentError[id], page, documentPageCount[id], documentPages[`${id}:${page}`],
+      isSlot(trace) && filledSlots.has(id),
+      // Its words, linked to a value, not reading as it: outlined.
+      !!trace.valueLinks?.content && wordsUnread(trace, layers, templateValues?.values),
     ]
   }
 
@@ -6666,6 +6850,7 @@ return (
       data-trace-element="true"
       data-trace-id={trace.id}
       data-strokes-only={hitStrokes ? '' : undefined}
+      data-value-unread={trace.valueLinks?.content && wordsUnread(trace, layers, templateValues?.values) ? '' : undefined}
       className="absolute"
       style={{
         left: `${screenX + boxOffset.x}px`,
@@ -7701,7 +7886,7 @@ return (
       {/* A pin from Pinterest, there while it's pointed at: says where it came
           from and opens it there -- Pinterest's rule for showing Pins -- whether
           or not it's clickable, for anyone who can see it. */}
-      {trace.linkUrl && PIN_LINK.test(trace.linkUrl) && !movingIds.has(trace.id) && borderWidth >= 60 && borderHeight >= 40 && (
+      {isPin(trace) && !movingIds.has(trace.id) && borderWidth >= 60 && borderHeight >= 40 && (
         <button
           type="button"
           className="trace-hover-button trace-pin-mark"
@@ -7736,6 +7921,11 @@ return (
             {edges.map((edge, i) => (
               <div key={i} data-frame-edge="" className="absolute pointer-events-auto cursor-move" style={edge} />
             ))}
+            {isSlot(trace) && !filledSlots.has(trace.id) && (
+              <div data-slot-hint="" className="absolute inset-0 grid place-items-center p-3 pointer-events-none text-center text-[11px] tracking-[0.12em] uppercase opacity-60">
+                {t('templates.slotDrop')}
+              </div>
+            )}
             <div
               data-keeps-size=""
               data-frame-title=""
@@ -7788,6 +7978,7 @@ return (
               ) : (
                 <>
                   {trace.frameArrange === 'masonry' && <span title={t('atrium.frame.arranged')} className="mr-1 opacity-70">▦</span>}
+                  {isSlot(trace) && <span title={t('templates.slot')} className="mr-1 opacity-70">◫</span>}
                   {trace.content}
                 </>
               )}
@@ -8038,7 +8229,7 @@ return (
           traces' positions, not from what's on screen, so a thread to a
           trace far off (and not drawn) still runs off toward it. */}
       <TraceLinksLayer
-        links={links}
+        links={shownLinks}
         place={linkOn.place}
         levelOf={linkOn.levelOf}
         offsets={dragOffsetsRef}
@@ -9530,7 +9721,7 @@ return (
         const background = editingTrace.showBackground ?? true
         const border = editingTrace.showBorder ?? true
         const corners = (
-          <Slider
+          <Slider field="borderRadius"
             label={t('atrium.customize.rowCorners')}
             hint={t('atrium.customize.cornerRadiusHint')}
             min={0} max={50} step={1} value={editingTrace.borderRadius ?? 0} shown={`${editingTrace.borderRadius ?? 0} px`}
@@ -9541,6 +9732,7 @@ return (
         const lightColour = editingTrace.lightColor ?? '#ffffff'
         const orderLabel = orderLabels(!!groupIdOf(live, layers))
         return (
+          <ValueLinkContext.Provider value={linkingFor([live])}>
           <CustomizationPanel
             subtitle={traceKindLabel(editingTrace, t)}
             onClose={done}
@@ -9570,6 +9762,7 @@ return (
                 />
               )}
             </div>
+            <ValuesSection />
             {/* The house styles, first: the quickest way to a look. A shape
                 takes one as its fill and outline -- a path, only a line, as
                 its colour -- and the next shape made looks like it. */}
@@ -9631,7 +9824,8 @@ return (
                   editingTrace.textFit ? t('atrium.controls.fillsBox') : `${fontSize} px`,
                 ].filter(Boolean).join(' · ')}
               >
-                <Row label={t('atrium.customize.fontFamily')}>
+                <WordsLinkRow label={t('templates.words')} />
+                <Row label={t('atrium.customize.fontFamily')} link="fontFamily">
                   <select
                     value={editingTrace.fontFamily ?? 'sans'}
                     onChange={e => {
@@ -9648,7 +9842,7 @@ return (
                 </Row>
                 {/* Filling its box, the text has no size of its own to set. */}
                 {!editingTrace.textFit && (
-                  <Row label={t('atrium.customize.fontSize')}>
+                  <Row label={t('atrium.customize.fontSize')} link="fontSize">
                     <FontSizeField
                       min={8}
                       max={200}
@@ -9679,11 +9873,13 @@ return (
                 <Row label={t('atrium.customize.textStyle')}>
                   <div className="flex gap-1">
                     <ChoiceButton on={!!editingTrace.textBold} title="Bold" className="font-bold normal-case text-xs" onClick={() => change({ textBold: !editingTrace.textBold })}>B</ChoiceButton>
+                    <LinkButton field="textBold" />
                     <ChoiceButton on={!!editingTrace.textItalic} title="Italic" className="italic normal-case text-xs" onClick={() => change({ textItalic: !editingTrace.textItalic })}>I</ChoiceButton>
+                    <LinkButton field="textItalic" />
                     <ChoiceButton on={!!editingTrace.textUnderline} title="Underline" className="underline normal-case text-xs" onClick={() => change({ textUnderline: !editingTrace.textUnderline })}>U</ChoiceButton>
                   </div>
                 </Row>
-                <ColourField
+                <ColourField field="textColor"
                   label={t('atrium.customize.textColour')}
                   value={editingTrace.textColor ?? '#ffffff'}
                   onChange={textColor => change({ textColor })}
@@ -9720,7 +9916,7 @@ return (
             {/* A sound's bars: their colour, the border's until set. */}
             {has(editingTrace, 'bars') && (
               <Section id="look" title={t('atrium.customize.sectionLook')}>
-                <ColourField
+                <ColourField field="shapeColor"
                   label={t('atrium.customize.barColour')}
                   value={editingTrace.shapeColor || editingTrace.borderColor || '#cbcbcb'}
                   onChange={shapeColor => change({ shapeColor })}
@@ -9764,14 +9960,15 @@ return (
                 summary={`${hex(editingTrace.fillColor || '#191919')} · ${percent(editingTrace.fillOpacity ?? 0.95)}`}
                 on={background}
                 onSwitch={showBackground => change({ showBackground })}
+                link="showBackground"
               >
-                <ColourField
+                <ColourField field="fillColor"
                   label={t('atrium.customize.colour')}
                   value={editingTrace.fillColor || '#191919'}
                   onChange={fillColor => change({ fillColor })}
                   onReset={() => change({ fillColor: undefined })}
                 />
-                <Slider
+                <Slider field="fillOpacity"
                   label={t('atrium.customize.rowOpacity')}
                   min={0} max={1} step={0.01} value={editingTrace.fillOpacity ?? 0.95} shown={percent(editingTrace.fillOpacity ?? 0.95)}
                   onChange={fillOpacity => change({ fillOpacity })}
@@ -9786,21 +9983,22 @@ return (
                 summary={`${editingTrace.borderWidth ?? 2} px · ${strokeName(editingTrace.strokeStyle)} · ${hex(editingTrace.borderColor || borderColourOf(editingTrace.type))}`}
                 on={border}
                 onSwitch={showBorder => change({ showBorder })}
+                link="showBorder"
               >
-                <ColourField
+                <ColourField field="borderColor"
                   label={t('atrium.customize.colour')}
                   value={editingTrace.borderColor || borderColourOf(editingTrace.type)}
                   onChange={borderColor => change({ borderColor })}
                   onReset={() => change({ borderColor: undefined })}
                 />
-                <Slider
+                <Slider field="borderOpacity"
                   label={t('atrium.customize.rowOpacity')}
                   min={0} max={1} step={0.01} value={editingTrace.borderOpacity ?? 1} shown={percent(editingTrace.borderOpacity ?? 1)}
                   onChange={borderOpacity => change({ borderOpacity })}
                 />
                 {/* Its thickness reaches PDF traces too, where a frame is what
                     separates a white page from a light background. */}
-                <Slider
+                <Slider field="borderWidth"
                   label={t('atrium.customize.rowThickness')}
                   min={1} max={20} step={1} value={editingTrace.borderWidth ?? 2} shown={`${editingTrace.borderWidth ?? 2} px`}
                   onChange={borderWidth => change({ borderWidth })}
@@ -9831,7 +10029,7 @@ return (
                 on={editingTrace.illuminate ?? false}
                 onSwitch={illuminate => change({ illuminate })}
               >
-                <ColourField label={t('atrium.customize.colour')} value={lightColour} onChange={lightColor => change({ lightColor })} />
+                <ColourField field="lightColor" label={t('atrium.customize.colour')} value={lightColour} onChange={lightColor => change({ lightColor })} />
                 {!isPathTrace && (
                   <Row label={t('atrium.customize.lightEmit')}>
                     <Choices
@@ -9892,6 +10090,20 @@ return (
             {/* Where it sits: its size, its place in the drawing order,
                 whether it can be moved. */}
             <Section id="arrange" title={t('atrium.customize.sectionArrange')} summary={locked ? t('atrium.customize.locked') : null}>
+              {isSlot(editingTrace) && (
+                <Row stacked label={t('templates.slotFit')} hint={t('templates.slotFitHint')}>
+                  <Choices
+                    name="slot-fit"
+                    value={editingTrace.frameArrange as SlotFit}
+                    onChange={fit => setSlotFit(editingTrace.id, fit)}
+                    options={[
+                      { value: 'fill', label: t('templates.slotFill'), title: t('templates.slotFillHint') },
+                      { value: 'fit', label: t('templates.slotFitWhole'), title: t('templates.slotFitWholeHint') },
+                      { value: 'stretch', label: t('templates.slotStretch'), title: t('templates.slotStretchHint') },
+                    ]}
+                  />
+                </Row>
+              )}
               {shapeLike && !isPathTrace && <ShapeStyleControls {...shapeProps} part="size" />}
               {/* A picture, a video, an embed, a document... sized by its
                   scale, as its handles size it: typed here instead, one step
@@ -9919,12 +10131,20 @@ return (
               <Check row checked={locked} label={t('atrium.customize.locked')} onChange={on => change(on ? { isLocked: true } : UNLOCKED)} />
             </Section>
           </CustomizationPanel>
+          </ValueLinkContext.Provider>
         )
       })()}
+
+      {templateValues && (
+        <ValueLinkContext.Provider value={linkingFor([], true)}>
+          <TemplateColumn onSlot={canEdit ? newSlot : undefined} slots={traces.filter(isSlot).map(slot => ({ id: slot.id, name: slot.content, fit: slot.frameArrange as SlotFit, filled: traces.some(t => t.frameId === slot.id) }))} onSelectSlot={id => { setMultiSelectedIds(new Set()); setSelectedTraceId(id) }} />
+        </ValueLinkContext.Provider>
+      )}
 
       {/* Batch Edit (BatchEditPanel): what the selection's traces have, each
           change to those that have it, as one step of undo. */}
       {showBatchEditPanel && multiSelectedIds.size > 1 && canEdit && !isDrawingMode && (
+        <ValueLinkContext.Provider value={linkingFor(traces.filter(tr => multiSelectedIds.has(tr.id)))}>
         <BatchEditPanel
           traces={traces.filter(tr => multiSelectedIds.has(tr.id))}
           lobbyId={lobbyId}
@@ -9949,6 +10169,7 @@ return (
           // What can be done to all of them; a style is copied from one.
           actions={<PanelFooter actions={footerActions([...multiSelectedIds], () => setShowBatchEditPanel(false))} />}
         />
+        </ValueLinkContext.Provider>
       )}
 
       {/* Full view modal (also the text-trace preview) */}

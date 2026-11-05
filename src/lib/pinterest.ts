@@ -4,6 +4,7 @@
 // the website, which hands it a code to link with (lib/pinterestDesktop).
 
 import { useEffect, useState } from 'react'
+import type { Trace } from '../types/database'
 import { toWorker } from './worker'
 import { workerUrl } from './rooms'
 import { showToast } from './toast'
@@ -28,6 +29,9 @@ const OAUTH_STATE_KEY = 'pinterest_oauth_state'
 // frontend bundle. The Client Secret lives only in the
 // pinterest-oauth-exchange Edge Function's environment.
 const CLIENT_ID = import.meta.env.VITE_PINTEREST_CLIENT_ID as string | undefined
+
+/** A pin imported from Pinterest, by the link the import keeps (PinterestImportPanel). */
+export const isPin = (trace: Pick<Trace, 'linkUrl'>) => !!trace.linkUrl && /^https:\/\/www\.pinterest\.com\/pin\//.test(trace.linkUrl)
 
 export function isPinterestConfigured(): boolean {
   return !!CLIENT_ID

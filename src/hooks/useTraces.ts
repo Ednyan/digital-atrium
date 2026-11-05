@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { isSlot } from '../lib/frames'
 import { asStrokeStyle } from '../lib/strokeStyle'
 import { asStrokeData } from '../lib/brushes'
 import { asExrGrade } from '../lib/exr'
@@ -126,7 +127,8 @@ export function mapRowToTrace(row: any): Trace {
     orderKey: row.order_key ?? null,
     layerName: row.layer_name ?? null,
     frameId: row.frame_id ?? null,
-    frameArrange: row.frame_arrange === 'masonry' ? 'masonry' : null,
+    // Laid out as masonry, or a template's slot (lib/frames isSlot); anything else, as it's put.
+    frameArrange: row.frame_arrange === 'masonry' || isSlot({ frameArrange: row.frame_arrange }) ? row.frame_arrange : null,
     lobbyId: row.lobby_id,
     // Shape properties
     shapeType: row.shape_type,
@@ -143,6 +145,8 @@ export function mapRowToTrace(row: any): Trace {
     strokeData: asStrokeData(row.stroke_data),
     exr: asExrGrade(row.exr),
     look: asLook(row.look),
+    // None stays none, not null: a save sends the column only for a trace once linked.
+    valueLinks: row.value_links && typeof row.value_links === 'object' ? row.value_links : undefined,
     pathCurveType: row.path_curve_type,
     pathArrowStart: row.path_arrow_start,
     pathArrowEnd: row.path_arrow_end,

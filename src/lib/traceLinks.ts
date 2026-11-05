@@ -40,6 +40,9 @@ export interface TraceLink {
   // Solid when none (lib/strokeStyle's StrokeStyle -- written out: this file
   // imports nothing).
   strokeStyle?: 'solid' | 'dashed' | 'dotted'
+  // Drawn only, never pressed or saved: a template's value links shown as
+  // threads (TraceOverlay, "Show links").
+  inert?: boolean
 }
 
 export const DEFAULT_LINK_WIDTH = 2

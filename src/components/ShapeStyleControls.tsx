@@ -11,10 +11,12 @@
 // new trace in the create panel.
 
 import { useEffect, useState } from 'react'
+import type { Trace } from '../types/database'
 import { useTranslation } from '../lib/i18n'
 import { pickColour } from '../lib/eyedropper'
 import { BOX_SHAPES, type ArrowKind, type ShapeKind, type ShapeStyle } from '../lib/shapeStyle'
 import { Choices, Row, ToggleTrack } from './Customization'
+import { LinkButton } from './ValueLink'
 import { MenuIcon } from './AtriumMenu'
 import { dashProps, STROKE_STYLES, type StrokeStyle } from '../lib/strokeStyle'
 
@@ -56,11 +58,12 @@ export function SectionRule({ label, note }: { label: string; note?: string | nu
 // A switch. `mixed`: some of the traces it's for have it on and some off --
 // shown as a dash, and turned on for all of them by a click. `row`: among the
 // Customization panel's rows, named as they are.
-export function Check({ checked, onChange, label, hint, mixed = false, row = false }: {
-  checked: boolean; onChange: (value: boolean) => void; label: string; hint?: string; mixed?: boolean; row?: boolean
+// `field`: the trace setting it sets, given a link button as a Row's is.
+export function Check({ checked, onChange, label, hint, mixed = false, row = false, field }: {
+  checked: boolean; onChange: (value: boolean) => void; label: string; hint?: string; mixed?: boolean; row?: boolean; field?: keyof Trace
 }) {
   const on = checked && !mixed
-  return (
+  const check = (
     <button
       type="button"
       role="switch"
@@ -74,6 +77,7 @@ export function Check({ checked, onChange, label, hint, mixed = false, row = fal
       <ToggleTrack on={on} mixed={mixed} />
     </button>
   )
+  return field ? <div className="flex items-center gap-2">{check}<LinkButton field={field} /></div> : check
 }
 
 const EYEDROPPER = 'M11 7l6 6M4 16l11.7 -11.7a1 1 0 0 1 1.4 0l2.6 2.6a1 1 0 0 1 0 1.4l-11.7 11.7h-4v-4z'
@@ -82,7 +86,7 @@ const RESET = 'M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4M4 13a8.1 8.1 0 0 0 15.5 
 /** A colour, in one row: its swatch -- which opens the palette, the system's
     picker and, given `onReset`, the way back to the default -- its hex, and
     the eyedropper. For fill, outline, text and light alike. */
-export function ColourField({ label, value, onChange, onReset }: { label: string; value: string; onChange: (colour: string) => void; onReset?: () => void }) {
+export function ColourField({ label, value, onChange, onReset, field }: { label: string; value: string; onChange: (colour: string) => void; onReset?: () => void; field?: keyof Trace }) {
   const { t } = useTranslation()
   // The hex field keeps its own text while it is being typed, so a half-typed
   // "#3b8" is not pushed onto the shape; it applies once it is a colour.
@@ -104,7 +108,7 @@ export function ColourField({ label, value, onChange, onReset }: { label: string
   const tool = 'w-8 h-8 shrink-0 flex items-center justify-center border border-nier-border/30 text-nier-bg hover:border-nier-border/60 hover:text-nier-strong transition-colors'
   return (
     <div className="space-y-2">
-      <Row label={label}>
+      <Row label={label} link={field}>
         <div className="flex items-center gap-1.5">
           <button
             type="button"
@@ -173,11 +177,11 @@ export function ColourField({ label, value, onChange, onReset }: { label: string
 
 // `shown`: the value as it reads (92%, 2 px) -- given, the slider is one of
 // the Customization panel's rows, the value at its end; not, its label says it.
-export function Slider({ label, hint, min, max, step, value, onChange, shown }: {
-  label: string; hint?: string; min: number; max: number; step: number; value: number; onChange: (value: number) => void; shown?: string
+export function Slider({ label, hint, min, max, step, value, onChange, shown, field }: {
+  label: string; hint?: string; min: number; max: number; step: number; value: number; onChange: (value: number) => void; shown?: string; field?: keyof Trace
 }) {
   if (shown !== undefined) return (
-    <Row label={label} hint={hint}>
+    <Row label={label} hint={hint} link={field}>
       <div className="flex items-center gap-2">
         <input
           type="range" min={min} max={max} step={step} value={value}
@@ -347,7 +351,7 @@ export default function ShapeStyleControls({ value, onChange, size, onSizeChange
           points. Not with the outline, which can be off -- they round the
           fill as much. */}
       {show('shape') && value.shapeType !== 'circle' && !isPath && (
-        <Slider
+        <Slider field="cornerRadius"
           label={t('atrium.customize.rowCorners')}
           hint={t('atrium.customize.roundsCorners')}
           min={0} max={100} step={1} value={value.cornerRadius} shown={`${value.cornerRadius} px`}
@@ -357,7 +361,7 @@ export default function ShapeStyleControls({ value, onChange, size, onSizeChange
 
       {show('shape') && isPath && (
         <>
-          <Slider
+          <Slider field="shapeOutlineWidth"
             label={t('atrium.customize.rowThickness')}
             hint={t('atrium.customize.pathThickness')}
             min={1} max={20} step={1} value={value.shapeOutlineWidth} shown={`${value.shapeOutlineWidth} px`}
@@ -380,9 +384,9 @@ export default function ShapeStyleControls({ value, onChange, size, onSizeChange
 
       {/* A path is a line: its colour and how opaque it is (arrows and
           all), with nothing to fill. */}
-      {show('fill') && <ColourField label={isPath ? t('atrium.customize.lineColour') : t('atrium.customize.colour')} value={value.shapeColor} onChange={c => onChange({ shapeColor: c })} />}
+      {show('fill') && <ColourField field="shapeColor" label={isPath ? t('atrium.customize.lineColour') : t('atrium.customize.colour')} value={value.shapeColor} onChange={c => onChange({ shapeColor: c })} />}
 
-      {show('fill') && <Slider
+      {show('fill') && <Slider field="shapeOpacity"
         label={t('atrium.customize.rowOpacity')}
         min={0} max={1} step={0.01} value={value.shapeOpacity} shown={`${Math.round(value.shapeOpacity * 100)}%`}
         onChange={v => onChange({ shapeOpacity: v })}
@@ -398,12 +402,12 @@ export default function ShapeStyleControls({ value, onChange, size, onSizeChange
       )}
       {show('outline') && !isPath && value.shapeOutlineOnly && (
         <>
-          <ColourField
+          <ColourField field="shapeOutlineColor"
             label={t('atrium.customize.colour')}
             value={value.shapeOutlineColor || value.shapeColor}
             onChange={c => onChange({ shapeOutlineColor: c })}
           />
-          <Slider
+          <Slider field="shapeOutlineWidth"
             label={t('atrium.customize.rowThickness')}
             hint={t('atrium.customize.outlineThickness')}
             min={1} max={20} step={1} value={value.shapeOutlineWidth} shown={`${value.shapeOutlineWidth} px`}

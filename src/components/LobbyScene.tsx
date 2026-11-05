@@ -59,7 +59,7 @@ import { hasTransparency } from '../lib/imageAlpha'
 import { exrOrigin, isExr, withExrAsPng } from '../lib/exr'
 import { asStrokeData, BUILTIN_BRUSHES, customBrushKey, drawingOf, drawPlacedPicture, drawStroke, erasePicture, eraseStrokeData, fitBox, localToWorldDelta, strokeToLocal, isCustomBrush, makeBrushTip, newStrokeSeed, rasterizeStroke, registerCustomBrush, type CustomBrush, type Piece, type Stroke, type StrokeData, type StrokePoint } from '../lib/brushes'
 import { createWheelGestures } from '../lib/canvasGestures'
-import { PINTEREST_CONNECTED_EVENT, getPinterestConnectionStatus, importAfterPinterestConnect, takeImportAfterPinterestConnect } from '../lib/pinterest'
+import { PINTEREST_CONNECTED_EVENT, getPinterestConnectionStatus, importAfterPinterestConnect, isPin, takeImportAfterPinterestConnect } from '../lib/pinterest'
 import PinterestConnectionPanel from './PinterestConnectionPanel'
 import { clampZoomSensitivity, getStoredZoomSensitivity } from '../lib/zoomSensitivity'
 import { ReportFeedbackModal } from './ReportFeedbackModal'
@@ -73,6 +73,12 @@ import type { PresentationFormat } from '../lib/presentationExport'
 import QuickBar, { EmptyCanvasHint, HistoryButtons, QUICK_ORDER, ToolHint, type PlaceTool, type QuickAction, QuickBarEditor, ViewBarEditor } from './QuickBar'
 import { inTutorial, tutorialFinished } from '../lib/tutorial'
 import { count, noteToday } from '../lib/stats'
+import { beginWorkshop, endWorkshop, keepWorkshop, TEMPLATE_TRACES, useWorkshop } from '../lib/workshop'
+import { keepTemplate } from '../lib/myTemplates'
+import { checkTemplateMaker, knownTemplateMaker } from '../lib/platformAdmin'
+import WorkshopBar from './TemplateWorkshop'
+import type { TemplateValue } from '../lib/templateValues'
+import TemplateReveal from './TemplateReveal'
 import { rememberCard } from '../lib/atriumCards'
 import { isBoxShape, type BoxShape } from '../lib/shapeStyle'
 import { roundedPolygonPath, shapePolygon } from '../lib/traceGeometry'
@@ -102,7 +108,7 @@ import { placementOnScreen, pointToWorld, sameView, strokeOnScreen } from '../li
 import type { View } from '../lib/worldCamera'
 import { useMenuGlide } from './MenuGlide'
 // pathSimplify no longer needed - drawings saved as raster images
-import type { Lobby, Trace } from '../types/database'
+import type { Layer, Lobby, Trace } from '../types/database'
 
 const MIN_ZOOM = 0.15
 const MAX_ZOOM = 1.40
@@ -1003,6 +1009,10 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
   // Where leaving goes: the atrium browser, unless the way out pressed was
   // Back to Developers.
   const leaveToRef = useRef<string | undefined>(undefined)
+  // The template being made here, if this is the template editor's atrium (lib/workshop).
+  const workshop = useWorkshop(lobbyId)
+  const workshopRef = useRef(workshop)
+  workshopRef.current = workshop
   // The room as it's seen, for the atrium's preview (lib/atriumPreview): its
   // colour, its picture as drawGrid placed it, and the canvas's own layers --
   // ground, grid, particles -- without the arrows to traces off screen, which
@@ -1045,10 +1055,10 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
   const leaveWithTransition = useCallback(() => {
     setLeaving(true)
     // For the welcome screen: what it was as it was left (lib/atriumCards).
-    if (!tutorialRef.current && currentLobby?.name) rememberCard(useGameStore.getState().userId, lobbyId, { name: currentLobby.name, traces: useGameStore.getState().traces.length })
+    if (!tutorialRef.current && !workshopRef.current && currentLobby?.name) rememberCard(useGameStore.getState().userId, lobbyId, { name: currentLobby.name, traces: useGameStore.getState().traces.length })
     // Its picture for the atrium browser, from what's on screen now -- by its
     // owner alone, the same for everyone (lib/atriumPreview), made after leaving.
-    if (isLobbyOwner && !tutorialRef.current) {
+    if (isLobbyOwner && !tutorialRef.current && !workshopRef.current) {
       const { traces, links, layers } = useGameStore.getState()
       captureAtriumPreview(lobbyId, {
         traces, links, layers,
@@ -4921,6 +4931,88 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
     leaveWithTransition()
   }
 
+  // The template editor (lib/workshop): its values for the canvas, its column beside
+  // the panels -- which move over for it -- and its two ways out.
+  const workshopValues = useMemo(() => (workshop ? { values: workshop.values, keep: (values: TemplateValue[]) => keepWorkshop({ values }) } : null), [workshop])
+  const inWorkshop = !!workshop
+  useEffect(() => {
+    if (!inWorkshop) return
+    document.documentElement.style.setProperty('--right-rail', 'calc(1rem + 19.5rem)')
+    return () => { document.documentElement.style.removeProperty('--right-rail') }
+  }, [inWorkshop])
+  const [workshopBusy, setWorkshopBusy] = useState(false)
+  const [workshopProblem, setWorkshopProblem] = useState<string | null>(null)
+  const [reveal, setReveal] = useState<{ name: string; picture: Blob | null; traces: number; values: number } | null>(null)
+  // Back where it was begun, all of it let go: nothing here is saved.
+  const backFromWorkshop = () => {
+    const from = workshopRef.current?.from
+    useGameStore.getState().clearPendingChanges()
+    void endWorkshop()
+    leaveToRef.current = from ? `/atrium/${from}` : undefined
+    leaveWithTransition()
+  }
+  const madeTemplate = () => {
+    count('templatesMade')
+    backFromWorkshop()
+  }
+  // Kept as a template (lib/myTemplates): all its traces one group, keeping its values,
+  // so it's placed as that (lib/atriumFile importIntoAtrium) -- with a picture of it.
+  const saveTemplate = async () => {
+    const kept = workshopRef.current
+    const { traces: every, links: allThreads, layers: groups } = useGameStore.getState()
+    // Pins from Pinterest stay out: its rules don't let what's read from it be
+    // kept and used again (docs/PINTEREST.md, "No storing").
+    const all = every.filter(trace => !isPin(trace))
+    const threads = allThreads.filter(thread => all.some(trace => trace.id === thread.from) && all.some(trace => trace.id === thread.to))
+    const pinsLeft = every.length - all.length
+    if (pinsLeft && all.length === 0) setWorkshopProblem(t('templates.onlyPins'))
+    if (!kept || workshopBusy || all.length === 0) return
+    if (all.length > TEMPLATE_TRACES) {
+      setWorkshopProblem(t('templates.tooMany', { most: TEMPLATE_TRACES, n: all.length - TEMPLATE_TRACES }))
+      return
+    }
+    setWorkshopBusy(true)
+    setWorkshopProblem(null)
+    try {
+      const name = kept.name.trim() || t('templates.untitled')
+      const root: Layer = { id: 'template', name, isGroup: true, parentId: null, userId: userId ?? '', createdAt: '', template: { values: kept.values } }
+      const { atriumFileBlob } = await import('../lib/atriumFile')
+      const file = await atriumFileBlob({ traces: all.map(trace => ({ ...trace, layerId: root.id })), links: threads, layers: [root], locations: [] }, { name, themeSettings: null, isPublic: false, maxPlayers: 0 })
+      const { exportImage } = await import('../lib/exportImage')
+      const picture = await exportImage(all, threads, groups, { format: 'png', scale: 1, background: viewTheme?.backgroundColor || '#0a0a0f', maxSide: 900, type: 'image/webp', quality: 0.85 }).then(made => made.blob).catch(() => null)
+      await keepTemplate(name, file, picture, { traces: all.length, values: kept.values.length })
+      if (pinsLeft) showToast(t('templates.pinsLeftOut'))
+      if (useGameStore.getState().templateReveal) setReveal({ name, picture, traces: all.length, values: kept.values.length })
+      else {
+        showToast(t('templates.saved', { name }))
+        madeTemplate()
+      }
+    } catch (error) {
+      console.error('The template was not kept:', error)
+      setWorkshopProblem(t('templates.saveFailed'))
+    } finally {
+      setWorkshopBusy(false)
+    }
+  }
+  // Begun from the Templates panel: to its own atrium, with this one's look.
+  // Who may make templates: known at once where it was found before, asked
+  // once a visit (the desktop asks for the account signed in there).
+  const [templateMaker, setTemplateMaker] = useState(knownTemplateMaker)
+  // What's kept once it's asked is the answer: the worker's, or, unreachable, the last one.
+  useEffect(() => { void checkTemplateMaker().then(() => setTemplateMaker(knownTemplateMaker())) }, [userId])
+  const startTemplate = async () => {
+    try {
+      const id = await beginWorkshop(t('templates.untitled'), lobbyId, currentLobby?.themeSettings ?? null)
+      setShowTemplates(false)
+      askToLeave(`/atrium/${id}`)
+    } catch (error) {
+      console.error('The template editor did not open:', error)
+      const { vaultProblem } = await import('../lib/browserAtriums')
+      const problem = vaultProblem(error)
+      showToast(t(problem ?? 'templates.openFailed'))
+    }
+  }
+
   // The parts of the interface a phone lays out differently (narrow): made
   // once, and placed where the layout puts them.
   const viewItems: MenuItem[] = [
@@ -5029,6 +5121,7 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
         <div className="absolute inset-0" style={{ pointerEvents: 'none' }}>
           <TraceOverlay
             traces={traces}
+            templateValues={workshopValues}
             atriumBackground={viewTheme?.backgroundColor}
             gridLineSpacing={viewTheme?.gridLineSpacing}
             onPaste={pasteOnCanvas}
@@ -5166,7 +5259,11 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
           order, so the one you press by accident least often is furthest from
           the corner. Each its icon, its name drawn out below it under the
           pointer (HudIconButton). Viewing the atrium is the right bar's. */}
-      <div ref={sessionBarRef} data-hud-end="" className="hud-in-right fixed top-4 right-4 z-[10000] flex items-center gap-2 font-mono pointer-events-auto" style={{ '--base': '180ms', '--i': 1 } as CSSProperties}>
+      {workshop && !uiHidden && (
+        <WorkshopBar workshop={workshop} traces={traces.length} busy={workshopBusy} problem={workshopProblem} onCancel={backFromWorkshop} onSave={() => void saveTemplate()} />
+      )}
+      {reveal && <TemplateReveal {...reveal} onDone={() => { setReveal(null); madeTemplate() }} />}
+      <div ref={sessionBarRef} data-hud-end="" className={`hud-in-right fixed top-4 right-4 z-[10000] flex items-center gap-2 font-mono pointer-events-auto ${workshop && !uiHidden ? 'hidden' : ''}`} style={{ '--base': '180ms', '--i': 1 } as CSSProperties}>
         {!uiHidden && (
           <>
             {/* Who's here: how many, and pressed, the list -- with Kick, for
@@ -6284,6 +6381,7 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
           <TemplatesPanel
             context={templateContext}
             onClose={() => setShowTemplates(false)}
+            onNew={templateMaker && !workshop ? () => void startTemplate() : undefined}
             onPlace={(file, screen) => {
               count('templates')
               void placeAtriumFile(file, screen ? screenToWorld(screen.x, screen.y) : screenToWorld(window.innerWidth / 2, window.innerHeight / 2), true)

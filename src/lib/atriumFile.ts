@@ -88,7 +88,7 @@ export async function atriumFileBlob(
     onProgress?.(++done, withFiles.length)
   }
   const used = new Set(scope.traces.map(tr => tr.layerId).filter(Boolean))
-  const layers = scope.layers.filter(l => used.has(l.id)).map(l => ({ id: l.id, name: l.name, order_key: l.orderKey ?? null, is_group: l.isGroup, parent_id: l.parentId ?? null }))
+  const layers = scope.layers.filter(l => used.has(l.id)).map(l => ({ id: l.id, name: l.name, order_key: l.orderKey ?? null, is_group: l.isGroup, parent_id: l.parentId ?? null, ...(l.template ? { template: l.template } : {}) }))
   const links = scope.links.filter(l => ids.has(l.from) && ids.has(l.to)).map(linkRow)
   const envelope = atriumEnvelope(
     isDesktop ? 'Digital Atrium Desktop' : 'Digital Atrium Web',
@@ -222,7 +222,7 @@ export function importIntoAtrium(file: AtriumFile, at: { x: number; y: number },
     const newKey = new Map<Record<string, any>, string>()
     for (const [i, item] of top.entries()) {
       if ('group' in item) {
-        const made = await createGroup(lobbyId, item.group.name, userId, topKeys[i])
+        const made = await createGroup(lobbyId, item.group.name, userId, topKeys[i], item.group.template ?? null)
         own.layers.add(made.id)
         groupIds.set(item.group._local_id, made.id)
         const inside = parsed.filter(({ row }) => row._local_layer_id === item.group._local_id)

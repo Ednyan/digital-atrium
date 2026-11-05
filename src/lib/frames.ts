@@ -246,3 +246,33 @@ export function masonry(frame: FrameBox, units: ArrangeUnit[]): { frame: FrameBo
   const bottom = Math.max(...feet)
   return { frame: { cx: frame.cx, halfW: frame.halfW, cy: (top + bottom) / 2, halfH: (bottom - top) / 2 }, placed }
 }
+
+// ---- Slots (Trace.frameArrange 'fill' | 'fit' | 'stretch') -----------------
+// A template's frame for one thing (docs/IDEAS.md, "Making your own"): a trace or
+// a group put in it takes its place and size -- covering it (a picture cropped to
+// its shape), all of it inside it, or pulled to its shape.
+
+export type SlotFit = 'fill' | 'fit' | 'stretch'
+export const SLOT_FITS: SlotFit[] = ['fill', 'fit', 'stretch']
+export const isSlot = (trace: { frameArrange?: string | null }) => (SLOT_FITS as (string | null | undefined)[]).includes(trace.frameArrange)
+
+/** Where what a slot holds goes: its middle on the slot's, scaled `fx` across and
+ *  `fy` down -- the same both ways, to fit, unless `stretch`. `slot` is its inside;
+ *  the held's `edge` (its border) stays as it is while the rest scales. */
+export function slotPlacement(slot: FrameBox, held: FrameBox & { edge: number }, stretch: boolean): { cx: number; cy: number; fx: number; fy: number } {
+  const fx = Math.max(0.5, slot.halfW - held.edge) / Math.max(0.5, held.halfW - held.edge)
+  const fy = Math.max(0.5, slot.halfH - held.edge) / Math.max(0.5, held.halfH - held.edge)
+  const f = Math.min(fx, fy)
+  return { cx: slot.cx, cy: slot.cy, fx: stretch ? fx : f, fy: stretch ? fy : f }
+}
+
+/** A picture `aspect` wide to high, cropped about its middle to a slot `slotAspect`
+ *  wide to high: the window kept, as shares of the whole (lib/traceCrop Crop). */
+export function fillCrop(aspect: number, slotAspect: number): { x: number; y: number; w: number; h: number } {
+  if (aspect > slotAspect) {
+    const w = slotAspect / aspect
+    return { x: (1 - w) / 2, y: 0, w, h: 1 }
+  }
+  const h = aspect / slotAspect
+  return { x: 0, y: (1 - h) / 2, w: 1, h }
+}

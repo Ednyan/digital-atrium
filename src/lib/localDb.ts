@@ -1553,6 +1553,11 @@ export async function initLocalDb(): Promise<void> {
   } catch {
     // Column already exists — ignore
   }
+  // A template's values on its group, and each trace's links to them, as JSON
+  // (lib/templateValues; the web's add_template_values.sql).
+  for (const [table, column] of [['traces', 'value_links'], ['layers', 'template']]) {
+    try { await db.execute(`ALTER TABLE ${table} ADD COLUMN ${column} TEXT`) } catch { /* already there */ }
+  }
 
   // Deleted traces' files, kept while undo could bring them back (holdTraceMedia).
   await db.execute('CREATE TABLE IF NOT EXISTS held_trace_media (trace_id TEXT PRIMARY KEY, lobby_id TEXT, type TEXT, media_url TEXT, image_url TEXT)')
@@ -2085,6 +2090,13 @@ const BOOL_COLUMNS: Record<string, string[]> = {
   lobby_locations: ['is_locked'],
   trace_links: ['label_on_hover', 'straight', 'to_center', 'elbow'],
 }
+// Kept as JSON text in SQLite, objects everywhere else.
+const JSON_COLUMNS: Record<string, string[]> = {
+  traces: ['shape_points', 'stroke_data', 'exr', 'look', 'value_links'],
+  lobbies: ['theme_settings'],
+  profiles: ['custom_themes'],
+  layers: ['template'],
+}
 
 function convertRowFromSql(table: string, row: any): any {
   if (!row) return row
@@ -2099,24 +2111,8 @@ function convertRowFromSql(table: string, row: any): any {
     }
   }
 
-  // Parse JSON fields
-  if (table === 'traces' && out.shape_points) {
-    out.shape_points = parseJsonField(out.shape_points)
-  }
-  if (table === 'traces' && out.stroke_data) {
-    out.stroke_data = parseJsonField(out.stroke_data)
-  }
-  if (table === 'traces' && out.exr) {
-    out.exr = parseJsonField(out.exr)
-  }
-  if (table === 'traces' && out.look) {
-    out.look = parseJsonField(out.look)
-  }
-  if (table === 'lobbies' && out.theme_settings) {
-    out.theme_settings = parseJsonField(out.theme_settings)
-  }
-  if (table === 'profiles' && out.custom_themes) {
-    out.custom_themes = parseJsonField(out.custom_themes)
+  for (const col of JSON_COLUMNS[table] ?? []) {
+    if (out[col]) out[col] = parseJsonField(out[col])
   }
   if (table === 'lobbies') {
     out.admin_user_ids = out.admin_user_ids ? parseJsonField(out.admin_user_ids) : []
@@ -2143,27 +2139,8 @@ function convertRowToSql(table: string, row: any): any {
     }
   }
 
-  // Serialize JSON fields
-  if (table === 'traces' && out.shape_points && typeof out.shape_points !== 'string') {
-    out.shape_points = JSON.stringify(out.shape_points)
-  }
-  if (table === 'traces' && out.stroke_data && typeof out.stroke_data !== 'string') {
-    out.stroke_data = JSON.stringify(out.stroke_data)
-  }
-  if (table === 'traces' && out.exr && typeof out.exr !== 'string') {
-    out.exr = JSON.stringify(out.exr)
-  }
-  if (table === 'traces' && out.look && typeof out.look !== 'string') {
-    out.look = JSON.stringify(out.look)
-  }
-  if (table === 'lobbies' && out.theme_settings && typeof out.theme_settings !== 'string') {
-    out.theme_settings = JSON.stringify(out.theme_settings)
-  }
-  if (table === 'profiles' && out.custom_themes && typeof out.custom_themes !== 'string') {
-    out.custom_themes = JSON.stringify(out.custom_themes)
-  }
-  if (table === 'lobbies' && out.admin_user_ids && typeof out.admin_user_ids !== 'string') {
-    out.admin_user_ids = JSON.stringify(out.admin_user_ids)
+  for (const col of [...JSON_COLUMNS[table] ?? [], ...(table === 'lobbies' ? ['admin_user_ids'] : [])]) {
+    if (out[col] && typeof out[col] !== 'string') out[col] = JSON.stringify(out[col])
   }
 
   return out

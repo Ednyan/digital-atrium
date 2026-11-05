@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
-import { ARRANGE_GAP, carriedFrameId, frameAround, frameAt, frameOfCopy, freshIds, heldBy, masonry, placeUnits, putInFrame, readingOrder, unitMiddle, unitsOf, withHeld, type FrameBox } from '../src/lib/frames.ts'
+import { ARRANGE_GAP, carriedFrameId, fillCrop, isSlot, slotPlacement, frameAround, frameAt, frameOfCopy, freshIds, heldBy, masonry, placeUnits, putInFrame, readingOrder, unitMiddle, unitsOf, withHeld, type FrameBox } from '../src/lib/frames.ts'
 
 test('withHeld gives a frame with what it holds, and nothing else', () => {
   const all = [
@@ -156,4 +156,25 @@ test('a narrow frame is one column; an empty one is left as it is', () => {
   const { placed } = masonry(narrow, [{ cx: 0, cy: 0, halfW: 10, halfH: 10 }, { cx: 0, cy: 0, halfW: 10, halfH: 10 }])
   assert.equal(placed[0].cx, placed[1].cx)
   assert.deepEqual(masonry(narrow, []).frame, narrow)
+})
+
+test('a slot fits what it holds inside it, the same each way, or stretched to its shape', () => {
+  const slot = { cx: 100, cy: 50, halfW: 100, halfH: 50 }
+  assert.deepEqual(slotPlacement(slot, { cx: 0, cy: 0, halfW: 10, halfH: 10, edge: 0 }, false), { cx: 100, cy: 50, fx: 5, fy: 5 })
+  assert.deepEqual(slotPlacement(slot, { cx: 0, cy: 0, halfW: 10, halfH: 10, edge: 0 }, true), { cx: 100, cy: 50, fx: 10, fy: 5 })
+  // A border stays its size: the inside is what's scaled.
+  const bordered = slotPlacement(slot, { cx: 0, cy: 0, halfW: 12, halfH: 12, edge: 2 }, false)
+  assert.equal(bordered.fx, 4.8)
+})
+
+test("a picture filling a slot is cropped about its middle to the slot's shape", () => {
+  assert.deepEqual(fillCrop(2, 1), { x: 0.25, y: 0, w: 0.5, h: 1 })
+  assert.deepEqual(fillCrop(0.5, 1), { x: 0, y: 0.25, w: 1, h: 0.5 })
+  assert.deepEqual(fillCrop(1.5, 1.5), { x: 0, y: 0, w: 1, h: 1 })
+})
+
+test('a slot is a frame arranged to fill, fit or stretch; masonry is not one', () => {
+  assert.ok(isSlot({ frameArrange: 'fit' }))
+  assert.ok(!isSlot({ frameArrange: 'masonry' }))
+  assert.ok(!isSlot({}))
 })

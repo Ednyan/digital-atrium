@@ -100,6 +100,7 @@ export default function UploadToOnline({ onClose }: UploadToOnlineProps) {
               order_key: layer.order_key ?? null,
               is_group: layer.is_group,
               parent_id: layer.parent_id ? layerIdMap[layer.parent_id] || null : null,
+              ...(layer.template ? { template: layer.template } : {}),
               user_id: remoteUserId,
               lobby_id: mappedLobbyIdForLayer,
             })
