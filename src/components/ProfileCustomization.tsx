@@ -175,7 +175,6 @@ export default function ProfileCustomization({ onClose, lobbyId }: ProfileCustom
     <CustomizationPanel
       subtitle={t('atrium.hud.profile')}
       onClose={onClose}
-      zIndex={9999}
       actions={(
         <div className="w-full flex items-center gap-2 px-1">
           <span className={`min-w-0 flex-1 truncate text-[10px] tracking-wider ${error ? '' : 'text-nier-bg/70'}`} style={error ? { color: 'rgb(var(--c-danger))' } : undefined}>

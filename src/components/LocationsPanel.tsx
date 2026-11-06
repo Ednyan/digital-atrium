@@ -165,7 +165,7 @@ export default function LocationsPanel({
   return (
     <div
       data-ui-element="true"
-      className="layer-panel docked-panel panel-in-right fixed w-80 top-20 h-[calc(100vh-160px)] border-2 border-nier-bg shadow-2xl overflow-hidden flex flex-col z-[10000100] pointer-events-auto"
+      className="layer-panel docked-panel panel-in-right fixed w-80 top-20 h-[calc(100vh-160px)] border-2 border-nier-bg shadow-2xl overflow-hidden flex flex-col pointer-events-auto"
       style={{ backgroundColor: 'rgb(var(--c-ground) / 0.98)' }}
     >
       <div className="absolute top-0 left-0 w-4 h-4 border-l border-t border-nier-bg pointer-events-none" />

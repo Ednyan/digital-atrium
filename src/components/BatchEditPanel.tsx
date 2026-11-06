@@ -24,11 +24,10 @@ export type BatchChange = { ids: string[]; patch: Partial<Trace> }
 
 const SELECT = 'w-full h-8 bg-nier-black text-nier-bg border border-nier-border/30 px-2 font-mono text-xs focus:outline-none focus:border-nier-border/60'
 
-export default function BatchEditPanel({ traces, lobbyId, userId, zIndex, fontOptions, borderColourOf, onChange, onFont, onDone, actions }: {
+export default function BatchEditPanel({ traces, lobbyId, userId, fontOptions, borderColourOf, onChange, onFont, onDone, actions }: {
   traces: Trace[]
   lobbyId?: string
   userId: string | null
-  zIndex: number
   fontOptions: { value: string; label: string }[]
   // A trace type's own border colour, when it has none set.
   borderColourOf: (type: string) => string
@@ -254,7 +253,6 @@ export default function BatchEditPanel({ traces, lobbyId, userId, zIndex, fontOp
       subtitle={t('atrium.customize.batchEdit', { count: traces.length })}
       onClose={onDone}
       closeLabel={t('atrium.customize.done')}
-      zIndex={zIndex}
       actions={actions}
     >
       <ValuesSection />

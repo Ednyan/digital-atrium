@@ -14,6 +14,31 @@
 @tailwind components;
 @tailwind utilities;
 
+/* The atrium screen's layers, bottom to top: the one place their order is
+   written (the user's, 2026-11-06: a number of its own per thing came to bite
+   -- the panels at 9999 lay under the minimap, at 9999 too, after them). Each
+   thing names the layer it's on -- z-[var(--layer-panel)] in a class, zIndex:
+   'var(--layer-panel)' inline -- never a number. Within a layer, what comes
+   later in the page is on top; a step inside one is a calc() from it. The
+   traces' own order is the canvas's (their draw ranks), inside its world
+   layer, and a number inside one component (a dropdown's z-1) is that
+   component's alone. The values are the ones each layer had. */
+:root {
+  --layer-guides: 60;          /* alignment guides, while a trace is dragged */
+  --layer-catch: 199;          /* what catches a press beside an open menu, under the bars */
+  --layer-ink: 9998;           /* over the canvas: the drawing canvas, the laser, a drop's outline, the empty canvas's words, the editor's frame */
+  --layer-hud: 9999;           /* the bars, the quick bar, the minimap, an import's progress, the brush's circle */
+  --layer-hud-menu: 10000;     /* what drops from a bar: who's here, the atrium menu, sharing, the editor's Cancel and Save */
+  --layer-canvas-ui: 1000000;  /* a selection's handles, a thread's labels, the area being selected, others' cursors */
+  --layer-hint: 10000050;      /* a tool's hint at the foot */
+  --layer-panel: 10000100;     /* the panels on the right, one at a time */
+  --layer-menu: 10000200;      /* right-click menus and their flyouts, a thread's menu, a panel's dropdowns */
+  --layer-drag: 10000300;      /* what's carried: a drag's ghost; the turn being made */
+  --layer-tutorial: 10000300;  /* the tutorial's guide */
+  --layer-dialog: 10000400;    /* dialogs and confirmations */
+  --layer-tooltip: 10000700;   /* a button's name, drawn out under it */
+}
+
 /* The code history (public/code-history) is the landing page's neighbour to
    the right, and the two slide past each other. From the landing page it opens
    in a frame over this one (lib/codeHistory), and the slide is this document's
@@ -1197,8 +1222,9 @@ body.dragging * {
 /* Where a docked panel stands (a trace's, the Layers', Locations'): on the
    right -- or, on a phone, a sheet across the screen above the tools at its
    foot (LobbyScene), rising from them, half the screen at most. After the
-   utilities, so a phone's place wins over each panel's own. */
-.docked-panel { right: var(--right-rail); }
+   utilities, so a phone's place wins over each panel's own. All of them on
+   the panel layer (the list at the top). */
+.docked-panel { right: var(--right-rail); z-index: var(--layer-panel); }
 @keyframes sheet-in {
   from { opacity: 0.4; transform: translateY(24px); }
   to   { opacity: 1; transform: translateY(0); }
@@ -1658,7 +1684,7 @@ body.dragging * {
   opacity: 0;
   pointer-events: none;
   white-space: nowrap;
-  z-index: 10000700;
+  z-index: var(--layer-tooltip);
   transform: translateY(-5px);
   transition: opacity 170ms ease, transform 170ms cubic-bezier(0.22, 1, 0.36, 1);
 }

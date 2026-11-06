@@ -338,7 +338,7 @@ function TraceLinksLayer({
             data-link={link.id}
             data-elbow-grip=""
             className="absolute trace-nier-handle trace-nier-handle-edge pointer-events-auto"
-            style={{ transform: 'translate(-50%, -50%)', zIndex: 999999, cursor: across ? 'ew-resize' : 'ns-resize' }}
+            style={{ transform: 'translate(-50%, -50%)', zIndex: 'calc(var(--layer-canvas-ui) - 1)', cursor: across ? 'ew-resize' : 'ns-resize' }}
             onPointerDown={e => {
               e.stopPropagation()
               e.preventDefault()
@@ -383,7 +383,7 @@ function TraceLinksLayer({
             ref={part(link.id, 'middle')}
             data-link={link.id}
             className="absolute pointer-events-none"
-            style={{ transform: gripShown ? 'translate(-50%, calc(-100% - 12px))' : 'translate(-50%, -50%)', zIndex: 999998 }}
+            style={{ transform: gripShown ? 'translate(-50%, calc(-100% - 12px))' : 'translate(-50%, -50%)', zIndex: 'calc(var(--layer-canvas-ui) - 2)' }}
           >
             <div
               className="tracking-wide whitespace-nowrap border font-mono"
@@ -492,7 +492,7 @@ export function LinkMenu({ at, links, borderOf, onEdit, onDelete, onClose }: {
       ref={ref}
       data-link-menu
       data-link={first.id}
-      className="fixed z-[10000100] w-[280px] max-h-[80vh] overflow-y-auto bg-nier-black border border-nier-border/60 shadow-2xl p-4 flex flex-col gap-4 pointer-events-auto font-mono"
+      className="fixed z-[var(--layer-menu)] w-[280px] max-h-[80vh] overflow-y-auto bg-nier-black border border-nier-border/60 shadow-2xl p-4 flex flex-col gap-4 pointer-events-auto font-mono"
       style={{ left: pos.x, top: pos.y }}
       onContextMenu={e => e.preventDefault()}
     >

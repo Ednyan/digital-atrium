@@ -303,7 +303,6 @@ export function ThemeCustomization({ lobby, viewRef, onPick, canSaveForAtrium, o
     <CustomizationPanel
       subtitle={t('atrium.hud.theme')}
       onClose={onClose}
-      zIndex={9999}
       actions={(canSaveForAtrium || status) && (
         <div className="w-full flex items-center gap-2 px-1">
           <span className="min-w-0 flex-1 truncate text-nier-bg/70 text-[10px] tracking-wider">{status}</span>

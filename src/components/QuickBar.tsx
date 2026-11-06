@@ -787,7 +787,6 @@ function BarEditor({ subtitle, hint, order, rowOf, onOrder, canReset, onClose, c
     <CustomizationPanel
       subtitle={subtitle}
       onClose={onClose}
-      zIndex={9999}
       actions={(
         <button
           type="button"
@@ -963,7 +962,7 @@ export function EmptyCanvasHint({ ink, localFiles, onTemplates, onHelp }: { ink:
   if (traces.length > 0) return null
   const link = 'pointer-events-auto underline underline-offset-4 opacity-80 hover:opacity-100 transition-opacity'
   return (
-    <div data-hud="true" data-empty-hint="" className="panel-in fixed inset-0 z-[9998] pointer-events-none flex items-center justify-center p-8">
+    <div data-hud="true" data-empty-hint="" className="panel-in fixed inset-0 z-[var(--layer-ink)] pointer-events-none flex items-center justify-center p-8">
       <div className="max-w-md text-center font-mono" style={{ color: ink }}>
         <p className="text-sm tracking-[0.2em] uppercase opacity-70">{t('atrium.empty.title')}</p>
         <p className="mt-3 text-xs leading-relaxed tracking-wide opacity-60">{t('atrium.empty.tools')}</p>

@@ -368,7 +368,7 @@ export default function LaserLayer({ active, settings, view, onPointerInside }: 
     <canvas
       ref={canvasRef}
       data-laser=""
-      className="fixed inset-0 z-[9998]"
+      className="fixed inset-0 z-[var(--layer-ink)]"
       style={{ width: '100vw', height: '100vh', pointerEvents: active ? 'auto' : 'none', cursor: active ? 'none' : undefined, touchAction: active ? 'none' : undefined }}
       onPointerEnter={() => { if (active) onPointerInside(true) }}
       onPointerLeave={() => {

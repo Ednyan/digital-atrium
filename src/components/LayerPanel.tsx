@@ -1262,7 +1262,7 @@ export default function LayerPanel({ lobbyId, onClose, selectedTraceId, multiSel
     <div
       ref={panelRef}
       data-ui-element="true"
-      className="layer-panel docked-panel panel-in-right fixed w-80 top-20 h-[calc(100vh-160px)] border-2 border-nier-bg shadow-2xl overflow-hidden flex flex-col z-[10000100] pointer-events-auto"
+      className="layer-panel docked-panel panel-in-right fixed w-80 top-20 h-[calc(100vh-160px)] border-2 border-nier-bg shadow-2xl overflow-hidden flex flex-col pointer-events-auto"
       style={{ backgroundColor: 'rgb(var(--c-ground) / 0.98)' }}
     >
       {/* Corner brackets */}
@@ -1312,7 +1312,7 @@ export default function LayerPanel({ lobbyId, onClose, selectedTraceId, multiSel
             width: dropSlot.line.width + 8,
             height: 4,
             // Above the dragged row, which sits right where the pointer is.
-            zIndex: 10000250,
+            zIndex: 'var(--layer-drag)',
             borderRadius: 2,
             background: 'rgb(var(--c-fg))',
             boxShadow: '0 0 10px rgb(var(--c-fg) / 0.8), 0 0 2px rgb(var(--c-fg))',
@@ -1506,7 +1506,7 @@ export default function LayerPanel({ lobbyId, onClose, selectedTraceId, multiSel
           <div
             ref={rowMenuRef}
             data-layer-row-menu
-            className="panel-in fixed bg-nier-black border border-nier-border/50 shadow-xl z-[10000400] py-1 max-h-[90vh] overflow-y-auto"
+            className="panel-in fixed bg-nier-black border border-nier-border/50 shadow-xl z-[var(--layer-menu)] py-1 max-h-[90vh] overflow-y-auto"
             // Position comes from the measured element (see
             // useClampedMenuPosition). The estimated heights that used to be
             // here -- 300 for a group, 260 for a trace -- were guesses, and
@@ -1649,7 +1649,7 @@ export default function LayerPanel({ lobbyId, onClose, selectedTraceId, multiSel
                   </button>
                   {moveToGroupOpen && moveToGroupRect && (
                     <div
-                      className="fixed w-max max-w-[220px] max-h-60 overflow-y-auto flex flex-col bg-nier-black border border-nier-border/60 shadow-2xl py-1 z-[10000101]"
+                      className="fixed w-max max-w-[220px] max-h-60 overflow-y-auto flex flex-col bg-nier-black border border-nier-border/60 shadow-2xl py-1 z-[var(--layer-menu)]"
                       style={
                         flyoutOnLeft
                           ? { top: moveToGroupRect.top, right: window.innerWidth - moveToGroupRect.left + 1 }

@@ -35,7 +35,7 @@ export default function EmbedLinkBox({ at, onEmbed, onCancel }: {
       ref={rootRef}
       data-ui-element="true"
       data-embed-box=""
-      className="panel-in fixed z-[10000100] w-[340px] flex items-start gap-2 p-2 border border-nier-border/50 font-mono pointer-events-auto shadow-[0_10px_28px_rgba(0,0,0,0.55)]"
+      className="panel-in fixed z-[var(--layer-menu)] w-[340px] flex items-start gap-2 p-2 border border-nier-border/50 font-mono pointer-events-auto shadow-[0_10px_28px_rgba(0,0,0,0.55)]"
       style={{ left, top, backgroundColor: 'rgb(var(--c-ground) / 0.97)' }}
     >
       <textarea

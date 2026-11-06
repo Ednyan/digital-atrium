@@ -384,7 +384,7 @@ export function LobbyManagement({ lobby, isOwner, onClose, onUpdate }: LobbyMana
       over={<>
         {/* Unsaved-changes confirmation */}
         {showCloseConfirm && (
-          <div className="fixed inset-0 z-[10001] bg-black/70 flex items-center justify-center">
+          <div className="fixed inset-0 z-[var(--layer-dialog)] bg-black/70 flex items-center justify-center">
             <div className="bg-nier-blackLight border border-nier-border/40 p-6 relative" style={{ maxWidth: '320px' }}>
               <div className="absolute top-0 left-0 w-4 h-4 border-l border-t border-nier-border/60 pointer-events-none" />
               <div className="absolute top-0 right-0 w-4 h-4 border-r border-t border-nier-border/60 pointer-events-none" />
@@ -430,7 +430,7 @@ export function LobbyManagement({ lobby, isOwner, onClose, onUpdate }: LobbyMana
 
         {/* Ownership transfer confirmation */}
         {transferTargetUserId && (
-          <div className="fixed inset-0 z-[10001] bg-black/70 flex items-center justify-center">
+          <div className="fixed inset-0 z-[var(--layer-dialog)] bg-black/70 flex items-center justify-center">
             <div className="bg-nier-blackLight border border-nier-border/40 p-6 relative" style={{ maxWidth: '340px' }}>
               <div className="absolute top-0 left-0 w-4 h-4 border-l border-t border-nier-border/60 pointer-events-none" />
               <div className="absolute top-0 right-0 w-4 h-4 border-r border-t border-nier-border/60 pointer-events-none" />

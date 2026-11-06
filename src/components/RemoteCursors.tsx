@@ -37,7 +37,7 @@ export default function RemoteCursors({ users, zoom, worldOffset, hideNames, atr
   worldOffset: { x: number; y: number }
   hideNames: boolean
   atriumBackground: string | undefined
-  zIndex: number
+  zIndex: number | string
 }) {
   const elements = useRef(new Map<string, HTMLDivElement>())
   // Read by the frame loop: the latest of each, without restarting it.

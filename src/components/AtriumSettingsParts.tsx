@@ -33,7 +33,7 @@ export function SettingsFrame({ tab, onTab, people, notice, onClose, footer, ove
   return (
     <div
       data-ui-element="true"
-      className="modal-backdrop fixed inset-0 bg-nier-black/80 flex items-center justify-center z-[10000100] p-4 font-mono"
+      className="modal-backdrop fixed inset-0 bg-nier-black/80 flex items-center justify-center z-[var(--layer-dialog)] p-4 font-mono"
       style={{ touchAction: 'auto', overscrollBehavior: 'contain' }}
       onTouchMove={(e) => e.stopPropagation()}
       onTouchStart={(e) => e.stopPropagation()}

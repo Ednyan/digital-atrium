@@ -47,7 +47,7 @@ export default function RotateHandles({ cx, cy, halfW, halfH, rotation, zIndex, 
   halfW: number
   halfH: number
   rotation: number
-  zIndex: number
+  zIndex: number | string
   onMouseDown: (e: React.MouseEvent) => void
   onTouchStart: (e: React.TouchEvent) => void
 }) {

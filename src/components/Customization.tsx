@@ -53,7 +53,7 @@ const readFolded = (): Set<string> => {
   try { return new Set(JSON.parse(localStorage.getItem(FOLDED_KEY) || '[]')) } catch { return new Set() }
 }
 
-export function CustomizationPanel({ title, subtitle, onClose, closeLabel, actions, zIndex, children }: {
+export function CustomizationPanel({ title, subtitle, onClose, closeLabel, actions, children }: {
   // Customization, unless it's another's panel in the same place (the template editor's).
   title?: string
   // What it's customizing: a kind ("Rectangle"), a count, a tool.
@@ -61,7 +61,6 @@ export function CustomizationPanel({ title, subtitle, onClose, closeLabel, actio
   onClose?: () => void
   closeLabel?: string
   actions?: ReactNode
-  zIndex: number
   children: ReactNode
 }) {
   const { t } = useTranslation()
@@ -70,7 +69,7 @@ export function CustomizationPanel({ title, subtitle, onClose, closeLabel, actio
       data-customization=""
       data-ui-element="true"
       className="customize-menu docked-panel panel-in-right fixed flex flex-col w-[22rem] top-[4.25rem] max-h-[calc(100vh-8.5rem)] border border-nier-border/40 font-mono pointer-events-auto shadow-[0_10px_28px_rgba(0,0,0,0.45)]"
-      style={{ zIndex, backgroundColor: 'rgb(var(--c-ground) / 0.97)' }}
+      style={{ backgroundColor: 'rgb(var(--c-ground) / 0.97)' }}
     >
       <header className="shrink-0 flex items-center justify-between gap-2 pl-4 pr-2 py-2 border-b border-nier-border/25">
         <h2 className="min-w-0 truncate text-nier-strong text-[11px] tracking-[0.2em] uppercase">

@@ -275,7 +275,7 @@ export default function TemplatesPanel({ context, onPlace, onClose, onNew, onEdi
       {ghost && (
         <div
           data-template-ghost=""
-          className="fixed z-[10000300] pointer-events-none flex items-center gap-2 px-2 py-1.5 border border-nier-bg text-nier-strong text-xs"
+          className="fixed z-[var(--layer-drag)] pointer-events-none flex items-center gap-2 px-2 py-1.5 border border-nier-bg text-nier-strong text-xs"
           style={{ left: ghost.x + 12, top: ghost.y + 12, backgroundColor: 'rgb(var(--c-ground) / 0.92)' }}
         >
           {thumbOf(ghost.template.id)}

@@ -377,35 +377,13 @@ const VALUE_THREADS = 'atrium.valueThreads'
 let slotCtrlSaid = false
 
 // A trace's z-index is its place in the drawing order (lib/order's
-// drawRanks: 1 at the bottom, up to the number of traces). Selection handles (the `z-[1000000]` Tailwind classes below),
-// other users' cursors, and the local player's own cursor all need to stay
-// above every trace regardless, so they use fixed values far above any
-// realistic trace z-index rather than a small constant the traces have to
-// stay under. Ordered handles < other users' cursors < own cursor, matching
-// this file's original (pre-uncapped-trace-zIndex) hardcoded values of 50,
-// 999, and 10003 respectively.
-const OTHER_USER_CURSOR_Z_INDEX = 2_000_000
-// Own-cursor z-index floor: playerZIndex*100 (a stored setting, 1000 by
-// default) is far below the handle/other-cursor z-index above, since it was
-// never designed with editing UI in mind. Flooring the value used for both
-// sort position and the cursor's rendered zIndex keeps the player's own
-// cursor on top. This also has to clear
-// the menu/panel z-index further down (Manage/Profile/Layer panels etc.) --
-// the own cursor indicator is expected to stay visible above open menus,
-// unlike traces/handles/other users' cursors.
+// drawRanks: 1 at the bottom, up to the number of traces). What's drawn over
+// them -- a selection's handles, threads' labels, others' cursors -- and what's
+// over the canvas -- menus, panels, dialogs -- are on the atrium screen's layers,
+// named in one list (index.css :root, --layer-*), never a number here.
+// The own cursor is in the top layer (lib/topLayer); this floor only orders it
+// among the traces it's sorted with (sortedItems), where the top layer is missing.
 const OWN_CURSOR_MIN_Z_INDEX = 20_000_000
-
-// Menus/panels/dialogs (context menu, Customize/Batch Edit panels, delete
-// confirmation, full-view/text-preview modal) must stay above canvas
-// content -- traces, handles, and cursors -- regardless of how those scale.
-// They previously used small values (50-300) left over from before trace
-// z-index was uncapped, which put the handle/cursor z-index bumps above (in
-// front of) these menus once a trace's own z-index or a handle exceeded
-// ~300. The Customize and Batch Edit panels lay nothing over the rest of the
-// screen: they follow the selection instead (see "The panels follow the
-// selection"), so the canvas, the quick bar and the HUD all go on working
-// while one is open.
-const MENU_PANEL_Z_INDEX = 10_000_100
 
 type TraceClipboardPayload = {
   version: 1
@@ -8443,7 +8421,7 @@ return (
             return (
               <div
                 key={mode}
-                data-keeps-size="" className="absolute trace-nier-handle trace-nier-handle-control cursor-move pointer-events-auto z-[1000000]"
+                data-keeps-size="" className="absolute trace-nier-handle trace-nier-handle-control cursor-move pointer-events-auto z-[var(--layer-canvas-ui)]"
                 style={at(h)}
                 onClick={(e) => e.stopPropagation()}
                 onMouseDown={(e) => {
@@ -8467,7 +8445,7 @@ return (
 
           return (
             <div data-trace-element="true" data-path-of={trace.id} className="contents">
-              <svg className="absolute pointer-events-none" style={{ left: 0, top: 0, width: '100%', height: '100%', overflow: 'visible', zIndex: 999999 }}>
+              <svg className="absolute pointer-events-none" style={{ left: 0, top: 0, width: '100%', height: '100%', overflow: 'visible', zIndex: 'calc(var(--layer-canvas-ui) - 1)' }}>
                 {from && showIn && (() => { const h = screenOf(handles!.cp1); return <line x1={from.x} y1={from.y} x2={h.x} y2={h.y} stroke="#9ca3af" strokeWidth="1" strokeDasharray="4 2" /> })()}
                 {from && showOut && (() => { const h = screenOf(handles!.cp2); return <line x1={from.x} y1={from.y} x2={h.x} y2={h.y} stroke="#9ca3af" strokeWidth="1" strokeDasharray="4 2" /> })()}
                 {/* Adding points: a dashed run from the end to the pointer. */}
@@ -8505,7 +8483,7 @@ return (
                     key={`mid-${i}`}
                     data-path-mid={i}
                     title={t('atrium.controls.pathMidHint')}
-                    data-keeps-size="" className="absolute trace-nier-handle trace-nier-handle-mid cursor-copy pointer-events-auto z-[1000000]"
+                    data-keeps-size="" className="absolute trace-nier-handle trace-nier-handle-mid cursor-copy pointer-events-auto z-[var(--layer-canvas-ui)]"
                     style={at(screenOf(pointBetween(points, curve, i)))}
                     onClick={(e) => e.stopPropagation()}
                     onMouseDown={(e) => {
@@ -8528,7 +8506,7 @@ return (
                     key={`handle-${index}`}
                     data-path-point={index}
                     title={t(isEnd ? 'atrium.controls.pathEndHint' : 'atrium.controls.pathPointHint')}
-                    data-keeps-size="" className={`absolute trace-nier-handle trace-nier-handle-point cursor-move pointer-events-auto z-[1000000] ${
+                    data-keeps-size="" className={`absolute trace-nier-handle trace-nier-handle-point cursor-move pointer-events-auto z-[var(--layer-canvas-ui)] ${
                       selectedPointIndex === index || addingEnd === index ? 'trace-nier-handle-active' : ''
                     }`}
                     style={at(screenOf(point))}
@@ -8559,7 +8537,7 @@ return (
                 <div
                   className="fixed pointer-events-none font-mono text-[10px] tracking-wider px-2 py-1 border whitespace-nowrap"
                   style={{
-                    left: pathPointer.x, top: pathPointer.y - 18, zIndex: 1000001,
+                    left: pathPointer.x, top: pathPointer.y - 18, zIndex: 'calc(var(--layer-canvas-ui) + 1)',
                     transform: pathPointer.x > window.innerWidth / 2 ? 'translate(calc(-100% - 14px), -100%)' : 'translate(14px, -100%)',
                     color: 'rgb(var(--c-fg))', background: 'rgb(var(--c-ground) / 0.9)', borderColor: 'rgb(var(--c-fg) / 0.3)',
                   }}
@@ -8648,7 +8626,7 @@ return (
                   <div
                     key={corner}
                     data-trace-element="true"
-                    data-keeps-size="" className="absolute trace-nier-handle trace-nier-handle-corner pointer-events-auto z-[1000000]"
+                    data-keeps-size="" className="absolute trace-nier-handle trace-nier-handle-corner pointer-events-auto z-[var(--layer-canvas-ui)]"
                     style={{
                       left: `${screenX + rotatedX}px`,
                       top: `${screenY + rotatedY}px`,
@@ -8682,7 +8660,7 @@ return (
                   <div
                     key={edge}
                     data-trace-element="true"
-                    data-keeps-size="" className="absolute trace-nier-handle trace-nier-handle-edge pointer-events-auto z-[1000000]"
+                    data-keeps-size="" className="absolute trace-nier-handle trace-nier-handle-edge pointer-events-auto z-[var(--layer-canvas-ui)]"
                     style={{
                       left: `${screenX + rotatedX}px`,
                       top: `${screenY + rotatedY}px`,
@@ -8704,7 +8682,7 @@ return (
                 halfW={borderWidth / 2}
                 halfH={borderHeight / 2}
                 rotation={transform.rotation}
-                zIndex={1000000}
+                zIndex="var(--layer-canvas-ui)"
                 onMouseDown={(e) => handleMouseDown(e, trace, 'rotate')}
                 onTouchStart={(e) => handleTouchDown(e, trace, 'rotate')}
               />
@@ -8739,7 +8717,7 @@ return (
           return (
             <div
               data-trace-element="true"
-              className="absolute pointer-events-auto z-[1000000]"
+              className="absolute pointer-events-auto z-[var(--layer-canvas-ui)]"
               style={{
                 left: `${screenX + back.x}px`,
                 top: `${screenY + back.y}px`,
@@ -8805,14 +8783,14 @@ return (
                   <div
                     key={`outline-${group}`}
                     data-group-outline={group}
-                    className="absolute pointer-events-none z-[999998]"
+                    className="absolute pointer-events-none z-[calc(var(--layer-canvas-ui)_-_2)]"
                     style={{ left: `${tl.screenX}px`, top: `${tl.screenY}px`, width: `${br.screenX - tl.screenX}px`, height: `${br.screenY - tl.screenY}px`, border: '1px solid rgba(134, 239, 172, 0.55)' }}
                   />
                 )
               })}
               <div
                 data-selection-box=""
-                className="absolute pointer-events-none z-[999998]"
+                className="absolute pointer-events-none z-[calc(var(--layer-canvas-ui)_-_2)]"
                 style={{
                   left: `${boxLeft}px`,
                   top: `${boxTop}px`,
@@ -8825,7 +8803,7 @@ return (
                 <div
                   key={`group-${corner}`}
                   data-trace-element="true"
-                  data-keeps-size="" className="absolute trace-nier-handle trace-nier-handle-corner pointer-events-auto z-[1000001]"
+                  data-keeps-size="" className="absolute trace-nier-handle trace-nier-handle-corner pointer-events-auto z-[calc(var(--layer-canvas-ui)_+_1)]"
                   style={{
                     left: `${corner.includes('r') ? boxLeft + boxWidth : boxLeft}px`,
                     top: `${corner.includes('b') ? boxTop + boxHeight : boxTop}px`,
@@ -8841,7 +8819,7 @@ return (
                 <div
                   key={`group-${side}`}
                   data-trace-element="true"
-                  data-keeps-size="" className="absolute trace-nier-handle trace-nier-handle-edge pointer-events-auto z-[1000001]"
+                  data-keeps-size="" className="absolute trace-nier-handle trace-nier-handle-edge pointer-events-auto z-[calc(var(--layer-canvas-ui)_+_1)]"
                   style={{
                     left: `${side === 'l' ? boxLeft : side === 'r' ? boxLeft + boxWidth : boxLeft + boxWidth / 2}px`,
                     top: `${side === 't' ? boxTop : side === 'b' ? boxTop + boxHeight : boxTop + boxHeight / 2}px`,
@@ -8858,7 +8836,7 @@ return (
                 halfW={boxWidth / 2}
                 halfH={boxHeight / 2}
                 rotation={0}
-                zIndex={1000001}
+                zIndex="calc(var(--layer-canvas-ui) + 1)"
                 onMouseDown={(e) => handleGroupMouseDown(e, 'group-rotate')}
                 onTouchStart={(e) => handleGroupTouchDown(e, 'group-rotate')}
               />
@@ -8870,7 +8848,7 @@ return (
             here from the store, where they are from the direct connections,
             moved every frame without drawing anything else again. */}
         {!hideOtherCursors && (
-          <RemoteCursors users={otherUsers} zoom={zoom} worldOffset={worldOffset} hideNames={hideOtherNameTags} atriumBackground={atriumBackground} zIndex={OTHER_USER_CURSOR_Z_INDEX} />
+          <RemoteCursors users={otherUsers} zoom={zoom} worldOffset={worldOffset} hideNames={hideOtherNameTags} atriumBackground={atriumBackground} zIndex="calc(var(--layer-canvas-ui) + 3)" />
         )}
       </div>
       </div>
@@ -8889,7 +8867,7 @@ return (
         {/* While connecting: what to do next, and how not to. */}
         {connectFrom && !connectTool && (
           <div
-            className="fixed left-1/2 bottom-10 -translate-x-1/2 z-[10000050] pointer-events-none font-mono border px-5 py-3 text-center"
+            className="fixed left-1/2 bottom-10 -translate-x-1/2 z-[var(--layer-hint)] pointer-events-none font-mono border px-5 py-3 text-center"
             style={{ background: 'rgb(var(--c-ground) / 0.94)', borderColor: 'rgb(var(--c-line) / 0.7)' }}
           >
             <div className="text-nier-strong text-xs tracking-[0.22em] uppercase">{t('atrium.links.pickTarget')}</div>
@@ -8918,7 +8896,7 @@ return (
           pointer-events-none throughout: a guide is a statement about the
           drag, never a thing to catch the cursor mid-drag. */}
       {alignGuides && (
-        <div className="fixed inset-0 pointer-events-none z-[60]">
+        <div className="fixed inset-0 pointer-events-none z-[var(--layer-guides)]">
           {alignGuides.x && (
             <div
               className="absolute"
@@ -8954,7 +8932,7 @@ return (
             position: 'fixed',
             left: rotationReadout.screenX + 18,
             top: rotationReadout.screenY - 34,
-            zIndex: 10000300,
+            zIndex: 'var(--layer-drag)',
             pointerEvents: 'none',
             background: 'rgba(0,0,0,0.9)',
             border: `1px solid ${rotationReadout.snapped ? '#86efac' : '#cbcbcb'}`,
@@ -8999,7 +8977,7 @@ return (
           {/* Menu */}
           <div
             {...menuGlide.host}
-            className="ctx-menu fixed z-[10000100] pointer-events-auto max-h-[80vh] overflow-y-auto"
+            className="ctx-menu fixed z-[var(--layer-menu)] pointer-events-auto max-h-[80vh] overflow-y-auto"
             style={{ left: `${contextMenuPos.x}px`, top: `${contextMenuPos.y}px` }}
           >
             {menuGlide.light}
@@ -9229,7 +9207,7 @@ return (
                   <div
                     {...flyoutGlide.host}
                   data-side={contextMenuFlyoutOnLeft ? 'left' : undefined}
-                  className="ctx-flyout fixed w-max flex flex-col z-[10000101]"
+                  className="ctx-flyout fixed w-max flex flex-col z-[calc(var(--layer-menu)_+_1)]"
                     style={
                       contextMenuFlyoutOnLeft
                         ? { top: flyoutRect.top, right: window.innerWidth - flyoutRect.left + 1 }
@@ -9350,7 +9328,7 @@ return (
                 <div
                   {...flyoutGlide.host}
                   data-side={contextMenuFlyoutOnLeft ? 'left' : undefined}
-                  className="ctx-flyout fixed w-max flex flex-col z-[10000101]"
+                  className="ctx-flyout fixed w-max flex flex-col z-[calc(var(--layer-menu)_+_1)]"
                   style={
                     contextMenuFlyoutOnLeft
                       ? { top: flyoutRect.top, right: window.innerWidth - flyoutRect.left + 1 }
@@ -9491,7 +9469,7 @@ return (
                       data-ui-element="true"
                       {...flyoutGlide.host}
                   data-side={contextMenuFlyoutOnLeft ? 'left' : undefined}
-                  className="ctx-flyout fixed w-max flex flex-col z-[10000101] max-h-[60vh] overflow-y-auto overflow-x-hidden overscroll-contain"
+                  className="ctx-flyout fixed w-max flex flex-col z-[calc(var(--layer-menu)_+_1)] max-h-[60vh] overflow-y-auto overflow-x-hidden overscroll-contain"
                       style={{
                         ...(contextMenuFlyoutOnLeft
                           ? { top: flyoutRect.top, right: window.innerWidth - flyoutRect.left + 1 }
@@ -9591,7 +9569,7 @@ return (
                     <div
                       {...flyoutGlide.host}
                   data-side={contextMenuFlyoutOnLeft ? 'left' : undefined}
-                  className="ctx-flyout fixed w-max flex flex-col z-[10000101]"
+                  className="ctx-flyout fixed w-max flex flex-col z-[calc(var(--layer-menu)_+_1)]"
                       style={
                         contextMenuFlyoutOnLeft
                           ? { top: flyoutRect.top, right: window.innerWidth - flyoutRect.left + 1 }
@@ -9655,7 +9633,7 @@ return (
                     <div
                       {...flyoutGlide.host}
                   data-side={contextMenuFlyoutOnLeft ? 'left' : undefined}
-                  className="ctx-flyout fixed w-max flex flex-col z-[10000101]"
+                  className="ctx-flyout fixed w-max flex flex-col z-[calc(var(--layer-menu)_+_1)]"
                       style={
                         contextMenuFlyoutOnLeft
                           ? { top: flyoutRect.top, right: window.innerWidth - flyoutRect.left + 1 }
@@ -9719,7 +9697,7 @@ return (
           {/* Backdrop to close menu - renders behind menu but catches outside clicks */}
           <div
             className="fixed inset-0 pointer-events-auto"
-            style={{ zIndex: 199 }}
+            style={{ zIndex: 'var(--layer-catch)' }}
             onClick={() => setContextMenu(null)}
           />
         </>
@@ -9888,7 +9866,6 @@ return (
             subtitle={traceKindLabel(editingTrace, t)}
             onClose={done}
             closeLabel={t('atrium.customize.done')}
-            zIndex={MENU_PANEL_Z_INDEX}
             actions={<PanelFooter actions={footerActions([editingTrace.id], () => setEditingTrace(null))} />}
           >
             {/* Its name in the Layer panel, at the top -- a text trace's is
@@ -10290,7 +10267,6 @@ return (
           traces={traces.filter(tr => multiSelectedIds.has(tr.id))}
           lobbyId={lobbyId}
           userId={userId}
-          zIndex={MENU_PANEL_Z_INDEX}
           fontOptions={FONT_FAMILY_OPTIONS}
           borderColourOf={borderColourOf}
           onChange={changes => inOneStep(() => {
@@ -10316,7 +10292,7 @@ return (
       {/* Full view modal (also the text-trace preview) */}
       {modalTrace && (
         <div
-          className="modal-backdrop fixed inset-0 bg-nier-black/80 flex items-center justify-center z-[10000100] pointer-events-auto"
+          className="modal-backdrop fixed inset-0 bg-nier-black/80 flex items-center justify-center z-[var(--layer-dialog)] pointer-events-auto"
           onClick={() => setModalTrace(null)}
         >
           {/* Its look (lib/traceLook), as on the canvas -- as it is now, not
@@ -10645,7 +10621,7 @@ return (
           red, since this creates something. */}
       {newGroupDialog && (
         <div
-          className="modal-backdrop fixed inset-0 bg-nier-black/80 flex items-center justify-center z-[10000100] pointer-events-auto"
+          className="modal-backdrop fixed inset-0 bg-nier-black/80 flex items-center justify-center z-[var(--layer-dialog)] pointer-events-auto"
           onClick={() => { if (!newGroupBusy) setNewGroupDialog(null) }}
         >
           <div className="absolute inset-0 pointer-events-none opacity-[0.02]"

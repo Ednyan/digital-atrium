@@ -5244,17 +5244,17 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
         <div
           ref={areaSelectRectRef}
           className="fixed border border-dashed border-nier-bg/70 bg-white/10 pointer-events-none"
-          style={{ display: 'none', zIndex: 1_500_000 }}
+          style={{ display: 'none', zIndex: 'calc(var(--layer-canvas-ui) + 2)' }}
         />
 
         {/* A lasso being drawn (the quick bar's Selection, Lasso). */}
-        <svg ref={lassoSvgRef} data-lasso="" className="fixed inset-0 w-full h-full pointer-events-none" style={{ display: 'none', zIndex: 1_500_000 }}>
+        <svg ref={lassoSvgRef} data-lasso="" className="fixed inset-0 w-full h-full pointer-events-none" style={{ display: 'none', zIndex: 'calc(var(--layer-canvas-ui) + 2)' }}>
           <path fill="rgb(255 255 255 / 0.08)" strokeWidth="1" strokeDasharray="5 4" style={{ stroke: 'rgb(var(--c-fg) / 0.7)' }} />
         </svg>
 
         {/* What an armed quick-bar tool is dragging out (drawPlacePreview).
             Over the traces, as the area select is. */}
-        <svg ref={placePreviewRef} data-place-preview="" className="fixed inset-0 w-full h-full pointer-events-none" style={{ display: 'none', zIndex: 1_500_000 }}>
+        <svg ref={placePreviewRef} data-place-preview="" className="fixed inset-0 w-full h-full pointer-events-none" style={{ display: 'none', zIndex: 'calc(var(--layer-canvas-ui) + 2)' }}>
           {/* Painted by drawPlacePreview, as what's dragged out will look. */}
           <line />
           <ellipse />
@@ -5278,7 +5278,7 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
         {importProgress && !importProgress.percent && (
           <div
             data-import-progress=""
-            className="absolute inset-0 z-[9999] pointer-events-auto flex items-center justify-center cursor-wait"
+            className="absolute inset-0 z-[var(--layer-hud)] pointer-events-auto flex items-center justify-center cursor-wait"
             style={{ backgroundColor: 'rgb(var(--c-ground) / 0.72)' }}
             onWheel={e => e.stopPropagation()}
             onContextMenu={e => e.preventDefault()}
@@ -5311,7 +5311,7 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
         )}
 
         {isDragOver && (
-          <div className="absolute inset-0 z-[9998] pointer-events-none flex items-center justify-center"
+          <div className="absolute inset-0 z-[var(--layer-ink)] pointer-events-none flex items-center justify-center"
                style={{ backgroundColor: 'rgba(203, 203, 203, 0.08)', border: '2px dashed rgba(143, 143, 143, 0.5)' }}>
             <div className="bg-nier-black/80 border border-nier-border px-6 py-3">
               <p className="text-nier-bg text-sm tracking-[0.15em] uppercase font-mono">
@@ -5336,7 +5336,7 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
         </>
       )}
       {reveal && <TemplateReveal {...reveal} onDone={() => { setReveal(null); madeTemplate() }} />}
-      <div ref={sessionBarRef} data-hud-end="" className={`hud-in-right fixed top-4 right-4 z-[10000] flex items-center gap-2 font-mono pointer-events-auto ${workshop && !uiHidden ? 'hidden' : ''}`} style={{ '--base': '180ms', '--i': 1 } as CSSProperties}>
+      <div ref={sessionBarRef} data-hud-end="" className={`hud-in-right fixed top-4 right-4 z-[var(--layer-hud-menu)] flex items-center gap-2 font-mono pointer-events-auto ${workshop && !uiHidden ? 'hidden' : ''}`} style={{ '--base': '180ms', '--i': 1 } as CSSProperties}>
         {!uiHidden && (
           <>
             {/* Who's here: how many, and pressed, the list -- with Kick, for
@@ -5362,7 +5362,7 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
               {showOnlineUsersList && (
                 <div
                   data-ui-element="true"
-                  className="panel-in absolute right-0 top-full mt-2 w-64 border-2 border-nier-border/50 z-[10000] font-mono"
+                  className="panel-in absolute right-0 top-full mt-2 w-64 border-2 border-nier-border/50 z-[var(--layer-hud-menu)] font-mono"
                   style={{ backgroundColor: 'rgb(var(--c-ground) / 0.97)' }}
                 >
                   <div className="p-2 space-y-1.5 max-h-64 overflow-y-auto">
@@ -5439,13 +5439,13 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
           them beside the atrium's name -- and in the bottom-right corner, the
           usage, which a phone does without. */}
       {!uiHidden && workshop && (
-      <div className="hud-in-top fixed top-4 left-1/2 -translate-x-1/2 z-[9999] pointer-events-none flex items-start" style={{ '--base': '180ms', '--i': 1 } as CSSProperties}>
+      <div className="hud-in-top fixed top-4 left-1/2 -translate-x-1/2 z-[var(--layer-hud)] pointer-events-none flex items-start" style={{ '--base': '180ms', '--i': 1 } as CSSProperties}>
         {/* The template editor's: what it needs of the bar, and nothing to customize. */}
         <ViewBar items={viewItems.filter(item => WORKSHOP_VIEW.includes(item.id))} />
       </div>
       )}
       {!uiHidden && !narrow && !workshop && (
-      <div className="hud-in-top fixed top-4 left-1/2 -translate-x-1/2 z-[9999] pointer-events-none flex items-start" style={{ '--base': '180ms', '--i': 1 } as CSSProperties}>
+      <div className="hud-in-top fixed top-4 left-1/2 -translate-x-1/2 z-[var(--layer-hud)] pointer-events-none flex items-start" style={{ '--base': '180ms', '--i': 1 } as CSSProperties}>
         <ViewBar items={viewItems} onCustomize={() => customizeBar(setShowViewBarEditor)} />
         {/* The palette slides out beside it, and the two stay in the middle
             together: this row is what's centred, and it widens. */}
@@ -5465,13 +5465,13 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
       )}
       {/* A phone, or a narrow window, has the view bar in its menu: these, under the top row. */}
       {!uiHidden && narrow && (showPalette || showOverlay) && (
-      <div className="fixed top-[4.5rem] left-1/2 -translate-x-1/2 z-[9999] pointer-events-none flex flex-col items-center gap-2">
+      <div className="fixed top-[4.5rem] left-1/2 -translate-x-1/2 z-[var(--layer-hud)] pointer-events-none flex flex-col items-center gap-2">
         {showPalette && <PalettePanel open />}
         {isDesktop && showOverlay && <OverlayPanel />}
       </div>
       )}
       {!uiHidden && !narrow && !workshop && (
-      <div className="hud-in-bottom fixed bottom-4 right-4 z-[9999] pointer-events-none" style={{ '--base': '180ms', '--i': 3 } as CSSProperties}>
+      <div className="hud-in-bottom fixed bottom-4 right-4 z-[var(--layer-hud)] pointer-events-none" style={{ '--base': '180ms', '--i': 3 } as CSSProperties}>
         {/* How much the atrium holds: the size alone, in the unit it has
             reached (lib/size); its limit, on the web, when pointed at -- and
             the thin line along its foot, how near that it is. As tall as a
@@ -5518,7 +5518,7 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
           bar in what's left, Controls at the bottom. Each was placed on the
           screen by itself, so the menu opened over the quick bar, and Controls
           opened under it; in one column, each opening makes room. */}
-      <div className={`hud-in-left fixed top-4 left-4 z-[9999] flex flex-col items-start gap-2 pointer-events-none ${narrow ? 'right-4' : 'bottom-4'}`} style={{ '--base': '180ms' } as CSSProperties}>
+      <div className={`hud-in-left fixed top-4 left-4 z-[var(--layer-hud)] flex flex-col items-start gap-2 pointer-events-none ${narrow ? 'right-4' : 'bottom-4'}`} style={{ '--base': '180ms' } as CSSProperties}>
       {/* HUD + presentation quick-toggle, in one row so the toggle always
           sits just to the right of the HUD regardless of its width. */}
       <div data-hud="true" data-hud-start="" className="shrink-0 flex items-start gap-2 pointer-events-none">
@@ -5575,7 +5575,7 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
                 role="listbox"
                 data-ui-element="true"
                 onWheel={event => event.stopPropagation()}
-                className="panel-in absolute left-full top-0 ml-2 z-[10000] min-w-[10rem] border border-nier-border/40 py-1 max-h-[60vh] overflow-y-auto"
+                className="panel-in absolute left-full top-0 ml-2 z-[var(--layer-hud-menu)] min-w-[10rem] border border-nier-border/40 py-1 max-h-[60vh] overflow-y-auto"
                 style={{ backgroundColor: 'rgb(var(--c-surface))' }}
               >
                 <LanguageList onChosen={() => setShowLanguages(false)} />
@@ -5719,7 +5719,7 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
       {/* A phone's foot, within a thumb's reach: the zoom, undo and redo, and
           under them the tools, across. */}
       {narrow && (
-        <div className="hud-in-bottom fixed left-4 right-4 bottom-4 z-[9999] flex flex-col gap-2 pointer-events-none" style={{ '--base': '180ms', '--i': 2 } as CSSProperties}>
+        <div className="hud-in-bottom fixed left-4 right-4 bottom-4 z-[var(--layer-hud)] flex flex-col gap-2 pointer-events-none" style={{ '--base': '180ms', '--i': 2 } as CSSProperties}>
           <div className="flex items-end justify-between gap-2">
             {readout}
             {canEdit && history}
@@ -5731,7 +5731,7 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
       {/* At the foot of the screen, in the middle: what's true of this visit
           (hidden, view only), how many are selected, and what the tool in
           hand does (QuickBar's ToolHint). */}
-      <div data-hud="true" className={`hud-in-bottom fixed ${narrow ? 'bottom-[7.75rem]' : 'bottom-4'} left-1/2 -translate-x-1/2 z-[9999] pointer-events-none flex flex-col items-center gap-1`} style={{ '--base': '180ms', '--i': 2 } as CSSProperties}>
+      <div data-hud="true" className={`hud-in-bottom fixed ${narrow ? 'bottom-[7.75rem]' : 'bottom-4'} left-1/2 -translate-x-1/2 z-[var(--layer-hud)] pointer-events-none flex flex-col items-center gap-1`} style={{ '--base': '180ms', '--i': 2 } as CSSProperties}>
             {previewDraft && (
               <button
                 type="button"
@@ -5842,7 +5842,6 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
           <CustomizationPanel
             subtitle={t(`atrium.trace.shape.${placeTool}`)}
             onClose={() => setPlaceTool(null)}
-            zIndex={9999}
           >
             <p data-for-new="" className="pt-3 text-nier-bg/55 text-[10px] tracking-[0.15em] uppercase">{t('atrium.customize.forNew')}</p>
             <Section id="fill" title={t('atrium.customize.sectionFill')}>
@@ -5901,7 +5900,6 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
             subtitle={editingDrawing ? t('atrium.draw.editingTitle') : t('atrium.draw.title')}
             onClose={leaveDrawing}
             closeLabel={`${t('atrium.draw.exit')} — Esc`}
-            zIndex={9999}
             actions={
               <PanelAction icon={ACTION_ICONS.delete} label={t('common.clear')} danger disabled={drawingMembers.size === 0} onClick={clearDrawing} />
             }
@@ -6080,7 +6078,7 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
           {/* Brush/eraser size-preview circle - follows the cursor, sized to drawingWidth */}
           <div
             ref={brushCursorRef}
-            className="fixed rounded-full pointer-events-none z-[9999]"
+            className="fixed rounded-full pointer-events-none z-[var(--layer-hud)]"
             style={{
               width: `${drawingWidth}px`,
               height: `${drawingWidth}px`,
@@ -6097,7 +6095,7 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
           {/* Drawing canvas overlay - below UI buttons, above traces */}
           <canvas
             ref={drawingCanvasRef}
-            className="fixed inset-0 z-[9998]"
+            className="fixed inset-0 z-[var(--layer-ink)]"
             style={{
               cursor: 'none',
               width: '100vw',
@@ -6183,7 +6181,7 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
       {/* Map Right-Click Context Menu */}
       {mapContextMenu && (
         <div
-          className="fixed inset-0 z-[10000100]"
+          className="fixed inset-0 z-[var(--layer-menu)]"
           onClick={() => setMapContextMenu(null)}
           onContextMenu={(e) => { e.preventDefault(); setMapContextMenu(null) }}
         >
@@ -6597,7 +6595,7 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
         const barBottom = sessionBarRef.current ? sessionBarRef.current.getBoundingClientRect().bottom : 56
         return (
         <div
-          className="fixed inset-0 z-[10000100] pointer-events-auto"
+          className="fixed inset-0 z-[var(--layer-dialog)] pointer-events-auto"
           onClick={() => setShowLeaveDialog(false)}
         >
           <div
@@ -6656,7 +6654,7 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
       {/* Kick User Confirmation */}
       {kickTarget && (
         <div
-          className="fixed inset-0 z-[10000100] bg-nier-black/70 flex items-center justify-center pointer-events-auto"
+          className="fixed inset-0 z-[var(--layer-dialog)] bg-nier-black/70 flex items-center justify-center pointer-events-auto"
           onClick={() => !isKicking && setKickTarget(null)}
         >
           <div
@@ -6706,7 +6704,7 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
       {/* Local File Drop Blocked (web only) */}
       {showLocalFileBlockedDialog && (
         <div
-          className="fixed inset-0 z-[10000100] bg-nier-black/70 flex items-center justify-center pointer-events-auto"
+          className="fixed inset-0 z-[var(--layer-dialog)] bg-nier-black/70 flex items-center justify-center pointer-events-auto"
           onClick={() => setShowLocalFileBlockedDialog(false)}
         >
           <div

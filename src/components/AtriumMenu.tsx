@@ -429,7 +429,7 @@ export function ControlsPanel() {
       data-ui-element="true"
       data-controls-panel=""
       onWheel={event => event.stopPropagation()}
-      className="panel-in fixed top-4 left-[4.375rem] z-[10000] w-[24rem] max-w-[calc(100vw-5.5rem)] max-h-[calc(100vh-2rem)] overflow-y-auto border border-nier-border/40 p-4 font-mono"
+      className="panel-in fixed top-4 left-[4.375rem] z-[var(--layer-hud-menu)] w-[24rem] max-w-[calc(100vw-5.5rem)] max-h-[calc(100vh-2rem)] overflow-y-auto border border-nier-border/40 p-4 font-mono"
       style={{ backgroundColor: 'rgb(var(--c-ground) / 0.97)' }}
     >
       <h3 className="text-nier-strong text-xs tracking-[0.2em] uppercase mb-3"><span className="text-nier-bg/60 mr-2">◇</span>{t('atrium.controls.title')}</h3>

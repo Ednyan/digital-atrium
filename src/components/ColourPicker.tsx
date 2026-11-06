@@ -143,7 +143,7 @@ export function ColourPopover({ anchor, value, onChange, onClose }: { anchor: HT
   const style: CSSProperties = {
     position: 'fixed', inset: 'auto', margin: 0, width: WIDTH, padding: 8,
     left: at?.left ?? -9999, top: at?.top ?? -9999,
-    backgroundColor: 'rgb(var(--c-ground) / 0.98)', color: 'inherit', zIndex: 10000200,
+    backgroundColor: 'rgb(var(--c-ground) / 0.98)', color: 'inherit', zIndex: 'var(--layer-menu)',
   }
   return (
     <div ref={box} data-colour-popover="" data-ui-element="true" className="border border-nier-border/50 shadow-2xl font-mono" style={style} onWheel={e => e.stopPropagation()} onClick={e => e.preventDefault()}>

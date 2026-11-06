@@ -124,7 +124,7 @@ export default function ExportDialog({ lobbyName, lobbyMeta, background, selecti
 
   return (
     <div
-      className="modal-backdrop fixed inset-0 bg-nier-black/80 flex items-center justify-center z-[10000100] pointer-events-auto"
+      className="modal-backdrop fixed inset-0 bg-nier-black/80 flex items-center justify-center z-[var(--layer-dialog)] pointer-events-auto"
       onClick={() => { if (!busy) onClose() }}
       role="dialog"
       aria-label={toFile ? t('atrium.hud.saveAtrium') : t('atrium.menu.exportImage')}

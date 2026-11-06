@@ -55,7 +55,7 @@ export function WorkshopActions({ traces, busy, problem, onCancel, onSave }: {
 }) {
   const { t } = useTranslation()
   return (
-    <div data-workshop-bar="" data-ui-element="true" className="hud-in-right fixed top-4 right-4 z-[10000] flex flex-col items-end gap-1.5 font-mono pointer-events-auto">
+    <div data-workshop-bar="" data-ui-element="true" className="hud-in-right fixed top-4 right-4 z-[var(--layer-hud-menu)] flex flex-col items-end gap-1.5 font-mono pointer-events-auto">
       <div className="flex items-center gap-2">
         <button type="button" data-workshop-cancel="" disabled={busy} onClick={onCancel} className="atrium-btn cut-corner h-[2.125rem] whitespace-nowrap" style={GROUND}>
           {t('common.cancel')}
@@ -104,7 +104,7 @@ export function WorkshopSlotTool({ armed, onPick }: { armed: boolean; onPick: ()
 
 /** The template's gold round the screen: this is the editor, not an atrium. */
 export function WorkshopFrame() {
-  return <div aria-hidden="true" data-workshop-frame="" className="fixed inset-0 z-[9989] pointer-events-none" style={{ boxShadow: `inset 0 0 0 2px rgb(${GOLD} / 0.5)` }} />
+  return <div aria-hidden="true" data-workshop-frame="" className="fixed inset-0 z-[var(--layer-ink)] pointer-events-none" style={{ boxShadow: `inset 0 0 0 2px rgb(${GOLD} / 0.5)` }} />
 }
 
 /** On an empty canvas: what a template is made of, in the middle of the view. */
@@ -113,7 +113,7 @@ export function WorkshopEmptyHint({ ink }: { ink: string }) {
   const { traces } = useGamePick('traces')
   if (traces.length > 0) return null
   return (
-    <div data-hud="true" data-empty-hint="" className="panel-in fixed inset-0 z-[9998] pointer-events-none flex items-center justify-center p-8">
+    <div data-hud="true" data-empty-hint="" className="panel-in fixed inset-0 z-[var(--layer-ink)] pointer-events-none flex items-center justify-center p-8">
       <div className="max-w-md text-center font-mono" style={{ color: ink }}>
         <p className="text-sm tracking-[0.2em] uppercase opacity-70">{t('templates.emptyTitle')}</p>
         <p className="mt-3 text-xs leading-relaxed tracking-wide opacity-60">{t('templates.emptyTools', { most: TEMPLATE_TRACES })}</p>

@@ -180,7 +180,7 @@ const Minimap = forwardRef<MinimapHandle, { onMove: (x: number, y: number) => vo
       data-hud="true"
       role="img"
       aria-label={t('atrium.minimap')}
-      className="minimap fixed bottom-16 right-4 z-[9999] border border-nier-border/40 overflow-hidden cursor-crosshair touch-none"
+      className="minimap fixed bottom-16 right-4 z-[var(--layer-hud)] border border-nier-border/40 overflow-hidden cursor-crosshair touch-none"
       // Not interactive: never takes the pointer, so a press goes to what's under it.
       style={{ width: WIDTH, height: HEIGHT, backgroundColor: 'rgb(var(--c-ground) / 0.82)', pointerEvents: minimapPrefs.interactive ? undefined : 'none' }}
       onPointerDown={event => { dragging.current = true; event.currentTarget.setPointerCapture(event.pointerId); goTo(event) }}

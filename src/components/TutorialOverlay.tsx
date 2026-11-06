@@ -190,7 +190,7 @@ export default function TutorialOverlay({ view, onToolDown, onStay, onExit }: {
   const spot: Box = box ?? { left: place.left + place.width / 2, top: place.top + cardHeight / 2, width: 0, height: 0 }
 
   return (
-    <div data-tutorial={step.id} data-hud="true" className="fixed inset-0 z-[10000300] pointer-events-none font-mono">
+    <div data-tutorial={step.id} data-hud="true" className="fixed inset-0 z-[var(--layer-tutorial)] pointer-events-none font-mono">
       <div
         aria-hidden="true"
         data-tutorial-spot=""

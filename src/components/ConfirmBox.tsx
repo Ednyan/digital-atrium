@@ -11,7 +11,7 @@ export default function ConfirmBox({ title, testId, onCancel, children }: {
 }) {
   return (
     <div
-      className="modal-backdrop fixed inset-0 bg-nier-black/80 flex items-center justify-center z-[10000100] pointer-events-auto"
+      className="modal-backdrop fixed inset-0 bg-nier-black/80 flex items-center justify-center z-[var(--layer-dialog)] pointer-events-auto"
       onClick={onCancel}
     >
       {/* Scanline overlay */}

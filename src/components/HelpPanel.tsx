@@ -98,7 +98,7 @@ export default function HelpPanel({ onClose, username, atriumName }: { onClose: 
       data-help-panel=""
       data-ui-element="true"
       data-hud="true"
-      className="fixed inset-0 bg-nier-black/70 flex items-center justify-center z-[10000100] pointer-events-auto font-mono"
+      className="fixed inset-0 bg-nier-black/70 flex items-center justify-center z-[var(--layer-dialog)] pointer-events-auto font-mono"
       onClick={onClose}
       onWheel={e => e.stopPropagation()}
     >

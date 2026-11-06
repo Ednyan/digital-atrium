@@ -47,7 +47,7 @@ export default function SharePanel({ atriumId, onSaveFile, onClose }: {
       ref={ref}
       data-ui-element="true"
       data-share-panel=""
-      className="panel-in absolute left-full top-0 ml-2 w-80 border-2 border-nier-border/50 z-[10000] font-mono p-4 space-y-4"
+      className="panel-in absolute left-full top-0 ml-2 w-80 border-2 border-nier-border/50 z-[var(--layer-hud-menu)] font-mono p-4 space-y-4"
       style={{ backgroundColor: 'rgb(var(--c-ground) / 0.97)' }}
     >
       <h3 className="text-nier-strong text-xs tracking-[0.2em] uppercase"><span className="text-nier-bg/60 mr-2">◇</span>{t('share.title')}</h3>
