@@ -8,6 +8,8 @@
 // the files in IndexedDB. Those move to the account the next time it's looked at.
 // The account's are copied here as they're read, to be had offline.
 // The list shown is kept in localStorage either way, so the panel has it at once.
+//
+// The panel's quick slots go with them: on the account signed in, on the device signed out.
 
 import { useEffect, useState } from 'react'
 import { parseAtriumFile, type AtriumFile } from './atriumFormat'
@@ -15,14 +17,16 @@ import { accountHere } from './platformAdmin'
 import { whoIsSignedIn } from './signedIn'
 
 // `account`: kept on that account -- its files' ids in the hosted store.
+// `bytes`: what it takes in the account's space, its file and picture (from 2026-11-06).
 export interface MyTemplate {
-  id: string; name: string; madeAt: number; traces: number; values: number
+  id: string; name: string; madeAt: number; traces: number; values: number; bytes?: number
   account?: { owner: string; file: string; picture: string | null }
 }
-// The account's list (its app data): where its folder is, and what's in it.
+// The account's list (its app data): where its folder is, what's in it, and the
+// quick slots (none yet: the device's become the account's).
 // ponytail: one small file of at most 16 KB (workers/rooms MOST_APPDATA_BYTES),
 // about 60 templates; a file in the folder once there are more.
-interface Index { folder: string | null; list: MyTemplate[] }
+interface Index { folder: string | null; list: MyTemplate[]; quick?: string[] }
 
 const LIST = 'atrium.myTemplates'
 const CHANGED = 'atrium:my-templates'
@@ -91,7 +95,11 @@ async function readIndex(): Promise<Index> {
   const bytes = await (await store()).readAppData(APP_DATA)
   if (!bytes) return { folder: null, list: [] }
   const kept = JSON.parse(new TextDecoder().decode(bytes))
-  return { folder: typeof kept?.folder === 'string' ? kept.folder : null, list: Array.isArray(kept?.list) ? kept.list : [] }
+  return {
+    folder: typeof kept?.folder === 'string' ? kept.folder : null,
+    list: Array.isArray(kept?.list) ? kept.list : [],
+    ...(Array.isArray(kept?.quick) ? { quick: asQuick(kept.quick) } : {}),
+  }
 }
 const writeIndex = async (index: Index) => (await store()).writeAppData(APP_DATA, new TextEncoder().encode(JSON.stringify(index)))
 const bytesOf = async (blob: Blob) => new Uint8Array(await blob.arrayBuffer())
@@ -119,6 +127,10 @@ function lookAtAccount(): Promise<void> {
   const done = (async () => {
     if ((await account()) !== owner) return
     const index = await readIndex()
+    // The quick slots: the account's, where it has them; else this device's become its.
+    const quickHere = !index.quick && keptQuick().length > 0
+    if (index.quick) writeQuick(index.quick)
+    else if (quickHere) index.quick = keptQuick()
     const theirs = index.list.map(t => ({ ...t, account: t.account && { ...t.account, owner } }))
     const here = keptList()
     const devices = here.filter(t => !t.account)
@@ -131,7 +143,10 @@ function lookAtAccount(): Promise<void> {
       const file = await onDevice(template.id, 'atrium')
       if (file) moved.push(await upload(index, owner, template, file, (await onDevice(template.id, 'picture')) ?? null))
     }
-    if (!moved.length) return
+    if (!moved.length) {
+      if (quickHere) await writeIndex(index)
+      return
+    }
     // One of the account's changed here out of its reach: this one, now.
     const movedIds = new Set(moved.map(t => t.id))
     index.list = [...moved, ...index.list.filter(t => !movedIds.has(t.id))]
@@ -155,7 +170,7 @@ const find = (id: string) => keptList().find(t => t.id === id)
  *  signed in, else on this device; listed first. */
 export async function keepTemplate(name: string, file: Blob, picture: Blob | null, counts: { traces: number; values: number }, replacing?: string | null): Promise<MyTemplate> {
   const old = replacing ? find(replacing) : undefined
-  const made: MyTemplate = { id: old?.id ?? crypto.randomUUID(), name, madeAt: Date.now(), ...counts }
+  const made: MyTemplate = { id: old?.id ?? crypto.randomUUID(), name, madeAt: Date.now(), ...counts, bytes: file.size + (picture?.size ?? 0) }
   const others = () => keptList().filter(t => t.id !== made.id)
   // Its files on this device: the template, or the copy of the account's (partOf).
   const onHere = () => inStore('readwrite', files => {
@@ -235,4 +250,51 @@ export async function forgetTemplate(id: string) {
   // Its files here: this device's, or the copy of the account's.
   await inStore('readwrite', files => { files.delete(`${id}.atrium`); files.delete(`${id}.picture`) }).catch(() => undefined)
   writeList(keptList().filter(t => t.id !== id))
+  if (keptQuick().includes(MINE + id)) await setQuickSlots(keptQuick().filter(slot => slot !== MINE + id))
+}
+
+// ---------------------------------------------------------------- quick slots
+
+// A few templates at the foot of the panel, to hand: the Digital Atrium's by their
+// ids, one's own as MINE + its id.
+export const MINE = 'mine:'
+export const MOST_QUICK = 8
+const QUICK = 'atrium.templates.quick'
+const QUICK_CHANGED = 'atrium:templates-quick'
+const asQuick = (ids: unknown[]) => ids.filter((id): id is string => typeof id === 'string').slice(0, MOST_QUICK)
+
+function keptQuick(): string[] {
+  try {
+    const kept = JSON.parse(localStorage.getItem(QUICK) ?? '[]')
+    return Array.isArray(kept) ? asQuick(kept) : []
+  } catch { return [] }
+}
+function writeQuick(ids: string[]) {
+  try { localStorage.setItem(QUICK, JSON.stringify(ids)) } catch { /* this visit's, then */ }
+  window.dispatchEvent(new Event(QUICK_CHANGED))
+}
+
+/** The quick slots, changed: here at once, and on the account signed in -- the
+ *  same then on every device it's signed in on. */
+export async function setQuickSlots(ids: string[]) {
+  const quick = asQuick(ids)
+  writeQuick(quick)
+  const owner = accountHere()
+  if (!owner || (await account()) !== owner) return
+  try {
+    await writeIndex({ ...(await readIndex()), quick })
+  } catch (error) {
+    console.warn('Quick slots: kept on this device, the account out of reach', error)
+  }
+}
+
+/** The quick slots, kept up to date: the account's once it's been looked at (useMyTemplates). */
+export function useQuickSlots(): string[] {
+  const [quick, setQuick] = useState(keptQuick)
+  useEffect(() => {
+    const changed = () => setQuick(keptQuick())
+    window.addEventListener(QUICK_CHANGED, changed)
+    return () => window.removeEventListener(QUICK_CHANGED, changed)
+  }, [])
+  return quick
 }

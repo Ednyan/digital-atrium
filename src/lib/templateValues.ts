@@ -9,13 +9,78 @@
 //
 // A text's words can show any value -- a colour as its hex code, a number as
 // digits -- and typing in them sets it back, when what's typed reads as one.
+//
+// A value can follow another of its kind by a rule (lighter than it, readable
+// on it, twice it...): it's then set by its rule alone, and changes as that one does.
 
 import type { Layer, Trace } from '../types/database'
 import { shownValue } from './traceStyle.ts'
+import { mixHex } from './colourSpace.ts'
+import { readableOn } from './shapeStyle.ts'
 
 export type ValueKind = 'colour' | 'font' | 'number' | 'text' | 'toggle'
 export type Held = string | number | boolean
-export interface TemplateValue { id: string; name: string; kind: ValueKind; value: Held }
+export interface TemplateValue { id: string; name: string; kind: ValueKind; value: Held; rule?: Rule | null }
+
+// ---- Rules -------------------------------------------------------------------
+
+export type RuleOp = 'lighter' | 'darker' | 'readable' | 'times' | 'plus' | 'capitals' | 'opposite'
+/** Following the value `from` (of the same kind), by `op`, with `amount` where it takes one. */
+export interface Rule { from: string; op: RuleOp; amount?: number }
+// Each rule: the kind of value it's for, and the amount it starts with where it takes one.
+export const RULES: Record<RuleOp, { kind: ValueKind; amount?: number }> = {
+  lighter: { kind: 'colour', amount: 30 }, darker: { kind: 'colour', amount: 30 }, readable: { kind: 'colour' },
+  times: { kind: 'number', amount: 2 }, plus: { kind: 'number', amount: 8 },
+  capitals: { kind: 'text' }, opposite: { kind: 'toggle' },
+}
+export const rulesFor = (kind: ValueKind) => (Object.keys(RULES) as RuleOp[]).filter(op => RULES[op].kind === kind)
+
+/** What a rule makes of what the value it follows holds. */
+export function applyRule(rule: Rule, held: Held): Held {
+  const amount = rule.amount ?? RULES[rule.op].amount ?? 0
+  switch (rule.op) {
+    case 'lighter': return mixHex(String(held), '#ffffff', amount / 100)
+    case 'darker': return mixHex(String(held), '#000000', amount / 100)
+    case 'readable': return readableOn(String(held))
+    case 'times': return Math.round(Number(held) * amount * 100) / 100
+    case 'plus': return Math.round((Number(held) + amount) * 100) / 100
+    case 'capitals': return String(held).toLocaleUpperCase()
+    case 'opposite': return !held
+  }
+}
+
+const byId = (values: TemplateValue[], id: string | undefined) => (id ? values.find(v => v.id === id) : undefined)
+// A value's rule, where what it follows is still there.
+const ruleOf = (values: TemplateValue[], value: TemplateValue) => (value.rule && byId(values, value.rule.from) ? value.rule : null)
+
+/** Whether `valueId` can follow `fromId`: another value of its kind, not following it, however far back. */
+export function canFollow(values: TemplateValue[], valueId: string, fromId: string): boolean {
+  const value = byId(values, valueId), from = byId(values, fromId)
+  if (!value || !from || valueId === fromId || value.kind !== from.kind) return false
+  for (let at: TemplateValue | undefined = from, n = 0; at?.rule && n <= values.length; n++, at = byId(values, at.rule.from)) {
+    if (at.rule.from === valueId) return false
+  }
+  return true
+}
+
+/** The values following those `changed` (id -> what each holds now) by their
+ *  rules, and those following them in turn: id -> what each then holds. */
+export function followers(values: TemplateValue[], changed: Map<string, Held>): Map<string, Held> {
+  const now = new Map(changed), out = new Map<string, Held>()
+  for (let round = 0, grew = true; grew && round < values.length; round++) {
+    grew = false
+    for (const value of values) {
+      const rule = ruleOf(values, value)
+      if (!rule || changed.has(value.id) || !now.has(rule.from)) continue
+      const held = applyRule(rule, now.get(rule.from)!)
+      if (out.has(value.id) && same(out.get(value.id)!, held)) continue
+      now.set(value.id, held)
+      out.set(value.id, held)
+      grew = true
+    }
+  }
+  return out
+}
 export interface TemplateValues { values: TemplateValue[] }
 
 // What each linkable setting holds. A text's words take any kind, shown as words.
@@ -129,8 +194,11 @@ const entries = (links: ValueLinks | null | undefined) => Object.entries(links ?
 export const usesOf = (members: Trace[], valueId: string) =>
   members.reduce((n, t) => n + entries(t.valueLinks).filter(([, id]) => id === valueId).length, 0)
 
-/** What a value holds now: its linked traces', or its own where none is linked. */
-export function valueNow(members: Trace[], value: TemplateValue): Held {
+/** What a value holds now: given the values, a ruled one what its rule makes;
+ *  else its linked traces', or its own where none is linked. */
+export function valueNow(members: Trace[], value: TemplateValue, values?: TemplateValue[], seen = new Set<string>()): Held {
+  const rule = values && !seen.has(value.id) ? ruleOf(values, value) : null
+  if (rule && values) return applyRule(rule, valueNow(members, byId(values, rule.from)!, values, seen.add(value.id)))
   for (const trace of members) {
     for (const [key, id] of entries(trace.valueLinks)) {
       if (id !== value.id) continue
@@ -159,25 +227,64 @@ export function holdEverywhere(members: Trace[], value: TemplateValue, held: Hel
   return out
 }
 
+// Changes to the same traces made one each.
+function merged(lists: Change[][]): Change[] {
+  const out = new Map<string, Partial<Trace>>()
+  for (const { id, changes } of lists.flat()) out.set(id, { ...out.get(id), ...changes })
+  return [...out].map(([id, changes]) => ({ id, changes }))
+}
+
 /** A trace's settings changed (`after`, with `keys` changed): what its linked
- *  values now hold, and the other settings linked to them, made to hold it. A
- *  text whose words don't read as its value's kind changes nothing (`unread`). */
+ *  values now hold, the other settings linked to them made to hold it, and those
+ *  linked to values following them by their rules. A text whose words don't read
+ *  as its value's kind changes nothing (`unread`); a setting linked to a ruled
+ *  value is set by its rule, and put back. */
 export function spread(members: Trace[], values: TemplateValue[], after: Trace, keys: string[]): { changes: Change[]; held: { value: TemplateValue; held: Held }[]; unread: LinkableKey[] } {
-  const changes = new Map<string, Partial<Trace>>()
+  const lists: Change[][] = []
   const held: { value: TemplateValue; held: Held }[] = []
   const unread: LinkableKey[] = []
   const now = members.map(t => t.id === after.id ? after : t)
   for (const key of keys) {
     if (!isLinkable(key)) continue
-    const valueId = after.valueLinks?.[key]
-    const value = valueId ? values.find(v => v.id === valueId) : undefined
+    const value = byId(values, after.valueLinks?.[key])
     if (!value || held.some(h => h.value.id === value.id)) continue
+    if (ruleOf(values, value)) { lists.push(holdEverywhere([after], value, valueNow(now, value, values))); continue }
     const v = heldBy(after, key, value.kind)
     if (v === null) { unread.push(key); continue }
     held.push({ value, held: v })
-    for (const { id, changes: c } of holdEverywhere(now, value, v, { id: after.id, key })) changes.set(id, { ...changes.get(id), ...c })
+    lists.push(holdEverywhere(now, value, v, { id: after.id, key }))
   }
-  return { changes: [...changes].map(([id, c]) => ({ id, changes: c })), held, unread }
+  for (const [id, h] of followers(values, new Map(held.map(x => [x.value.id, x.held])))) lists.push(holdEverywhere(now, byId(values, id)!, h))
+  return { changes: merged(lists), held, unread }
+}
+
+/** `value` set to `held` everywhere it's linked, and the values following it by
+ *  their rules. Linked to nothing, a value holds it itself: then `values` comes
+ *  back changed. */
+export function setValue(members: Trace[], values: TemplateValue[], value: TemplateValue, held: Held): { changes: Change[]; values?: TemplateValue[] } {
+  const all: [string, Held][] = [[value.id, held], ...followers(values, new Map([[value.id, held]]))]
+  const changes = merged(all.map(([id, h]) => holdEverywhere(members, byId(values, id)!, h)))
+  return { changes, values: usesOf(members, value.id) === 0 ? values.map(v => (v.id === value.id ? { ...v, value: held } : v)) : undefined }
+}
+
+/** `valueId` set to follow `rule`, or nothing: with a rule, what's linked to it
+ *  (and to values following it) holds what the rule makes; without, it keeps
+ *  what it holds. */
+export function setRule(members: Trace[], values: TemplateValue[], valueId: string, rule: Rule | null): { changes: Change[]; values: TemplateValue[] } {
+  const value = byId(values, valueId)
+  if (!value) return { changes: [], values }
+  const next = values.map(v => (v.id === valueId ? { ...v, rule } : v))
+  const held = valueNow(members, rule ? { ...value, rule } : value, rule ? next : values)
+  const kept = next.map(v => (v.id === valueId ? { ...v, value: held } : v))
+  return { changes: rule ? setValue(members, kept, byId(kept, valueId)!, held).changes : [], values: kept }
+}
+
+/** A value gone: what's linked to it made its traces' own, and the values that
+ *  followed it keep what they hold, following nothing. */
+export function removeValue(members: Trace[], values: TemplateValue[], valueId: string): { changes: Change[]; values: TemplateValue[] } {
+  const left = values.filter(v => v.id !== valueId)
+    .map(v => (v.rule?.from === valueId ? { ...v, rule: null, value: valueNow(members, v, values) } : v))
+  return { changes: forget(members, valueId), values: left }
 }
 
 /** `traces`' `key` linked to a new value made from the first one's setting, named
@@ -234,7 +341,7 @@ const THREAD_COLOURS = ['#e8c15a', '#6fb7ff', '#ff7a8a', '#7fd6a2', '#c79bff', '
  *  colour value's own, any other's one of its own. */
 export function valueThreads(members: Trace[], values: TemplateValue[]): { valueId: string; from: string; to: string; colour: string }[] {
   return values.flatMap((value, i) => {
-    const colour = value.kind === 'colour' ? String(valueNow(members, value)) : THREAD_COLOURS[i % THREAD_COLOURS.length]
+    const colour = value.kind === 'colour' ? String(valueNow(members, value, values)) : THREAD_COLOURS[i % THREAD_COLOURS.length]
     const linked = members.filter(t => entries(t.valueLinks).some(([, id]) => id === value.id)).sort((a, b) => a.x - b.x || a.y - b.y)
     return linked.slice(1).map((t, j) => ({ valueId: value.id, from: linked[j].id, to: t.id, colour }))
   })

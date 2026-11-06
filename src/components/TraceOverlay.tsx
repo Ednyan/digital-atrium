@@ -5601,6 +5601,17 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
       }
       return
     }
+    // A step done elsewhere (lib/actionHistory: a template or file placed):
+    // these taken back before it, and made again once it's redone.
+    if (last?.kind === 'action') {
+      const { entry } = last
+      const put = (side: 'before' | 'after') => { for (const op of ops) applyUpdateTarget(useGameStore.getState(), op.traceId, op[side]) }
+      stack[stack.length - 1] = {
+        kind: 'action',
+        entry: { label: entry.label, undo: () => { put('before'); return entry.undo() }, redo: async () => { await entry.redo(); put('after') } },
+      }
+      return
+    }
     if (last?.kind !== 'update' && last?.kind !== 'batch') {
       pushBatchUpdateOp(ops)
       return
@@ -5965,8 +5976,8 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
   const joinArrangedRef = useRef(joinArrangedFrames)
   joinArrangedRef.current = joinArrangedFrames
   // A template or a file placed (lib/atriumFile): what landed on a slot or an
-  // arranged frame joins it, as a trace dropped there does -- a step of its own,
-  // after the placing's.
+  // arranged frame joins it, as a trace dropped there does, and its own arranged
+  // frames lay out what they hold -- all in the placing's one undo step.
   useEffect(() => {
     const placed = (event: Event) => {
       const ids = new Set((event as CustomEvent<string[]>).detail)

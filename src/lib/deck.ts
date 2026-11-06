@@ -12,6 +12,7 @@
 // Not drawn: animations, transitions, notes, effects (shadows, glows, 3D),
 // a group's own rotation, and pictures no browser shows (EMF, WMF, TIFF).
 
+import { mixHex } from './colourSpace.ts'
 import { all, asSheetFile, children, colourOf, first, readChart, relsOf, themeOf, unzip, xml, type ChartData, type Theme, type Zip } from './spreadsheet.ts'
 
 export interface DeckRun { text: string; size: number; color: string; font: string; bold?: boolean; italic?: boolean; underline?: boolean; strike?: boolean }
@@ -480,11 +481,6 @@ async function readPicture(r: Reading, el: Element, part: Part, place: Place, in
   return [{ kind: 'picture', ...place(box), ...pic, ...(crop.some(Boolean) ? { crop } : {}) }]
 }
 
-function mix(hex: string, toward: string, t: number): string {
-  const a = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16)), b = [1, 3, 5].map(i => parseInt(toward.slice(i, i + 2), 16))
-  return `#${a.map((v, i) => Math.round(v + (b[i] - v) * t).toString(16).padStart(2, '0')).join('')}`
-}
-
 async function readFrame(r: Reading, el: Element, part: Part, look: Look, place: Place, inherit: Inherit | null): Promise<DeckItem[]> {
   const box = boxOf(xfrmOf(el))
   const data = first(el, 'graphicData')
@@ -518,7 +514,7 @@ async function readFrame(r: Reading, el: Element, part: Part, look: Look, place:
         const data = ri - (header ? 1 : 0)
         const own = fillIn(tcPr, look.theme)
         const fill = own !== undefined ? own || undefined
-          : isHeader ? accent : banded ? mix(accent, '#ffffff', data % 2 === 0 ? 0.6 : 0.8) : undefined
+          : isHeader ? accent : banded ? mixHex(accent, '#ffffff', data % 2 === 0 ? 0.6 : 0.8) : undefined
         const text = readText(child(tc, 'txBody'), {
           lists: [child(child(tc, 'txBody'), 'lstStyle'), undefined, undefined, undefined, r.defaults],
           bodies: [],

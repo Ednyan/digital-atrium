@@ -4946,8 +4946,8 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
 
   // What the templates are made with: the atrium's colours, this person's words.
   const templateContext = useMemo(() => (userId ? {
-    userId, username: username ?? '', colours: currentTracePreset(lobbyId), ink: textColourOn(viewTheme?.backgroundColor), t,
-  } : null), [userId, username, lobbyId, viewTheme?.backgroundColor, t])
+    userId, username: username ?? '', colours: currentTracePreset(lobbyId), ink: textColourOn(viewTheme?.backgroundColor), t, language,
+  } : null), [userId, username, lobbyId, viewTheme?.backgroundColor, t, language])
 
   // The tutorial (TutorialOverlay), if this atrium is one still running. Finished
   // and stayed in, it's an ordinary atrium, with what was made while learning gone.

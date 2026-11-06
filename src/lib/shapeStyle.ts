@@ -156,6 +156,8 @@ export function shapePaint(style: Pick<ShapeStyle, 'shapeColor' | 'shapeOpacity'
 // Plain text on the atrium's background: black on a light one, white on a
 // dark one -- decided as it's made, on the background there then.
 export const textColourOn = (background: string | undefined) => (previewFrameColour(background) === 0xffffff ? '#ffffff' : '#000000')
+// The text colour that reads on a colour: near-black on a light one, white on a dark one (a template rule).
+export const readableOn = (colour: string) => (previewFrameColour(colour) === 0xffffff ? '#ffffff' : '#1a1a1a')
 
 export function previewFrameColour(background: string | undefined): number {
   const value = colourToNumber(background ?? '#0a0a0f')

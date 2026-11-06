@@ -8,7 +8,7 @@
 // setting is a row: its name on the left, what sets it on the right. Its
 // foot is a row of actions.
 
-import { LinkButton } from './ValueLink'
+import { LinkButton, RuledField } from './ValueLink'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from '../lib/i18n'
 import { kindOf, type TraceKind } from '../lib/traceKinds'
@@ -169,7 +169,7 @@ export function Row({ label, hint, stacked, link, children }: { label: ReactNode
   return (
     <div className={stacked ? 'space-y-1.5' : 'flex items-center gap-3 min-h-8'} title={hint}>
       <span className={`${stacked ? 'block' : 'w-[5.75rem] shrink-0'} text-nier-bg/70 text-[11px] tracking-[0.06em] leading-tight`}>{label}</span>
-      {stacked ? children : <div className="flex-1 min-w-0">{children}</div>}
+      {stacked ? <RuledField field={link}>{children}</RuledField> : <div className="flex-1 min-w-0"><RuledField field={link}>{children}</RuledField></div>}
       {link && <LinkButton field={link} />}
     </div>
   )

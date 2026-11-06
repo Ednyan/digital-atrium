@@ -1,25 +1,17 @@
 // Templates: an inventory beside the canvas. Folders inside folders, ready-made
 // traces dragged out of them onto the canvas -- or clicked, to land in the middle
-// of the view -- and a few pinned at the foot, to hand. Pins are kept on this
-// device, as the quick bar's order is.
+// of the view -- and a few pinned at the foot, to hand: the quick slots, kept with
+// one's templates (lib/myTemplates) -- on the account signed in, on the device signed out.
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from '../lib/i18n'
+import { formatSize } from '../lib/size'
 import { isCanvasTarget } from '../lib/editableTarget'
-import { allTemplates, DIGITAL_ATRIUM_FOLDER, type TemplateContext, type TemplateFolder, type TemplateItem, type TemplateNode } from '../lib/templates'
+import { allTemplates, DIGITAL_ATRIUM_FOLDER, folderIds, type TemplateContext, type TemplateFolder, type TemplateItem, type TemplateNode } from '../lib/templates'
 import type { AtriumFile } from '../lib/atriumFormat'
-import { forgetTemplate, templateFile, templatePicture, useMyTemplates, type MyTemplate } from '../lib/myTemplates'
+import { forgetTemplate, MINE, MOST_QUICK, setQuickSlots, templateFile, templatePicture, useMyTemplates, useQuickSlots, type MyTemplate } from '../lib/myTemplates'
 
-const PINS_KEY = 'atrium.templates.quick'
-const MOST_PINNED = 8
 const DRAG_PX = 4
-
-const readPins = (): string[] => {
-  try {
-    const kept = JSON.parse(localStorage.getItem(PINS_KEY) ?? '[]')
-    return Array.isArray(kept) ? kept.filter(id => typeof id === 'string').slice(0, MOST_PINNED) : []
-  } catch { return [] }
-}
 
 // The template as a little plan of itself.
 function Thumb({ file, size = 44 }: { file: AtriumFile; size?: number }) {
@@ -49,9 +41,6 @@ function Thumb({ file, size = 44 }: { file: AtriumFile; size?: number }) {
   )
 }
 
-// One's own (lib/myTemplates), among the panel's: by its id with this before it.
-const MINE = 'mine:'
-
 export default function TemplatesPanel({ context, onPlace, onClose, onNew, onEdit }: {
   context: TemplateContext
   // A template to place: where the pointer let go, or (none) the middle of the view.
@@ -62,9 +51,10 @@ export default function TemplatesPanel({ context, onPlace, onClose, onNew, onEdi
   onNew?: () => void
   onEdit?: (template: MyTemplate) => void
 }) {
-  const { t } = useTranslation()
-  const [pins, setPins] = useState(readPins)
-  const [open, setOpen] = useState<Set<string>>(() => new Set(['mine', 'digital-atrium', 'boards', 'diagrams', 'pieces']))
+  const { t, language } = useTranslation()
+  const pins = useQuickSlots()
+  // Every folder open to begin with, one added later too.
+  const [open, setOpen] = useState<Set<string>>(() => new Set(['mine', ...folderIds(DIGITAL_ATRIUM_FOLDER)]))
   // One's own: their files and pictures read from the device as they're listed.
   const mine = useMyTemplates()
   const [mineFiles, setMineFiles] = useState(() => new Map<string, AtriumFile>())
@@ -80,10 +70,8 @@ export default function TemplatesPanel({ context, onPlace, onClose, onNew, onEdi
     return () => { live = false }
   }, [mine])
   useEffect(() => () => { for (const url of minePictures.values()) URL.revokeObjectURL(url) }, [])
-  const mineFolder: TemplateFolder = {
-    kind: 'folder', id: 'mine', name: 'templates.mine',
-    items: mine.filter(({ id }) => mineFiles.has(id)).map(({ id, name }) => ({ kind: 'template', id: MINE + id, name, build: () => mineFiles.get(id)! })),
-  }
+  const mineItems: TemplateItem[] = mine.filter(({ id }) => mineFiles.has(id)).map(({ id, name }) => ({ kind: 'template', id: MINE + id, name, build: () => mineFiles.get(id)! }))
+  const mineFolder: TemplateFolder = { kind: 'folder', id: 'mine', name: 'templates.mine', items: mineItems }
   const [ghost, setGhost] = useState<{ template: TemplateItem; x: number; y: number } | null>(null)
   const press = useRef<{ template: TemplateItem; x: number; y: number; dragging: boolean } | null>(null)
 
@@ -91,11 +79,7 @@ export default function TemplatesPanel({ context, onPlace, onClose, onNew, onEdi
   // Made once for the panel: a plan of each to show.
   const files = useMemo(() => new Map(allTemplates(DIGITAL_ATRIUM_FOLDER).map(template => [template.id, template.build(context)])), [context])
   const byId = useMemo(() => new Map(allTemplates(DIGITAL_ATRIUM_FOLDER).map(template => [template.id, template])), [])
-  const pinned = pins.flatMap(id => byId.get(id) ?? [])
-
-  useEffect(() => {
-    try { localStorage.setItem(PINS_KEY, JSON.stringify(pins)) } catch { /* for this visit, then */ }
-  }, [pins])
+  const pinned = pins.flatMap(id => byId.get(id) ?? mineItems.find(item => item.id === id) ?? [])
 
   // Esc drops what's being dragged, and otherwise closes the panel.
   useEffect(() => {
@@ -109,7 +93,7 @@ export default function TemplatesPanel({ context, onPlace, onClose, onNew, onEdi
     return () => window.removeEventListener('keydown', key, true)
   }, [onClose])
 
-  const togglePin = (id: string) => setPins(now => (now.includes(id) ? now.filter(pin => pin !== id) : now.length < MOST_PINNED ? [...now, id] : now))
+  const togglePin = (id: string) => void setQuickSlots(pins.includes(id) ? pins.filter(pin => pin !== id) : pins.length < MOST_QUICK ? [...pins, id] : pins)
 
   const dragHandlers = (template: TemplateItem) => ({
     onPointerDown: (e: React.PointerEvent) => {
@@ -149,6 +133,7 @@ export default function TemplatesPanel({ context, onPlace, onClose, onNew, onEdi
     if (node.kind === 'folder') return renderFolder(node, depth)
     const pin = pins.includes(node.id)
     const own = node.id.startsWith(MINE) ? node.id.slice(MINE.length) : null
+    const bytes = own ? mine.find(m => m.id === own)?.bytes : undefined
     return (
       <div key={node.id} className="group flex items-center gap-1" style={{ paddingLeft: depth * 12 }}>
         <button
@@ -159,7 +144,11 @@ export default function TemplatesPanel({ context, onPlace, onClose, onNew, onEdi
           className="flex-1 min-w-0 flex items-center gap-2 p-1.5 border border-transparent hover:border-nier-border/50 cursor-grab active:cursor-grabbing select-none touch-pan-y text-left transition-colors"
         >
           {thumbOf(node.id)}
-          <span className="min-w-0 truncate text-nier-strong text-xs">{own ? node.name : nameOf(node.name)}</span>
+          <span className="min-w-0">
+            <span className="block truncate text-nier-strong text-xs">{own ? node.name : nameOf(node.name)}</span>
+            {/* What one's own takes on the account -- and again in each atrium it's placed in. */}
+            {bytes !== undefined && <span data-template-size={own} title={t('templates.sizeHint')} className="block text-[10px] text-nier-bg/55">{formatSize(bytes, language)}</span>}
+          </span>
         </button>
         {/* One's own: changed in the editor, or let go of, asked once. */}
         {own && onEdit && (
@@ -174,7 +163,7 @@ export default function TemplatesPanel({ context, onPlace, onClose, onNew, onEdi
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" aria-hidden="true"><path d="M4 20 H8 L19 9 L15 5 L4 16 Z M13 7 L17 11" /></svg>
           </button>
         )}
-        {own ? (
+        {own && (
           <button
             type="button"
             data-template-delete={own}
@@ -186,20 +175,19 @@ export default function TemplatesPanel({ context, onPlace, onClose, onNew, onEdi
           >
             {deleting === own ? t('common.delete') : '×'}
           </button>
-        ) : (
+        )}
         <button
           type="button"
           data-template-pin={node.id}
           aria-pressed={pin}
           aria-label={t(pin ? 'templates.unpin' : 'templates.pin')}
           title={t(pin ? 'templates.unpin' : 'templates.pin')}
-          disabled={!pin && pins.length >= MOST_PINNED}
+          disabled={!pin && pins.length >= MOST_QUICK}
           onClick={() => togglePin(node.id)}
           className={`shrink-0 w-7 h-7 flex items-center justify-center transition-opacity disabled:hidden ${pin ? 'text-nier-strong opacity-100' : 'text-nier-bg/70 opacity-0 group-hover:opacity-100 focus:opacity-100 [@media(hover:none)]:opacity-100'}`}
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill={pin ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" aria-hidden="true"><path d="M9 3.5 H15 L14 9 L17 12 H7 L10 9 Z M12 12 V20.5" /></svg>
         </button>
-        )}
       </div>
     )
   }
@@ -253,7 +241,7 @@ export default function TemplatesPanel({ context, onPlace, onClose, onNew, onEdi
       <div data-template-quick="" className="shrink-0 border-t border-nier-border/30 p-3">
         <p className="mb-2 text-nier-bg/70 text-[10px] tracking-[0.15em] uppercase">{t('templates.quick')}</p>
         {pinned.length === 0 ? (
-          <p className="text-nier-bg/55 text-[11px] leading-relaxed">{t('templates.quickHint', { most: MOST_PINNED })}</p>
+          <p className="text-nier-bg/55 text-[11px] leading-relaxed">{t('templates.quickHint', { most: MOST_QUICK })}</p>
         ) : (
           <div className="grid grid-cols-4 gap-1">
             {pinned.map(template => (

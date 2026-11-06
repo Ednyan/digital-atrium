@@ -25,3 +25,10 @@ export function hsvToHex({ h, s, v }: Hsv): string {
   }
   return '#' + [f(5), f(3), f(1)].map(c => Math.round(c * 255).toString(16).padStart(2, '0')).join('')
 }
+
+/** `hex` moved toward `toward` by `t` (0 to 1): a tint toward white, a shade toward black. */
+export function mixHex(hex: string, toward: string, t: number): string {
+  const rgb = (c: string) => [1, 3, 5].map(i => parseInt(c.slice(i, i + 2), 16) || 0)
+  const a = rgb(hex), b = rgb(toward), k = Math.max(0, Math.min(1, t))
+  return `#${a.map((v, i) => Math.round(v + (b[i] - v) * k).toString(16).padStart(2, '0')).join('')}`
+}

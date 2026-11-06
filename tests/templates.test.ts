@@ -46,3 +46,33 @@ test('a template takes the atrium\'s colours and its words', () => {
   assert.equal(note.traces[0].border_color, '#111111')
   assert.equal(note.traces[0].content, 'templates.text.note')
 })
+
+// Values, links and rules hold together in each: every link points at one of
+// its group's values, and every linked setting holds what its value (or rule) makes.
+import { heldBy, valueNow } from '../src/lib/templateValues.ts'
+// A file's row as a trace's fields (what the import's mapping does for these).
+const asTrace = (row: Record<string, unknown>) => Object.fromEntries(Object.entries(row).map(([key, v]) => [key.replace(/_([a-z])/g, (_, c) => c.toUpperCase()), v])) as any
+
+for (const template of allTemplates(DIGITAL_ATRIUM_FOLDER)) {
+  test(`${template.id}: its values hold together`, () => {
+    const file = template.build(context) as any
+    const values = file.layers[0]?.template?.values ?? []
+    const traces = file.traces.map(asTrace)
+    // A group when it has values or slots; then every trace is in it.
+    if (file.layers.length) assert.ok(file.traces.every((row: any) => row._local_layer_id === file.layers[0]._local_id))
+    for (const trace of traces) {
+      for (const [key, id] of Object.entries(trace.valueLinks ?? {})) {
+        const value = values.find((v: any) => v.id === id)
+        assert.ok(value, `${trace.type}.${key} is linked to a value it doesn't have`)
+        assert.equal(String(heldBy(trace, key as any, value.kind)).toLowerCase(), String(valueNow(traces, value, values)).toLowerCase(), `${trace.type}.${key} doesn't hold ${value.name}`)
+      }
+    }
+    for (const value of values) if (value.rule) assert.ok(values.some((v: any) => v.id === value.rule.from), `${value.name} follows a value not there`)
+  })
+}
+
+test('the weekly planner names the days in the language, Monday first', () => {
+  const planner = allTemplates(DIGITAL_ATRIUM_FOLDER).find(template => template.id === 'weekly-planner')!
+  assert.deepEqual((planner.build({ ...context, language: 'fr' }) as any).traces.map((row: any) => row.content).slice(0, 2), ['Lundi', 'Mardi'])
+  assert.equal((planner.build(context) as any).traces[6].content, 'Sunday')
+})

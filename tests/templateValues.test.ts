@@ -124,3 +124,85 @@ test('shown as threads: each value joins its traces left to right, in its colour
   assert.equal(threads[0].colour, '#112233')
   assert.notEqual(threads[1].colour, threads[0].colour)
 })
+
+// ---- Rules: a value following another.
+import { applyRule, canFollow, followers, removeValue, setRule, setValue } from '../src/lib/templateValues.ts'
+
+const base: TemplateValue = { id: 'b', name: 'Base', kind: 'colour', value: '#336699' }
+const light: TemplateValue = { id: 'l', name: 'Light', kind: 'colour', value: '#000000', rule: { from: 'b', op: 'lighter', amount: 50 } }
+const label: TemplateValue = { id: 'r', name: 'Label', kind: 'colour', value: '#000000', rule: { from: 'l', op: 'readable' } }
+
+test('each rule, from what it follows', () => {
+  assert.equal(applyRule({ from: 'b', op: 'lighter', amount: 50 }, '#336699'), '#99b3cc')
+  assert.equal(applyRule({ from: 'b', op: 'darker', amount: 50 }, '#336699'), '#1a334d')
+  assert.equal(applyRule({ from: 'b', op: 'readable' }, '#f2e2b3'), '#1a1a1a')
+  assert.equal(applyRule({ from: 'b', op: 'readable' }, '#2a2a26'), '#ffffff')
+  // Mid blues and reds take white, as people read them.
+  assert.equal(applyRule({ from: 'b', op: 'readable' }, '#3b82f6'), '#ffffff')
+  assert.equal(applyRule({ from: 'b', op: 'readable' }, '#ff0000'), '#ffffff')
+  assert.equal(applyRule({ from: 'b', op: 'readable' }, '#ffff00'), '#1a1a1a')
+  assert.equal(applyRule({ from: 'b', op: 'times', amount: 1.5 }, 16), 24)
+  assert.equal(applyRule({ from: 'b', op: 'plus' }, 16), 24)
+  assert.equal(applyRule({ from: 'b', op: 'capitals' }, 'Chapter one'), 'CHAPTER ONE')
+  assert.equal(applyRule({ from: 'b', op: 'opposite' }, true), false)
+})
+
+test('a ruled value holds what its rule makes, however far back it follows', () => {
+  const swatch = trace('S', { shapeColor: '#336699', valueLinks: { shapeColor: 'b' } })
+  assert.equal(valueNow([swatch], light, [base, light, label]), '#99b3cc')
+  assert.equal(valueNow([swatch], label, [base, light, label]), '#1a1a1a')
+  // What it followed gone: its own again.
+  assert.equal(valueNow([swatch], light, [light]), '#000000')
+})
+
+test('a value changed: those following it, and following them, follow', () => {
+  const out = followers([base, light, label], new Map([['b', '#000000']]))
+  assert.deepEqual([...out], [['l', '#808080'], ['r', '#1a1a1a']])
+})
+
+test("a linked setting changed: settings linked to its followers change in the same step, and a ruled one's can't be set by hand", () => {
+  const swatch = trace('S', { shapeColor: '#336699', valueLinks: { shapeColor: 'b' } })
+  const tint = trace('T', { shapeColor: '#99b3cc', valueLinks: { shapeColor: 'l' } })
+  const words = trace('W', { type: 'text', textColor: '#1a1a1a', valueLinks: { textColor: 'r' } })
+  const values = [base, light, label]
+  const out = spread([swatch, tint, words], values, { ...swatch, shapeColor: '#000000' }, ['shapeColor'])
+  assert.deepEqual(out.changes, [{ id: 'T', changes: { shapeColor: '#808080' } }])
+  const onBase = [base, light, { ...label, rule: { from: 'b', op: 'readable' as const } }]
+  const dark = spread([swatch, tint, words], onBase, { ...swatch, shapeColor: '#202020' }, ['shapeColor'])
+  assert.deepEqual(dark.changes.find(c => c.id === 'W'), { id: 'W', changes: { textColor: '#ffffff' } })
+  // The tint set by hand: put back to what its rule makes.
+  const byHand = spread([swatch, tint, words], values, { ...tint, shapeColor: '#ff0000' }, ['shapeColor'])
+  assert.deepEqual(byHand.changes, [{ id: 'T', changes: { shapeColor: '#99b3cc' } }])
+})
+
+test('set from the panel: what follows it too; linked to nothing, it keeps it itself', () => {
+  const tint = trace('T', { shapeColor: '#99b3cc', valueLinks: { shapeColor: 'l' } })
+  const out = setValue([tint], [base, light], base, '#000000')
+  assert.deepEqual(out.changes, [{ id: 'T', changes: { shapeColor: '#808080' } }])
+  assert.equal(out.values?.find(v => v.id === 'b')?.value, '#000000')
+})
+
+test('a rule given, its settings follow at once; taken away, they keep what they hold', () => {
+  const tint = trace('T', { shapeColor: '#ff0000', valueLinks: { shapeColor: 'l' } })
+  const free = { ...light, rule: null }
+  const given = setRule([tint], [base, free], 'l', { from: 'b', op: 'darker', amount: 50 })
+  assert.deepEqual(given.changes, [{ id: 'T', changes: { shapeColor: '#1a334d' } }])
+  assert.equal(given.values[1].rule?.op, 'darker')
+  const taken = setRule([{ ...tint, shapeColor: '#1a334d' }], given.values, 'l', null)
+  assert.deepEqual(taken.changes, [])
+  assert.equal(taken.values[1].rule, null)
+  assert.equal(taken.values[1].value, '#1a334d')
+})
+
+test('never in a circle, and only of its own kind', () => {
+  const values = [base, light, label, accent, font]
+  assert.equal(canFollow(values, 'b', 'r'), false)
+  assert.equal(canFollow(values, 'b', 'b'), false)
+  assert.equal(canFollow(values, 'b', 'f'), false)
+  assert.equal(canFollow(values, 'r', 'a'), true)
+})
+
+test('a followed value deleted: its followers keep what they hold, following nothing', () => {
+  const out = removeValue([], [base, light, label], 'b')
+  assert.deepEqual(out.values.map(v => [v.id, v.rule?.op ?? null, v.value]), [['l', null, '#99b3cc'], ['r', 'readable', '#000000']])
+})

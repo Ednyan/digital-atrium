@@ -16,7 +16,7 @@ import { useTranslation } from '../lib/i18n'
 import { pickColour } from '../lib/eyedropper'
 import { BOX_SHAPES, type ArrowKind, type ShapeKind, type ShapeStyle } from '../lib/shapeStyle'
 import { Choices, Row, ToggleTrack } from './Customization'
-import { LinkButton } from './ValueLink'
+import { LinkButton, RuledField } from './ValueLink'
 import { MenuIcon } from './AtriumMenu'
 import { dashProps, STROKE_STYLES, type StrokeStyle } from '../lib/strokeStyle'
 import { ColourPicker } from './ColourPicker'
@@ -78,7 +78,7 @@ export function Check({ checked, onChange, label, hint, mixed = false, row = fal
       <ToggleTrack on={on} mixed={mixed} />
     </button>
   )
-  return field ? <div className="flex items-center gap-2">{check}<LinkButton field={field} /></div> : check
+  return field ? <div className="flex items-center gap-2"><RuledField field={field}>{check}</RuledField><LinkButton field={field} /></div> : check
 }
 
 const EYEDROPPER = 'M11 7l6 6M4 16l11.7 -11.7a1 1 0 0 1 1.4 0l2.6 2.6a1 1 0 0 1 0 1.4l-11.7 11.7h-4v-4z'

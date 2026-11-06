@@ -4,12 +4,12 @@
 // trace linked to it. Given by TraceOverlay for the traces the panel edits, to
 // developers only until the plans exist (docs/IDEAS.md, "Making your own").
 
-import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { tCount, useTranslation } from '../lib/i18n'
 import type { TranslationKey } from '../locales/en'
 import {
-  fits, forget, format, freshName, holdEverywhere, isLinkable, kindFor, linkAsNew, linkTo, parse, unlink, usesOf, valueNow,
-  type Change, type Held, type TemplateValue, type ValueKind,
+  canFollow, fits, format, freshName, isLinkable, kindFor, linkAsNew, linkTo, parse, removeValue, RULES, rulesFor, setRule, setValue,
+  unlink, usesOf, valueNow, type Change, type Held, type Rule, type RuleOp, type TemplateValue, type ValueKind,
 } from '../lib/templateValues'
 import type { Layer, Trace } from '../types/database'
 import { Section, Switch } from './Customization'
@@ -40,6 +40,28 @@ const CHAIN = (
     <path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1" /><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1" />
   </svg>
 )
+const RULE_NAME: Record<RuleOp, TranslationKey> = {
+  lighter: 'templates.rule.lighter', darker: 'templates.rule.darker', readable: 'templates.rule.readable',
+  times: 'templates.rule.times', plus: 'templates.rule.plus', capitals: 'templates.rule.capitals', opposite: 'templates.rule.opposite',
+}
+// What a rule's amount is shown with.
+const RULE_UNIT: Partial<Record<RuleOp, string>> = { lighter: '%', darker: '%', times: '×', plus: '+' }
+
+// A value with a rule whose value it follows is still there.
+const ruled = (values: TemplateValue[], value: TemplateValue | undefined) => !!value?.rule && values.some(v => v.id === value.rule!.from)
+
+/** A setting (`field`) of the panel's traces, as it's set: where it's linked to a
+ *  value that follows a rule, its rule sets it, and it's shown so, not to be set by hand. */
+export function RuledField({ field, children }: { field?: keyof Trace; children: ReactNode }) {
+  const linking = useContext(ValueLinkContext)
+  const { t } = useTranslation()
+  if (!linking || !field || !isLinkable(field)) return <>{children}</>
+  const ids = linking.traces.map(trace => trace.valueLinks?.[field])
+  const value = ids[0] && ids.every(id => id === ids[0]) ? linking.values.find(v => v.id === ids[0]) : undefined
+  if (!value || !ruled(linking.values, value)) return <>{children}</>
+  return <fieldset disabled data-ruled={field} title={t('templates.ruled', { name: value.name })} className="min-w-0 m-0 p-0 border-0 opacity-50">{children}</fieldset>
+}
+
 const ITEM = 'w-full flex items-center gap-2 px-2.5 py-1.5 text-left text-[11px] text-nier-bg/80 hover:bg-nier-bg/10 hover:text-nier-strong focus-visible:bg-nier-bg/10 focus:outline-none'
 
 function Swatch({ value, held }: { value: TemplateValue; held: Held }) {
@@ -117,7 +139,7 @@ export function LinkButton({ field }: { field: keyof Trace }) {
       >
         <span className="block px-2.5 pt-2 pb-1 text-[9px] tracking-[0.2em] uppercase text-nier-bg/50">{t('templates.link')}</span>
         {choices.map(value => {
-          const held = valueNow(linking.members, value)
+          const held = valueNow(linking.members, value, linking.values)
           return (
             <button key={value.id} type="button" role="menuitem" data-value-choice={value.id} onClick={() => done(linkTo(linking.traces, field, value, held))} className={`${ITEM} ${linked?.id === value.id ? 'text-nier-strong' : ''}`}>
               <Swatch value={value} held={held} />
@@ -195,14 +217,14 @@ function ThreadsSwitch({ linking }: { linking: ValueLinking }) {
 
 function ValueRow({ linking, value }: { linking: ValueLinking; value: TemplateValue }) {
   const { t } = useTranslation()
-  const held = valueNow(linking.members, value)
+  const held = valueNow(linking.members, value, linking.values)
   const uses = usesOf(linking.members, value.id)
   const [name, setName] = useState(value.name)
   useEffect(() => setName(value.name), [value.name])
   const others = linking.values.filter(v => v.id !== value.id)
   const set = (next: Held) => {
-    // Linked to nothing, it holds it itself.
-    linking.change(holdEverywhere(linking.members, value, next), uses === 0 ? linking.values.map(v => (v.id === value.id ? { ...v, value: next } : v)) : undefined)
+    const out = setValue(linking.members, linking.values, value, next)
+    linking.change(out.changes, out.values)
   }
   const rename = () => {
     const wanted = name.trim()
@@ -223,31 +245,93 @@ function ValueRow({ linking, value }: { linking: ValueLinking; value: TemplateVa
         />
         <span className="block text-[9px] text-nier-bg/50">{t(KIND_NAME[value.kind])} · {tCount('templates.uses', uses)}</span>
       </div>
-      <ValueEditor value={value} held={held} fonts={linking.fonts} onSet={set} className={field} />
+      <ValueEditor value={value} held={held} fonts={linking.fonts} onSet={set} className={field} ruled={ruled(linking.values, value)} />
       <button
         type="button"
         data-value-delete={value.id}
         aria-label={t('templates.deleteValue', { name: value.name })}
         title={t('templates.deleteValue', { name: value.name })}
-        onClick={() => linking.change(forget(linking.members, value.id), others)}
+        onClick={() => { const out = removeValue(linking.members, linking.values, value.id); linking.change(out.changes, out.values) }}
         className="w-6 h-7 flex items-center justify-center text-nier-bg/50 hover:text-nier-strong"
       >
         ×
       </button>
+      <RuleLine linking={linking} value={value} />
     </div>
   )
 }
 
-// What sets a value, by its kind. Words are set once they read as one.
-function ValueEditor({ value, held, fonts, onSet, className }: { value: TemplateValue; held: Held; fonts: ValueLinking['fonts']; onSet: (held: Held) => void; className: string }) {
+// A value's rule, under it: what it follows and how, picked from lists -- or the
+// way to give it one, where there's another value of its kind to follow.
+function RuleLine({ linking, value }: { linking: ValueLinking; value: TemplateValue }) {
+  const { t } = useTranslation()
+  const ops = rulesFor(value.kind)
+  const sources = linking.values.filter(v => canFollow(linking.values, value.id, v.id))
+  const rule = ruled(linking.values, value) ? value.rule! : null
+  const put = (next: Rule | null) => {
+    const out = setRule(linking.members, linking.values, value.id, next)
+    linking.change(out.changes, out.values)
+  }
+  if (ops.length === 0 || sources.length === 0) return null
+  if (!rule) {
+    return (
+      <button type="button" data-value-follow={value.id} onClick={() => put({ from: sources[0].id, op: ops[0], amount: RULES[ops[0]].amount })} className="col-span-3 justify-self-start -mt-1 text-[10px] text-nier-bg/50 hover:text-nier-strong">
+        + {t('templates.follow')}
+      </button>
+    )
+  }
+  const small = 'h-6 min-w-0 bg-nier-black text-nier-bg border border-nier-border/30 px-1 text-[10px] focus:outline-none focus:border-nier-border/60'
+  const unit = RULE_UNIT[rule.op]
+  return (
+    <div data-value-rule={value.id} className="col-span-3 -mt-1 flex items-center gap-1 pl-1">
+      <span aria-hidden="true" className="shrink-0 text-nier-bg/45 text-[11px]">↳</span>
+      {ops.length > 1 && (
+        <select aria-label={t('templates.ruleOf')} data-rule-op="" value={rule.op} onChange={e => { const op = e.target.value as RuleOp; put({ ...rule, op, amount: RULES[op].amount }) }} className={`${small} shrink-0`}>
+          {ops.map(op => <option key={op} value={op}>{t(RULE_NAME[op])}</option>)}
+        </select>
+      )}
+      {ops.length === 1 && <span className="shrink-0 text-[10px] text-nier-bg/70">{t(RULE_NAME[rule.op])}</span>}
+      <select aria-label={t('templates.ruleFrom')} data-rule-from="" value={rule.from} onChange={e => put({ ...rule, from: e.target.value })} className={`${small} flex-1`}>
+        {sources.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+      </select>
+      {unit && <RuleAmount unit={unit} amount={rule.amount ?? RULES[rule.op].amount ?? 0} percent={unit === '%'} onCommit={amount => put({ ...rule, amount })} className={small} />}
+      <button type="button" data-value-unrule={value.id} aria-label={t('templates.unrule')} title={t('templates.unrule')} onClick={() => put(null)} className="w-5 h-6 shrink-0 text-nier-bg/50 hover:text-nier-strong">×</button>
+    </div>
+  )
+}
+
+// A rule's amount, set once typed (a half-typed number changes nothing).
+function RuleAmount({ unit, amount, percent, onCommit, className }: { unit: string; amount: number; percent: boolean; onCommit: (amount: number) => void; className: string }) {
+  const { t } = useTranslation()
+  const [draft, setDraft] = useState(String(amount))
+  useEffect(() => setDraft(String(amount)), [amount])
+  const commit = () => {
+    const read = parse('number', draft)
+    if (read === null) return setDraft(String(amount))
+    const next = percent ? Math.max(0, Math.min(100, Number(read))) : Number(read)
+    if (next !== amount) onCommit(next)
+    else setDraft(String(amount))
+  }
+  return (
+    <label className="shrink-0 flex items-center gap-0.5 text-[10px] text-nier-bg/60">
+      {unit !== '%' && <span aria-hidden="true">{unit}</span>}
+      <input value={draft} aria-label={t('templates.ruleAmount')} data-rule-amount="" inputMode="decimal" onChange={e => setDraft(e.target.value)} onBlur={commit} onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur() }} className={`${className} w-10 text-right tabular-nums`} />
+      {unit === '%' && <span aria-hidden="true">%</span>}
+    </label>
+  )
+}
+
+// What sets a value, by its kind. Words are set once they read as one. A
+// value following a rule shows what it makes, not to be set by hand.
+function ValueEditor({ value, held, fonts, onSet, className, ruled }: { value: TemplateValue; held: Held; fonts: ValueLinking['fonts']; onSet: (held: Held) => void; className: string; ruled: boolean }) {
   const [draft, setDraft] = useState(format(value.kind, held))
   useEffect(() => setDraft(format(value.kind, held)), [value.kind, held])
   if (value.kind === 'toggle') {
-    return <input type="checkbox" aria-label={value.name} checked={!!held} onChange={e => onSet(e.target.checked)} className="justify-self-start accent-current" />
+    return <input type="checkbox" aria-label={value.name} checked={!!held} disabled={ruled} onChange={e => onSet(e.target.checked)} className="justify-self-start accent-current disabled:opacity-60" />
   }
   if (value.kind === 'font') {
     return (
-      <select aria-label={value.name} value={String(held)} onChange={e => onSet(e.target.value)} className={className}>
+      <select aria-label={value.name} value={String(held)} disabled={ruled} onChange={e => onSet(e.target.value)} className={className}>
         {fonts.map(font => <option key={font.value} value={font.value}>{font.label}</option>)}
       </select>
     )
@@ -260,12 +344,13 @@ function ValueEditor({ value, held, fonts, onSet, className }: { value: Template
   return (
     <div className="flex items-center gap-1 min-w-0">
       {value.kind === 'colour' && (
-        <ColourInput label={value.name} value={String(held)} onChange={onSet} className="w-7 h-7 shrink-0 border border-nier-border/40 cursor-pointer" />
+        <ColourInput label={value.name} value={String(held)} onChange={onSet} disabled={ruled} className="w-7 h-7 shrink-0 border border-nier-border/40 cursor-pointer disabled:cursor-default" />
       )}
       <input
         value={draft}
         aria-label={value.name}
         data-value-input={value.id}
+        readOnly={ruled}
         onChange={e => setDraft(e.target.value)}
         onBlur={commit}
         onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur() }}
