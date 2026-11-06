@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from '../lib/i18n'
 import { sendFeedbackReport, ATRIUM_REPORT_REASONS, type AtriumReportReason } from '../lib/feedback'
 import type { TranslationKey } from '../locales/en'
+import { SUPPORT_EMAIL } from './ReportFeedbackModal'
 
 export default function ReportAtriumModal({ lobbyId, name, onClose }: { lobbyId: string; name: string; onClose: () => void }) {
   const { t } = useTranslation()
@@ -58,7 +59,7 @@ export default function ReportAtriumModal({ lobbyId, name, onClose }: { lobbyId:
           <>
             <p className="text-xs leading-relaxed text-nier-bg/80 mb-4">
               {t('report.atrium.lead', { name })}{' '}
-              <a href="/terms.html" target="_blank" rel="noreferrer" className="underline underline-offset-2 hover:text-nier-strong">{t('report.atrium.terms')}</a>
+              <a href="/terms.html#report" target="_blank" rel="noreferrer" className="underline underline-offset-2 hover:text-nier-strong">{t('report.atrium.terms')}</a>
             </p>
             <fieldset className="mb-4">
               <legend className="text-[10px] tracking-[0.18em] uppercase text-nier-bg/75 mb-2">{t('report.atrium.why')}</legend>
@@ -71,6 +72,16 @@ export default function ReportAtriumModal({ lobbyId, name, onClose }: { lobbyId:
                 ))}
               </div>
             </fieldset>
+            {/* A formal copyright notice needs what a form doesn't ask: by email (the terms, #report). */}
+            {reason === 'copyright' && (() => {
+              // The address as a link, where the words put it.
+              const [before, after] = t('report.atrium.copyrightNote').split('{email}')
+              return (
+                <p data-report-copyright="" className="mb-4 text-[11px] leading-relaxed text-nier-bg/80">
+                  {before}<a href={`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(`Copyright notice: ${name} (${lobbyId})`)}`} className="underline underline-offset-2 hover:text-nier-strong">{SUPPORT_EMAIL}</a>{after}
+                </p>
+              )
+            })()}
             <label className="block text-[10px] tracking-[0.18em] uppercase text-nier-bg/75 mb-2" htmlFor="report-atrium-details">{t('report.atrium.details')}</label>
             <textarea
               id="report-atrium-details"

@@ -32,6 +32,8 @@ export function planFeatures(): [TranslationKey, string, string][] {
     ['plans.row.mirror', size(FREE_PLAN.mirrorMb), size(PAID_PLAN.mirrorMb)],
     ['plans.row.elsewhere', 'unlimited', 'unlimited'],
     ['plans.row.rooms', 'yes', 'yes'],
+    // Never for sale: Pinterest's terms don't let access to its content be charged for (docs/PINTEREST.md).
+    ['plans.row.pinterest', 'yes', 'yes'],
     ['plans.row.own', 'no', 'yes'],
   ]
 }

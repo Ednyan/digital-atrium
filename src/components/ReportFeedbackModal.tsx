@@ -3,7 +3,7 @@ import { isDesktop } from '../lib/supabase'
 import { sendFeedbackReport, canSendFeedbackDirectly } from '../lib/feedback'
 import { useTranslation } from '../lib/i18n'
 
-const SUPPORT_EMAIL = 'thedigitalatrium@gmail.com'
+export const SUPPORT_EMAIL = 'thedigitalatrium@gmail.com'
 
 interface ReportFeedbackModalProps {
   onClose: () => void
