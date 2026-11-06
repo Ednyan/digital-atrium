@@ -5,6 +5,7 @@
 // into its file; exported, on its pixels (lib/exportImage). Kept as the
 // trace's own `look` (traces.look), only once it's been set.
 
+import { isPin } from './pins.ts'
 import type { Trace } from '../types/database'
 
 export interface TraceLook { exposure: number; brightness: number; contrast: number }
@@ -27,7 +28,9 @@ export const isNeutral = (look?: TraceLook) => !look || (look.exposure === 0 && 
 /** The traces it's for: pictures of things -- not a drawing, nor an EXR,
  *  which grades its own original (ExrGradePanel). */
 export const takesLook = (trace: Trace) =>
-  (trace.type === 'image' && !trace.exr && !trace.strokeData) || trace.type === 'video' || trace.type === 'embed' || trace.type === 'document'
+  ((trace.type === 'image' && !trace.exr && !trace.strokeData) || trace.type === 'video' || trace.type === 'embed' || trace.type === 'document')
+  // Never a pin: Pinterest's pictures are shown as delivered (lib/pins).
+  && !isPin(trace)
 
 /** The grade's two steps: a gain on linear light, then a line on the shown values. */
 export function lookSteps(look: TraceLook) {

@@ -61,7 +61,7 @@ import { copyMakesGroups, copyTraces } from '../lib/traceCopy'
 import { ACTION_ICONS, ChoiceButton, Choices, CustomizationPanel, PanelFooter, Row, Section, Switch, TextAlignField, TextValignField, traceKindLabel, type FooterAction } from './Customization'
 import { MENU_ICONS, MenuIcon } from './AtriumMenu'
 import PinterestMark from './PinterestMark'
-import { isPin } from '../lib/pinterest'
+import { isPin, pinMarkSize } from '../lib/pinterest'
 import ConfirmBox, { ConfirmButtons } from './ConfirmBox'
 import { useMenuGlide } from './MenuGlide'
 import DeckSlide from './DeckSlide'
@@ -3498,7 +3498,8 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
     const one = chosen.length === 1 ? chosen[0] : null
     const allLocked = chosen.length > 0 && chosen.every(isLockedTrace)
     const drawings = chosen.filter(isDrawingTrace).length
-    const flippable = chosen.filter(tr => tr.type !== 'audio' && tr.type !== 'video')
+    // A pin is shown as Pinterest delivers it (lib/pins): not flipped, nor cropped.
+    const flippable = chosen.filter(tr => tr.type !== 'audio' && tr.type !== 'video' && !isPin(tr))
     // Of one group: to its top; else, of everything.
     const group = chosen[0] ? groupIdOf(chosen[0], layers) : null
     const labels = orderLabels(one ? !!group : !!group && chosen.every(tr => tr.layerId === group) && !wholeGroups.groups.has(group))
@@ -3511,7 +3512,7 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
       ...(['up', 'down', 'top', 'bottom'] as const).map(how => ({ id: how, icon: ACTION_ICONS[how], label: labels[how], onClick: () => moveInOrder(ids, how) })),
       { id: 'lock', icon: ACTION_ICONS.lock, label: allLocked ? t('atrium.menu.unlock') : t('atrium.menu.lock'), active: allLocked, onClick: () => each(() => (allLocked ? UNLOCKED : { isLocked: true })) },
       { id: 'delete', icon: ACTION_ICONS.delete, label: t('common.delete'), danger: true, onClick: () => { close(); deleteTraces(ids, []) } },
-      { id: 'crop', icon: ACTION_ICONS.crop, label: t('atrium.customize.actionCrop'), active: isCropMode, applies: !!one && !isPathTrace(one) && !isFrame(one), onClick: () => setIsCropMode(was => !was) },
+      { id: 'crop', icon: ACTION_ICONS.crop, label: t('atrium.customize.actionCrop'), active: isCropMode, applies: !!one && !isPathTrace(one) && !isFrame(one) && !isPin(one), onClick: () => setIsCropMode(was => !was) },
       { id: 'flipH', icon: ACTION_ICONS.flipH, label: t('atrium.menu.flipHorizontal'), applies: flippable.length > 0, onClick: () => each(tr => ({ flipHorizontal: !tr.flipHorizontal }), flippable) },
       { id: 'flipV', icon: ACTION_ICONS.flipV, label: t('atrium.menu.flipVertical'), applies: flippable.length > 0, onClick: () => each(tr => ({ flipVertical: !tr.flipVertical }), flippable) },
       { id: 'resetRotation', icon: ACTION_ICONS.resetRotation, label: t('atrium.menu.resetRotation'), onClick: () => inOneStep(() => { for (const id of ids) updateTraceTransform(id, { rotation: 0 }) }) },
@@ -6824,7 +6825,8 @@ const picture = (rawUrl: string, resolvedSrc: string | undefined) => (
     }}
     onError={() => {
       const retries = imageRetryCount[trace.id] || 0
-      if (retries < 3) {
+      // Never a pin through the proxy: Pinterest's pictures come from Pinterest only.
+      if (retries < 3 && !isPin(trace)) {
         // The server's proxy, for a site that won't serve it here; again
         // with the cache passed by, after that.
         const proxyUrl = `/api/proxy-image?url=${encodeURIComponent(rawUrl)}${retries === 0 && !imageProxySources[trace.id] ? '' : `&t=${Date.now()}`}`
@@ -7632,6 +7634,15 @@ return (
         </div>
       )}
 
+      {/* A pin whose picture isn't here: being read from Pinterest, or one it won't
+          give (lib/pinShow). Pinterest's mark, never anything kept of it. */}
+      {trace.type === 'embed' && !trace.mediaUrl && isPin(trace) && (
+        <div data-pin-card="" className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 text-nier-bg/45 pointer-events-none select-none">
+          <PinterestMark className="w-[24%] h-[24%] max-w-14 max-h-14" />
+          <span className="text-[11px] tracking-[0.12em]">Pinterest</span>
+        </div>
+      )}
+
       {/* Embed Content */}
       {trace.type === 'embed' && trace.mediaUrl && (() => {
         // Check if the embed URL is actually an image (by extension OR confirmed via preflight)
@@ -8022,13 +8033,14 @@ return (
           <MenuIcon d={MENU_ICONS.linkOff} size={14} />
         </button>
       )}
-      {/* A pin from Pinterest, there while it's pointed at: says where it came
-          from and opens it there -- Pinterest's rule for showing Pins -- whether
-          or not it's clickable, for anyone who can see it. */}
-      {isPin(trace) && !movingIds.has(trace.id) && borderWidth >= 60 && borderHeight >= 40 && (
+      {/* A pin from Pinterest: always the Pinterest mark, at any size, saying where
+          it came from and opening it there (Pinterest's rule, docs/PINTEREST.md),
+          whether or not it's clickable, for anyone who can see it. */}
+      {isPin(trace) && (
         <button
           type="button"
           className="trace-hover-button trace-pin-mark"
+          style={pinMarkSize(borderWidth, borderHeight)}
           title={t('atrium.customize.openPin')}
           aria-label={t('atrium.customize.openPin')}
           onMouseDown={(e) => e.stopPropagation()}
@@ -8039,7 +8051,7 @@ return (
             openExternalUrl(trace.linkUrl)
           }}
         >
-          <PinterestMark className="w-3.5 h-3.5" />
+          <PinterestMark className="w-[60%] h-[60%]" />
         </button>
       )}
       {/* A frame: its edge, a few pixels either side of the border, is where
@@ -8173,7 +8185,7 @@ return (
             150ms glide, so the button trailed behind a dragged trace.
             (Its hover:scale-105 never worked either -- the inline
             transform below overrides it.) */}
-        {(trace.type !== 'shape' || trace.shapeType !== 'path') && !isFrame(trace) ? (
+        {(trace.type !== 'shape' || trace.shapeType !== 'path') && !isFrame(trace) && !isPin(trace) ? (
         <button
           data-trace-element="true"
           className="absolute text-[10px] font-semibold px-3 py-1.5 border pointer-events-auto z-10 transition-colors tracking-[0.18em] uppercase"
@@ -9349,6 +9361,7 @@ return (
                   onMouseLeave={() => { flyoutGlide.host.onMouseLeave(); leaveFlyout() }}
                 >
                   {flyoutGlide.light}
+                  {!isPin(traces.find(t => t.id === contextMenu.traceId) ?? {}) && (
                   <button
                     className="ctx-item"
                     onClick={async () => {
@@ -9366,6 +9379,7 @@ return (
                   >
                     {t('atrium.menu.resetCropping')}
                   </button>
+                  )}
                   <button
                     className="ctx-item"
                     onClick={async () => {
@@ -9398,7 +9412,7 @@ return (
                   </button>
                   {(() => {
                     const trace = traces.find(t => t.id === contextMenu.traceId)
-                    if (!trace || trace.type === 'audio' || trace.type === 'video') return null
+                    if (!trace || trace.type === 'audio' || trace.type === 'video' || isPin(trace)) return null
                     return (
                       <>
                         <button
@@ -9428,7 +9442,8 @@ return (
             )}
             {(() => {
               const trace = traces.find(t => t.id === contextMenu.traceId)
-              if (!isDesktop || !trace || trace.type !== 'embed' || !confirmedImageIds.has(trace.id)) return null
+              // Never a pin: Pinterest's pictures aren't to be saved (docs/PINTEREST.md).
+              if (!isDesktop || !trace || trace.type !== 'embed' || !confirmedImageIds.has(trace.id) || isPin(trace)) return null
               return (
                 <button
                   className="ctx-item"
@@ -9860,7 +9875,8 @@ return (
         // in a section that's off.
         const background = editingTrace.showBackground ?? true
         const border = editingTrace.showBorder ?? true
-        const corners = (
+        // None on a pin: its picture is shown as Pinterest delivers it (lib/pins).
+        const corners = isPin(editingTrace) ? null : (
           <Slider field="borderRadius"
             label={t('atrium.customize.rowCorners')}
             hint={t('atrium.customize.cornerRadiusHint')}

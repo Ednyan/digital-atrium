@@ -10,6 +10,8 @@
 // at the original's; copy them too if offline copies of decks get deleted
 // originals.
 
+import { keptRow } from './pins'
+
 type Row = Record<string, any>
 type Local = typeof import('./localDb')
 const FILE_COLUMNS = ['media_url', 'image_url'] as const
@@ -40,7 +42,8 @@ async function copiedRows(local: Local, fromId: string, toId: string, onProgress
   return {
     lobby: rows.lobbies[0] as Row | undefined,
     layers: rows.layers.map(row => ({ ...row, id: mapped(row.id), parent_id: mapped(row.parent_id), lobby_id: toId })),
-    traces: rows.traces.map(row => ({
+    // A pin's picture, kept the old way: not copied on (lib/pins).
+    traces: rows.traces.map(keptRow).map(row => ({
       ...row, id: mapped(row.id), lobby_id: toId, layer_id: mapped(row.layer_id), frame_id: mapped(row.frame_id),
       ...Object.fromEntries(FILE_COLUMNS.map(column => [column, files.get(row[column]) ?? row[column]])),
     })),

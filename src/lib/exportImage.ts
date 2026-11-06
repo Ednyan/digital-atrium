@@ -39,6 +39,7 @@ import { deckFile, deckSvg, isDeckFile, slidePictures } from './deckDraw'
 import { currentLanguage } from './i18n'
 import { gradePixels, isNeutral, takesLook, type TraceLook } from './traceLook'
 import { isDesktop } from './supabase'
+import { isPin, PINTEREST_MARK } from './pins'
 import { barCount, restHeights } from './soundBars'
 import { previewFrameColour } from './shapeStyle'
 
@@ -676,6 +677,17 @@ function drawBoxed(p: Painter, item: Prepared, measure: CanvasRenderingContext2D
     // own background, or the atrium's -- dark ink on a light one.
     const behind = showBackground ? (trace.fillColor || '#191919') : (ground ?? undefined)
     drawSound(p, trace, bw, bh, trace.shapeColor || trace.borderColor || (previewFrameColour(behind) === 0x1a1a1a ? '#222222' : '#cbcbcb'))
+  } else if (isPin(trace)) {
+    // A pin: Pinterest's mark and name, never its picture or its title -- what's
+    // read from Pinterest isn't to be copied into a file (docs/PINTEREST.md).
+    p.push([t.scaleX, 0, 0, t.scaleY, 0, 0])
+    const w = bw / t.scaleX, h = bh / t.scaleY
+    const mark = Math.min(w, h) * 0.3, s = mark / 24
+    p.push([s, 0, 0, s, w / 2 - mark / 2, h / 2 - mark / 2 - 8])
+    p.path(PINTEREST_MARK, { fill: borderColour })
+    p.pop()
+    p.text('Pinterest', w / 2, h / 2 + mark / 2 + 8, { family: 'sans-serif', size: Math.max(9, Math.min(14, mark / 3)), bold: true }, borderColour, 'center')
+    p.pop()
   } else if (picture) {
     // The whole content box, scaled, moved so the crop's window shows, and
     // mirrored in its box -- as the canvas transforms it.
@@ -781,8 +793,9 @@ export async function exportImage(traces: Trace[], links: TraceLink[], layers: L
       picture = await sheetPicture(trace, fine)
     } else if (trace.type === 'document' && isDeckFile(trace.mediaUrl)) {
       picture = await deckPicture(trace, fine)
-    } else if (trace.type === 'embed' || trace.type === 'video') {
-      // A preview it keeps, where it has one; else one found for it.
+    } else if ((trace.type === 'embed' || trace.type === 'video') && !isPin(trace)) {
+      // A preview it keeps, where it has one; else one found for it. Never a
+      // pin's: Pinterest's pictures aren't to be copied (docs/PINTEREST.md).
       picture = (trace.imageUrl ? await loadPicture(trace.imageUrl) : null) ?? await mediaPicture(trace)
     }
     // Its look (lib/traceLook), on its pixels: what the atrium shows through a filter.

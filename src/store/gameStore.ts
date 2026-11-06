@@ -1,3 +1,4 @@
+import { asDelivered } from '../lib/pins'
 import { create } from 'zustand'
 import { useShallow } from 'zustand/react/shallow'
 import type { UserPresence, Trace, Layer, LobbyLocation } from '../types/database'
@@ -454,8 +455,9 @@ export const useGameStore = create<GameState>((set, get) => ({
   
   clearOtherUsers: () => set({ otherUsers: {} }),
   
-  addTrace: (trace) =>
+  addTrace: (given) =>
     set((state) => {
+      const trace = asDelivered(given)
       // Check if trace already exists (for updates)
       const existingIndex = state.traces.findIndex(t => t.id === trace.id)
       
@@ -486,7 +488,8 @@ export const useGameStore = create<GameState>((set, get) => ({
     set((state) => {
       const at = new Map(state.traces.map((t, i) => [t.id, i]))
       const traces = [...state.traces]
-      for (const trace of incoming) {
+      for (const given of incoming) {
+        const trace = asDelivered(given)
         const i = at.get(trace.id)
         if (i !== undefined) traces[i] = trace
         else {
@@ -503,8 +506,10 @@ export const useGameStore = create<GameState>((set, get) => ({
       return { traces: state.traces.filter(t => !gone.has(t.id)) }
     }),
   
+  // Every trace written to the list comes through here, addTrace or receiveTraces:
+  // a pin always as Pinterest delivered it (lib/pins), whatever asked to change it.
   setTraces: (traces) => {
-    set({ traces })
+    set({ traces: traces.map(asDelivered) })
   },
   
   // Clear all lobby-specific data when leaving a lobby

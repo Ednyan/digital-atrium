@@ -431,7 +431,7 @@ export default function LayerPanel({ lobbyId, onClose, selectedTraceId, multiSel
 
   // What a trace's row says: its name, or the start of its title.
   const rowLabel = (trace: Trace) =>
-    (trace.type === 'text' && trace.layerName) || cleanTitle(trace.content).substring(0, 20) || t('atrium.layers.untitled')
+    (trace.type === 'text' && trace.layerName) || cleanTitle(trace.content).substring(0, 20) || cleanTitle(trace.pinTitle ?? '').substring(0, 20) || t('atrium.layers.untitled')
 
   // The field a name is edited in, in place of the label.
   const renameField = (maxLength?: number) => (

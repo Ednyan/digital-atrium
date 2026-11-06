@@ -68,6 +68,10 @@ export interface UserPresence {
   joinedAt?: number
 }
 
+// Where a pin came from (lib/pins): its board on Pinterest, and the connection
+// that imported it -- an account's id, or a desktop link's (`link:` its hash).
+export interface PinSource { board: string | null; by: string }
+
 export interface Trace {
   id: string
   userId: string
@@ -103,6 +107,13 @@ export interface Trace {
   look?: TraceLook
   // Its settings linked to its group's values (lib/templateValues): setting -> value id.
   valueLinks?: ValueLinks | null
+  // A pin from Pinterest (lib/pins): the board it was imported from, and whose
+  // connection imported it -- read through to show it. Its id is its link.
+  pinSource?: PinSource | null
+  // Its title, as Pinterest gave it this visit (lib/pinShow): never saved.
+  pinTitle?: string
+  // Kept the old way, its picture's address and title with it: to be let go of.
+  pinStale?: boolean
   shapePoints?: Array<{
     x: number
     y: number

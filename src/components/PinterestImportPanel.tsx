@@ -5,7 +5,8 @@ import { useGameStore, useGamePick } from '../store/gameStore'
 import { mapRowToTrace } from '../hooks/useTraces'
 import { packBoxesAroundCenter, scaleToDisplayBox, getDefaultTraceBoxSize } from '../lib/binPack'
 import { keysOnTopOfGroup } from '../lib/order'
-import { cleanTitle, firstFreeName, nextUntitledName } from '../lib/traceNames'
+import { cleanTitle, firstFreeName } from '../lib/traceNames'
+import { pinterestHolder, rememberPin } from '../lib/pinShow'
 import { createGroup } from '../hooks/useLayers'
 import { queueLayerChange } from '../lib/layerQueue'
 import {
@@ -99,23 +100,28 @@ export default function PinterestImportPanel({ onClose, lobbyId, worldCenter, pa
       // In that group, in pin order.
       const orderFields = keysOnTopOfGroup(useGameStore.getState().traces, group.id, pins.length)
         .map(order_key => ({ layer_id: group.id, order_key }))
-      // A pin whose title, description and alt text are blank -- often only
-      // invisible characters, which showed as an empty row -- is Untitled N.
-      const titles: string[] = []
+
+      // Each kept as its id (its link), its board and whose connection imported
+      // it -- never its picture or its title, which Pinterest's rules don't let
+      // be kept (docs/PINTEREST.md): those are read from Pinterest each time the
+      // atrium opens (lib/pinShow), and, just read, shown now without asking again.
+      const by = await pinterestHolder(userId)
       for (const pin of pins) {
-        titles.push(cleanTitle(pin.title) || cleanTitle(pin.description) || cleanTitle(pin.altText)
-          || nextUntitledName(useGameStore.getState().traces, n => t('atrium.layers.numberedUntitled', { n }), titles))
+        rememberPin(pin.id, {
+          image: pin.imageUrl, width: pin.imageWidth, height: pin.imageHeight, board: selectedBoard?.id ?? null,
+          title: cleanTitle(pin.title) || cleanTitle(pin.description) || cleanTitle(pin.altText),
+        })
       }
 
       const rows = pins.map((pin, i) => ({
         user_id: userId,
         username,
         type: 'embed',
-        content: titles[i],
+        content: '',
         position_x: worldCenter.x + offsets[i].x,
         position_y: worldCenter.y + offsets[i].y,
-        media_url: pin.imageUrl,
         link_url: pin.pinUrl,
+        pin_source: { board: selectedBoard?.id ?? null, by },
         width: sizes[i].width,
         height: sizes[i].height,
         scale: 1.0,
@@ -234,6 +240,9 @@ export default function PinterestImportPanel({ onClose, lobbyId, worldCenter, pa
               <p className="text-nier-bg/70 text-xs tracking-wider">
                 {t('atrium.pinterest.confirmNote')}
               </p>
+              {selectedBoard.secret && (
+                <p data-pin-secret="" className="text-nier-bg text-xs tracking-wider">{t('atrium.pinterest.secretNote')}</p>
+              )}
               <div className="flex gap-2 justify-center pt-2">
                 <button
                   onClick={handleImport}

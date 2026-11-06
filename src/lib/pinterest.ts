@@ -4,7 +4,6 @@
 // the website, which hands it a code to link with (lib/pinterestDesktop).
 
 import { useEffect, useState } from 'react'
-import type { Trace } from '../types/database'
 import { toWorker } from './worker'
 import { workerUrl } from './rooms'
 import { showToast } from './toast'
@@ -31,7 +30,8 @@ const OAUTH_STATE_KEY = 'pinterest_oauth_state'
 const CLIENT_ID = import.meta.env.VITE_PINTEREST_CLIENT_ID as string | undefined
 
 /** A pin imported from Pinterest, by the link the import keeps (PinterestImportPanel). */
-export const isPin = (trace: Pick<Trace, 'linkUrl'>) => !!trace.linkUrl && /^https:\/\/www\.pinterest\.com\/pin\//.test(trace.linkUrl)
+// What a pin is, and Pinterest's rules for showing one (lib/pins).
+export { isPin, pinMarkSize } from './pins'
 
 export function isPinterestConfigured(): boolean {
   return !!CLIENT_ID
@@ -319,6 +319,8 @@ export interface PinterestBoard {
   name: string
   pinCount: number
   thumbnailUrl: string | null
+  // Public, or secret (or protected): a secret board's pins show to the one who imported them alone.
+  secret: boolean
 }
 
 export interface PinterestPin {
@@ -360,6 +362,7 @@ export async function fetchPinterestBoards(): Promise<PinterestBoard[]> {
         name: b.name,
         pinCount: b.pin_count ?? 0,
         thumbnailUrl: b.media?.image_cover_url ?? b.media?.pin_thumbnail_urls?.[0] ?? null,
+        secret: !!b.privacy && b.privacy !== 'PUBLIC',
       })
     }
     bookmark = data.bookmark ?? undefined

@@ -789,8 +789,8 @@ input:focus, textarea:focus, select:focus {
 }
 
 /* A trace's small buttons (TraceOverlay), there while it's pointed at, and always
-   where nothing can point: a clickable one's to stop opening its link, a pin's
-   mark to open it on Pinterest. */
+   where nothing can point: a clickable one's to stop opening its link. A pin's
+   mark, opening it on Pinterest, is always there. */
 .trace-link-off { top: 8px; right: 8px; }
 .trace-pin-mark { bottom: 8px; left: 8px; }
 .trace-hover-button {
@@ -811,6 +811,8 @@ input:focus, textarea:focus, select:focus {
 [data-value-unread] { outline: 1.5px solid rgb(255 107 94 / 0.9); outline-offset: 3px; }
 .trace-hover-button:hover { color: rgb(var(--c-strong)); border-color: rgb(var(--c-fg) / 0.8); }
 @media (hover: none) { .trace-hover-button { opacity: 1; } }
+/* A pin's mark is always there: Pinterest's rule for showing Pins (docs/PINTEREST.md). */
+.trace-hover-button.trace-pin-mark { opacity: 1; }
 
 /* Prevent text selection during drag */
 body.dragging,

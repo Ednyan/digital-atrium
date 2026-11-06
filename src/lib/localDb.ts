@@ -1558,6 +1558,8 @@ export async function initLocalDb(): Promise<void> {
   for (const [table, column] of [['traces', 'value_links'], ['layers', 'template']]) {
     try { await db.execute(`ALTER TABLE ${table} ADD COLUMN ${column} TEXT`) } catch { /* already there */ }
   }
+  // Where a pin came from, as JSON (lib/pins; the web's add_pin_source.sql).
+  try { await db.execute('ALTER TABLE traces ADD COLUMN pin_source TEXT') } catch { /* already there */ }
 
   // Deleted traces' files, kept while undo could bring them back (holdTraceMedia).
   await db.execute('CREATE TABLE IF NOT EXISTS held_trace_media (trace_id TEXT PRIMARY KEY, lobby_id TEXT, type TEXT, media_url TEXT, image_url TEXT)')
@@ -2092,7 +2094,7 @@ const BOOL_COLUMNS: Record<string, string[]> = {
 }
 // Kept as JSON text in SQLite, objects everywhere else.
 const JSON_COLUMNS: Record<string, string[]> = {
-  traces: ['shape_points', 'stroke_data', 'exr', 'look', 'value_links'],
+  traces: ['shape_points', 'stroke_data', 'exr', 'look', 'value_links', 'pin_source'],
   lobbies: ['theme_settings'],
   profiles: ['custom_themes'],
   layers: ['template'],

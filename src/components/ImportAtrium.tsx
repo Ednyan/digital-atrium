@@ -1,3 +1,4 @@
+import { keptRow } from '../lib/pins'
 import { useState, useRef } from 'react'
 import { tCount, useTranslation } from '../lib/i18n'
 import { supabase, isDesktop } from '../lib/supabase'
@@ -300,8 +301,9 @@ export default function ImportAtrium({ onClose, onImported, canCloud }: ImportAt
           }
         }
 
-        let mediaUrl = trace.media_url
-        let imageUrl = trace.image_url
+        // A pin's picture, kept in files made before 2026-11-06: never taken in (lib/pins).
+        let mediaUrl = keptRow(trace).media_url
+        let imageUrl = keptRow(trace).image_url
         let mediaError = ''
 
         // Into the browser, a file kept in our cloud comes too, so the copy

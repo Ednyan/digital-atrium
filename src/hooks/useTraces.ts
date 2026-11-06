@@ -1,3 +1,4 @@
+import { asPinSource, isPin } from '../lib/pins'
 import { useEffect, useState } from 'react'
 import { isSlot } from '../lib/frames'
 import { asStrokeStyle } from '../lib/strokeStyle'
@@ -61,6 +62,9 @@ export async function fetchAllLobbyTraces(client: any, lobbyId: string): Promise
 }
 
 export function mapRowToTrace(row: any): Trace {
+  // A pin kept the old way, with its picture's address: never shown from that --
+  // it's read from Pinterest each time (lib/pinShow) -- and let go of (docs/PINTEREST.md).
+  const pin = isPin({ linkUrl: row.link_url, type: row.type })
   return {
     id: row.id,
     userId: row.user_id,
@@ -69,8 +73,8 @@ export function mapRowToTrace(row: any): Trace {
     content: row.content,
     x: row.position_x,
     y: row.position_y,
-    imageUrl: row.image_url || undefined,
-    mediaUrl: row.media_url || undefined,
+    imageUrl: (!pin && row.image_url) || undefined,
+    mediaUrl: (!pin && row.media_url) || undefined,
     linkUrl: row.link_url || undefined,
     isClickable: !!row.is_clickable,
     borderWidth: row.border_width ?? 2,
@@ -147,6 +151,7 @@ export function mapRowToTrace(row: any): Trace {
     look: asLook(row.look),
     // None stays none, not null: a save sends the column only for a trace once linked.
     valueLinks: row.value_links && typeof row.value_links === 'object' ? row.value_links : undefined,
+    ...(pin ? { pinSource: asPinSource(row.pin_source), ...(row.media_url || row.image_url || !row.pin_source ? { pinStale: true } : {}) } : {}),
     pathCurveType: row.path_curve_type,
     pathArrowStart: row.path_arrow_start,
     pathArrowEnd: row.path_arrow_end,

@@ -14,8 +14,15 @@
 // Moved from Supabase (phase 10, step 6): an existing account's connection,
 // and a desktop link Supabase made, are handed over the first time they're
 // used here (supabase/functions/pinterest-handover), and kept here from then on.
+//
+// Pins shown (`show`): Pinterest's rules don't let what's read from it be kept
+// (docs/PINTEREST.md), so an atrium keeps a pin as its id, its board and whose
+// connection imported it, and every time it's opened its pins are read here
+// through that connection -- for anyone who can see the atrium, a public one's
+// visitors too -- and passed on, kept nowhere. A pin on a board that isn't
+// public is shown to the one who imported it alone.
 
-import { tablesIn } from './people'
+import { allowedNow, tablesIn } from './people'
 import { fromBase64, keyFrom, outbound, replies, toBase64, whoIs, type Env } from './who'
 
 const API = 'https://api.pinterest.com/v5'
@@ -25,6 +32,12 @@ const RENEW_BEFORE_MS = 60_000
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
 const CODE_LENGTH = 8
 const PAIRING_MS = 10 * 60_000
+// Pins asked for at once, and calls to Pinterest made for them (a Worker makes
+// at most 50 of its own a request): what's beyond them is asked for again.
+const MOST_PINS = 500
+const MOST_CALLS = 40
+// Asks a visitor may make an hour: an atrium opened is one or two.
+const SHOWS_AN_HOUR = 240
 
 interface Tokens { access: string; refresh: string | null; until: number }
 
@@ -41,6 +54,20 @@ export async function pinterest(request: Request, env: Env, what: string): Promi
   }
   await tablesIn(db)
   const key = await keyFrom(env.GOOGLE_CLIENT_SECRET, 'atrium pinterest', 'AES-GCM', ['encrypt', 'decrypt'])
+
+  // Pins shown where they're placed: anyone may ask, signed in or not.
+  if (what === 'show') {
+    if (!(await allowedNow(db, `pins:${request.headers.get('CF-Connecting-IP') ?? 'local'}`, SHOWS_AN_HOUR, undefined, 10))) return answer(429, { error: 'wait' })
+    const wanted = (Array.isArray(asked.pins) ? asked.pins : []).slice(0, MOST_PINS).flatMap(pin => {
+      const { id, board, by } = (pin ?? {}) as Record<string, unknown>
+      return typeof id === 'string' && /^\d{1,24}$/.test(id) && typeof by === 'string' && by && by.length <= 200
+        ? [{ id, by, board: typeof board === 'string' && /^\d{1,24}$/.test(board) ? board : null }] : []
+    })
+    // Who asks: to be shown pins of a board that isn't public, the one who imported them.
+    const link = typeof asked.link === 'string' && asked.link ? asked.link : null
+    const asker = link ? `link:${await sha256Hex(link)}` : (await whoIs(typeof asked.token === 'string' ? asked.token : null, env).catch(() => null))?.id ?? null
+    return answer(200, await showPins(env, db, key, wanted, asker))
+  }
   const keepFor = async (holder: string, tokens: Tokens, username: string | null) => db.prepare(`insert into pinterest (account, sealed, username, updated_at) values (?, ?, ?, ?)
     on conflict (account) do update set sealed = excluded.sealed, username = excluded.username, updated_at = excluded.updated_at`)
     .bind(holder, await seal(key, holder, tokens), username, Date.now()).run()
@@ -186,4 +213,79 @@ async function open(key: CryptoKey, holder: string, sealed: string): Promise<Tok
   } catch {
     return null
   }
+}
+
+// ---- Pins shown ---------------------------------------------------------------
+
+interface Shown { image: string; width: number; height: number; title: string; board: string | null }
+
+// A mid-size picture (fast, still sharp) over the original: as the import picks (src/lib/pinterest.ts).
+function pictureOf(images: Record<string, { url: string; width: number; height: number }> | undefined) {
+  if (!images) return null
+  for (const size of ['600x', '400x300', '1200x', 'orig', '150x150']) if (images[size]) return images[size]
+  return Object.values(images)[0] ?? null
+}
+function shownOf(pin: any): Shown | null {
+  const picture = pictureOf(pin?.media?.images)
+  return picture ? { image: picture.url, width: picture.width, height: picture.height, title: String(pin.title || pin.alt_text || '').slice(0, 200), board: pin.board_id ? String(pin.board_id) : null } : null
+}
+
+/** What Pinterest says of each pin, through its importer's connection: null for
+ *  one it won't give (gone, or on a board not public to someone else), and the
+ *  ids left for another ask once this one has made as many calls as it may. */
+async function showPins(env: Env, db: D1Database, key: CryptoKey, wanted: { id: string; by: string; board: string | null }[], asker: string | null) {
+  const pins: Record<string, Shown | null> = {}
+  const later: string[] = []
+  let calls = 0
+  const call = async (path: string, access: string) => {
+    calls++
+    const response = await fetch(outbound(env, `${API}${path}`), { headers: { Authorization: `Bearer ${access}` } }).catch(() => null)
+    return response?.ok ? response.json().catch(() => null) as Promise<any> : null
+  }
+  const byWhom = new Map<string, typeof wanted>()
+  for (const pin of wanted) byWhom.set(pin.by, [...(byWhom.get(pin.by) ?? []), pin])
+  for (const [by, theirs] of byWhom) {
+    if (calls >= MOST_CALLS) { later.push(...theirs.map(pin => pin.id)); continue }
+    calls++ // its token, perhaps renewed
+    const access = await accessFor(env, db, key, by).catch(() => null)
+    if (!access) { for (const pin of theirs) pins[pin.id] = null; continue }
+    // A board's privacy, asked once: its pins shown to others only when it's public.
+    const open = new Map<string, boolean>()
+    const isOpen = async (board: string | null) => {
+      if (asker === by) return true
+      if (!board) return false
+      if (!open.has(board)) open.set(board, (await call(`/boards/${board}`, access))?.privacy === 'PUBLIC')
+      return open.get(board)!
+    }
+    const left = new Map(theirs.map(pin => [pin.id, pin]))
+    // A board at a time, a hundred pins a call, while any of its pins is still wanted.
+    const boards = [...new Set(theirs.map(pin => pin.board).filter((board): board is string => !!board))]
+    for (const board of boards) {
+      if (calls >= MOST_CALLS) break
+      if (!(await isOpen(board))) {
+        for (const pin of theirs) if (pin.board === board) { pins[pin.id] = null; left.delete(pin.id) }
+        continue
+      }
+      let bookmark = ''
+      while (calls < MOST_CALLS && [...left.values()].some(pin => pin.board === board)) {
+        const page = await call(`/boards/${board}/pins?page_size=100${bookmark ? `&bookmark=${encodeURIComponent(bookmark)}` : ''}`, access)
+        if (!page) break
+        for (const item of page.items ?? []) {
+          if (!left.has(String(item.id))) continue
+          pins[String(item.id)] = shownOf(item)
+          left.delete(String(item.id))
+        }
+        if (!page.bookmark) break
+        bookmark = page.bookmark
+      }
+    }
+    // The rest one at a time: no board kept (an older pin), or moved off it.
+    for (const pin of left.values()) {
+      if (calls >= MOST_CALLS) { later.push(pin.id); continue }
+      const item = await call(`/pins/${pin.id}`, access)
+      const shown = item ? shownOf(item) : null
+      pins[pin.id] = shown && await isOpen(shown.board) ? shown : null
+    }
+  }
+  return { pins, later }
 }

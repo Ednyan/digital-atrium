@@ -19,6 +19,7 @@ import TraceOverlay, { CULL_MARGIN } from './TraceOverlay'
 import { contentView, createWorldCamera, edgeInsets } from '../lib/worldCamera'
 import { boundsOf, traceBox } from '../lib/traceGeometry'
 import { type Box } from '../lib/traceLinks'
+import { usePinsShown } from '../lib/pinShow'
 import { captureAtriumPreview, type RoomSnapshot } from '../lib/atriumPreview'
 import LayerPanel from './LayerPanel'
 import LocationsPanel, { LOCATION_DRAG_DATA_KEY } from './LocationsPanel'
@@ -2140,6 +2141,8 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
   useEffect(() => (autoSave && canEdit ? startAutosave(autoSaveMinutes === 0 ? AUTO_SAVE_CONSTANT_MS : autoSaveMinutes * 60_000) : undefined), [autoSave, autoSaveMinutes, canEdit])
   // Traces that follow the file they came from, watched (lib/liveFiles).
   useEffect(() => (canEdit ? followFiles() : undefined), [canEdit])
+  // Its pins from Pinterest, read as it opens (lib/pinShow): never kept with it.
+  usePinsShown(lobbyId, canEdit)
 
   // Check the Pinterest connection once per atrium visit, to decide whether to
   // show the import button. Asked on both platforms now: on desktop the answer

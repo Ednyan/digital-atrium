@@ -1,3 +1,4 @@
+import { keptRow } from '../lib/pins'
 import { useState } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import { localClient } from '../lib/localDb'
@@ -135,9 +136,9 @@ export default function UploadToOnline({ onClose }: UploadToOnlineProps) {
             continue
           }
 
-          // Handle local:// URLs — replace with placeholder
-          let mediaUrl = trace.media_url
-          let imageUrl = trace.image_url
+          // Handle local:// URLs — replace with placeholder. A pin's picture, never (lib/pins).
+          let mediaUrl = keptRow(trace).media_url
+          let imageUrl = keptRow(trace).image_url
           if (mediaUrl?.startsWith('local://')) {
             mediaUrl = null // Local file — empty placeholder in online version
           }

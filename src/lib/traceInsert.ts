@@ -1,3 +1,4 @@
+import { isPin } from './pins.ts'
 import type { Trace } from '../types/database'
 import { has } from './traceKinds.ts'
 import { shiftPoints } from './pathGeometry.ts'
@@ -67,8 +68,12 @@ export function buildTraceInsertRow(
     ignore_clicks: trace.ignoreClicks ?? false,
   }
 
-  if (trace.imageUrl) newTrace.image_url = trace.imageUrl
-  if (trace.mediaUrl) newTrace.media_url = trace.mediaUrl
+  // A pin's picture is Pinterest's, read each time it's shown: never kept (lib/pins).
+  const pin = isPin(trace)
+  if (trace.imageUrl && !pin) newTrace.image_url = trace.imageUrl
+  if (trace.mediaUrl && !pin) newTrace.media_url = trace.mediaUrl
+  // Left out when none, so a database without the column still takes every other trace.
+  if (pin && trace.pinSource) newTrace.pin_source = trace.pinSource
   if (trace.linkUrl) newTrace.link_url = trace.linkUrl
   if (trace.isClickable) newTrace.is_clickable = true
   if (trace.lightPulse !== undefined) newTrace.light_pulse = trace.lightPulse
@@ -192,8 +197,13 @@ export function traceColumns(trace: Trace): Record<string, any> {
   // not yet run) refuses nothing but an arranged frame's save.
   if (trace.type === 'frame' && trace.frameArrange !== undefined) columns.frame_arrange = trace.frameArrange ?? null
 
-  // Add optional fields
-  if (trace.mediaUrl !== undefined) columns.media_url = trace.mediaUrl
+  // Add optional fields. A pin's picture never: written over as none, so one
+  // kept the old way is let go of the first time it's saved (lib/pins).
+  if (isPin(trace)) {
+    columns.media_url = null
+    columns.image_url = null
+    if (trace.pinSource) columns.pin_source = trace.pinSource
+  } else if (trace.mediaUrl !== undefined) columns.media_url = trace.mediaUrl
   if (trace.linkUrl !== undefined) columns.link_url = trace.linkUrl
   if (trace.isClickable !== undefined) columns.is_clickable = trace.isClickable ?? false
   if (trace.content !== undefined) columns.content = trace.content

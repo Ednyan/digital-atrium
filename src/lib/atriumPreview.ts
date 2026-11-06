@@ -21,6 +21,7 @@
 // (add_lobby_preview.sql), so none is left behind. In a vault, one file an
 // atrium, rewritten.
 
+import { isPin } from './pins'
 import { cloudClient, isDesktop, supabase, isLocalData } from './supabase'
 import { exportImage, loadPicture, pictureOf } from './exportImage'
 import { readCards, rememberCard } from './atriumCards'
@@ -77,6 +78,9 @@ function fingerprint(traces: Trace[], look: string): string {
     key === 'strokeData' && value && typeof value === 'object' ? (value as { rev?: number }).rev ?? 1 : value
   for (const t of traces) add(JSON.stringify(t, drawingByRevision))
   add(look)
+  // Pins drawn as Pinterest's mark since 2026-11-06 (docs/PINTEREST.md): a picture
+  // made before, showing them, is out of date, and made again.
+  if (traces.some(isPin)) add('pins as cards')
   return `${traces.length}:${(hash >>> 0).toString(36)}`
 }
 

@@ -7,6 +7,7 @@
 // shows a dash; a value shown is the first of them's. Every change is one
 // step of undo (TraceOverlay's onChange).
 
+import { isPin } from '../lib/pins'
 import { ValuesSection } from './ValueLink'
 import type { ReactNode } from 'react'
 import { useTranslation } from '../lib/i18n'
@@ -175,11 +176,13 @@ export default function BatchEditPanel({ traces, lobbyId, userId, fontOptions, b
                   />
                 </>
               )}
-              <Slider field="borderRadius"
-                label={t('atrium.customize.rowCorners')} shown={`${first.borderRadius ?? 0} px`}
-                min={0} max={50} step={1} value={first.borderRadius ?? 0}
-                onChange={v => set(targets, { borderRadius: v })}
-              />
+              {!targets.every(isPin) && (
+                <Slider field="borderRadius"
+                  label={t('atrium.customize.rowCorners')} shown={`${first.borderRadius ?? 0} px`}
+                  min={0} max={50} step={1} value={first.borderRadius ?? 0}
+                  onChange={v => set(targets, { borderRadius: v })}
+                />
+              )}
             </>
           ) },
           { id: 'effects', node: (

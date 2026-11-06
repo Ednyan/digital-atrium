@@ -29,6 +29,14 @@ export async function onRequest(context) {
     })
   }
 
+  // Never Pinterest's pictures: they're shown from Pinterest as delivered, not
+  // fetched and kept here (a public cache for a day) -- docs/PINTEREST.md.
+  let host = ''
+  try { host = new URL(imageUrl).hostname } catch { /* not a URL: fetch says so below */ }
+  if (/(^|\.)pinimg\.com$|(^|\.)pinterest\.[a-z.]+$/i.test(host)) {
+    return new Response('Not proxied', { status: 403, headers: { 'Access-Control-Allow-Origin': '*' } })
+  }
+
   try {
     // Fetch the image
     const response = await fetch(imageUrl, {
