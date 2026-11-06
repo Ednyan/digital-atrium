@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
-import { ARRANGE_GAP, carriedFrameId, fillCrop, isSlot, slotPlacement, frameAround, frameAt, frameOfCopy, freshIds, heldBy, masonry, placeUnits, putInFrame, readingOrder, unitMiddle, unitsOf, withHeld, type FrameBox } from '../src/lib/frames.ts'
+import { ARRANGE_GAP, carriedFrameId, fillCrop, frameFor, groupsCopiedWhole, isSlot, outOfSlot, slotPlacement, underTheirSlots, frameAround, frameAt, frameOfCopy, freshIds, heldBy, masonry, placeUnits, putInFrame, readingOrder, unitMiddle, unitsOf, withHeld, type FrameBox } from '../src/lib/frames.ts'
 
 test('withHeld gives a frame with what it holds, and nothing else', () => {
   const all = [
@@ -20,17 +20,18 @@ test("a copy goes in its frame's copy, keeps its group's frame, or joins where i
   const frames = [{ id: 'f', box: box(0, 0) }, { id: 'g', box: box(500, 0) }]
   const ids = new Map([['f', 'f2'], ['a', 'a2']])
   const held = { id: 'a', type: 'shape', frameId: 'f' }
-  const elsewhere = { x: 2000, y: 2000 }
+  const at = (cx: number, cy: number) => ({ cx, cy, halfW: 5, halfH: 5 })
+  const elsewhere = at(2000, 2000)
   assert.equal(frameOfCopy(held, ids, false, frames, elsewhere), 'f2')
-  assert.equal(frameOfCopy({ id: 'f', type: 'frame' }, ids, false, frames, { x: 0, y: 0 }), null)
+  assert.equal(frameOfCopy({ id: 'f', type: 'frame' }, ids, false, frames, at(0, 0)), null)
   // Its frame not copied: where it lands, wherever it came from.
   const alone = { id: 'b', type: 'shape', frameId: 'g' }
-  assert.equal(frameOfCopy(alone, ids, false, frames, { x: 510, y: 0 }), 'g')
-  assert.equal(frameOfCopy(alone, ids, false, frames, { x: 0, y: 0 }), 'f')
+  assert.equal(frameOfCopy(alone, ids, false, frames, at(510, 0)), 'g')
+  assert.equal(frameOfCopy(alone, ids, false, frames, at(0, 0)), 'f')
   assert.equal(frameOfCopy(alone, ids, false, frames, elsewhere), null)
   // In its original's group: where the group is, wherever it lands.
   assert.equal(frameOfCopy(alone, ids, true, frames, elsewhere), 'g')
-  assert.equal(frameOfCopy({ id: 'c', type: 'shape', frameId: 'gone' }, ids, true, frames, { x: 0, y: 0 }), null)
+  assert.equal(frameOfCopy({ id: 'c', type: 'shape', frameId: 'gone' }, ids, true, frames, at(0, 0)), null)
 })
 
 type T = { id: string; type: string; layerId?: string | null; frameId?: string | null; box: FrameBox }
@@ -69,13 +70,18 @@ test('dropped into a frame it joins; taken out it leaves; only changes are retur
   assert.deepEqual([...changes], [['in', 'F'], ['out', null]])
 })
 
-test('a group half in a frame goes where its middle is, whole', () => {
+test('a frame takes only what is all inside it, a group whole; an arranged one by its middle', () => {
   const F = frame('F', 0, 0, 100, 100)
-  // Two traces in, one far out: the middle of the three is out.
-  const group = [trace('a', 0, 0, { layerId: 'G' }), trace('b', 50, 0, { layerId: 'G' }), trace('c', 400, 0, { layerId: 'G' })]
-  assert.deepEqual([...placeUnits([group], framesOf([F]), boxOf)], [])
-  const near = [trace('a', 0, 0, { layerId: 'G' }), trace('b', 50, 0, { layerId: 'G' }), trace('c', 120, 0, { layerId: 'G' })]
-  assert.deepEqual([...placeUnits([near], framesOf([F]), boxOf)], [['a', 'F'], ['b', 'F'], ['c', 'F']])
+  // One trace of the three sticking out past the edge: not in.
+  const out = [trace('a', 0, 0, { layerId: 'G' }), trace('b', 50, 0, { layerId: 'G' }), trace('c', 100, 0, { layerId: 'G' })]
+  assert.deepEqual([...placeUnits([out], framesOf([F]), boxOf)], [])
+  const inside = [trace('a', 0, 0, { layerId: 'G' }), trace('b', 50, 0, { layerId: 'G' }), trace('c', 85, 0, { layerId: 'G' })]
+  assert.deepEqual([...placeUnits([inside], framesOf([F]), boxOf)], [['a', 'F'], ['b', 'F'], ['c', 'F']])
+  // Half in a slot or masonry: its middle in, so in -- they size it to fit.
+  assert.deepEqual([...placeUnits([out], [{ id: 'S', box: F.box, arranged: true }], boxOf)], [['a', 'S'], ['b', 'S'], ['c', 'S']])
+  // The smallest that holds it whole: not a small one it only half fits.
+  const small = frame('small', 90, 0, 30, 30)
+  assert.equal(frameFor([...framesOf([F]), ...framesOf([small])], { cx: 70, cy: 0, halfW: 25, halfH: 10 }), 'F')
 })
 
 test('a moved trace naming a deleted frame has it cleared', () => {
@@ -177,4 +183,40 @@ test('a slot is a frame arranged to fill, fit or stretch; masonry is not one', (
   assert.ok(isSlot({ frameArrange: 'fit' }))
   assert.ok(!isSlot({ frameArrange: 'masonry' }))
   assert.ok(!isSlot({}))
+})
+
+test('what is in a slot but drawn under it is out of it; what is over it stays', () => {
+  const all = [
+    { id: 's', type: 'frame', frameArrange: 'fill' as const },
+    { id: 'under', type: 'image', frameId: 's' },
+    { id: 'over', type: 'image', frameId: 's' },
+    { id: 'framed', type: 'shape', frameId: 'plain' },
+    { id: 'plain', type: 'frame', frameArrange: null },
+  ]
+  const ranks = new Map([['under', 1], ['s', 2], ['over', 3], ['plain', 4], ['framed', 0]])
+  assert.deepEqual(underTheirSlots(all, ranks).map(t => t.id), ['under'])
+})
+
+test('leaving a slot, what it did undone: a fill crop, a stretch; nothing else', () => {
+  assert.deepEqual(outOfSlot({ type: 'image' }, { frameArrange: 'fill' }), { cropX: 0, cropY: 0, cropWidth: 1, cropHeight: 1 })
+  assert.deepEqual(outOfSlot({ type: 'image' }, { frameArrange: 'fit' }), {})
+  assert.deepEqual(outOfSlot({ type: 'shape' }, { frameArrange: 'fill' }), {})
+  assert.deepEqual(outOfSlot({ type: 'image' }, undefined), {})
+  // Out of a slot that stretched it: its own shape again, as big as fits where it was.
+  assert.deepEqual(outOfSlot({ type: 'shape', scaleX: 2.4, scaleY: 1.5 }, { frameArrange: 'stretch' }), { scaleX: 1.5, scaleY: 1.5 })
+  assert.deepEqual(outOfSlot({ type: 'image', scaleX: 0.7, scaleY: 1 }, { frameArrange: 'stretch' }), { scaleX: 0.7, scaleY: 0.7 })
+  assert.deepEqual(outOfSlot({ type: 'shape', scaleX: 2, scaleY: 2 }, { frameArrange: 'stretch' }), {})
+})
+test('a group copied whole is made anew; a trace of it copied alone stays in it', () => {
+  const all = [
+    { id: 'a', type: 'shape', layerId: 'G' }, { id: 'b', type: 'shape', layerId: 'G' },
+    { id: 'f', type: 'frame' }, { id: 'c', type: 'shape', layerId: 'H', frameId: 'f' }, { id: 'd', type: 'shape', layerId: 'H' },
+    { id: 'e', type: 'shape', layerId: 'gone' },
+  ]
+  const groups = new Set(['G', 'H'])
+  assert.deepEqual([...groupsCopiedWhole([all[0], all[1]], all, groups)], ['G'])
+  assert.deepEqual([...groupsCopiedWhole([all[0]], all, groups)], [])
+  // Held by a copied frame: its group comes anew, though not all of it is copied.
+  assert.deepEqual([...groupsCopiedWhole([all[2], all[3]], all, groups)], ['H'])
+  assert.deepEqual([...groupsCopiedWhole([all[5]], all, groups)], [])
 })

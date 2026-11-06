@@ -1,6 +1,8 @@
 // The whole atrium in miniature, in a corner, while the view moves -- the
-// view drawn on it as a frame. On unless turned off by its button in the
-// top bar (LobbyScene, showMinimap).
+// view drawn on it as a frame. On unless turned off under its button in the
+// top bar (MinimapPanel), which also says how it shows and answers
+// (minimapPrefs): always, or while the view moves; brought up by pointing at
+// its corner or not (not, unless asked); a press on it going there, or nothing.
 //
 // Cheap by construction. The traces are drawn into its canvas only when they
 // change, at most four times a second. While the view moves, only the frame
@@ -13,7 +15,7 @@
 // than jumping the view, and a trace carried across it passes by.
 
 import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react'
-import { useGameStore } from '../store/gameStore'
+import { useGamePick, useGameStore } from '../store/gameStore'
 import { boundsOf, traceBox } from '../lib/traceGeometry'
 import { isPathTrace } from '../lib/pathBounds'
 import { pathOutline, type PathPoint } from '../lib/pathGeometry'
@@ -44,6 +46,20 @@ const Minimap = forwardRef<MinimapHandle, { onMove: (x: number, y: number) => vo
   const last = useRef({ x: NaN, y: NaN, zoom: NaN, width: 0, height: 0 })
   const hideTimer = useRef(0)
   const pointedAt = useRef(false)
+  const { minimapPrefs } = useGamePick('minimapPrefs')
+  const prefs = useRef(minimapPrefs)
+  prefs.current = minimapPrefs
+  // Always: shown, and kept so. Else as the view moves -- going in a moment, as it does.
+  useEffect(() => {
+    if (minimapPrefs.always) boxRef.current?.classList.add('minimap-shown')
+    else hideLater()
+  }, [minimapPrefs.always])
+  const hideLater = () => {
+    window.clearTimeout(hideTimer.current)
+    hideTimer.current = window.setTimeout(() => {
+      if (!pointedAt.current && !prefs.current.always) boxRef.current?.classList.remove('minimap-shown')
+    }, STAYS_MS)
+  }
 
   const placeFrame = () => {
     const view = viewRef.current, { scale, x, y } = map.current, now = last.current
@@ -113,8 +129,7 @@ const Minimap = forwardRef<MinimapHandle, { onMove: (x: number, y: number) => vo
       placeFrame()
       // Shown while the view moves, and a moment after.
       boxRef.current?.classList.add('minimap-shown')
-      window.clearTimeout(hideTimer.current)
-      hideTimer.current = window.setTimeout(() => { if (!pointedAt.current) boxRef.current?.classList.remove('minimap-shown') }, STAYS_MS)
+      hideLater()
     },
   }), [])
   useEffect(() => () => window.clearTimeout(hideTimer.current), [])
@@ -128,13 +143,13 @@ const Minimap = forwardRef<MinimapHandle, { onMove: (x: number, y: number) => vo
     const point = (on: boolean) => {
       const box = boxRef.current
       if (!box || pointedAt.current === on) return
+      // Not shown, it's brought up by pointing only if that's asked for (peek).
+      if (on && !box.classList.contains('minimap-shown') && !prefs.current.peek) return
       pointedAt.current = on
-      box.classList.toggle('minimap-pointed', on)
+      // It takes the pointer, to be pressed, only when a press goes somewhere.
+      box.classList.toggle('minimap-pointed', on && prefs.current.interactive)
       if (on) box.classList.add('minimap-shown')
-      else {
-        window.clearTimeout(hideTimer.current)
-        hideTimer.current = window.setTimeout(() => boxRef.current?.classList.remove('minimap-shown'), STAYS_MS)
-      }
+      else hideLater()
     }
     const move = (e: PointerEvent) => {
       if (dragging.current) return
@@ -166,12 +181,14 @@ const Minimap = forwardRef<MinimapHandle, { onMove: (x: number, y: number) => vo
       role="img"
       aria-label={t('atrium.minimap')}
       className="minimap fixed bottom-16 right-4 z-[9999] border border-nier-border/40 overflow-hidden cursor-crosshair touch-none"
-      style={{ width: WIDTH, height: HEIGHT, backgroundColor: 'rgb(var(--c-ground) / 0.82)' }}
+      // Not interactive: never takes the pointer, so a press goes to what's under it.
+      style={{ width: WIDTH, height: HEIGHT, backgroundColor: 'rgb(var(--c-ground) / 0.82)', pointerEvents: minimapPrefs.interactive ? undefined : 'none' }}
       onPointerDown={event => { dragging.current = true; event.currentTarget.setPointerCapture(event.pointerId); goTo(event) }}
       onPointerMove={event => { if (event.currentTarget.hasPointerCapture(event.pointerId)) goTo(event) }}
       onLostPointerCapture={() => { dragging.current = false }}
     >
-      <canvas ref={canvasRef} style={{ width: WIDTH, height: HEIGHT, display: 'block' }} />
+      {/* Taking the pointer as the minimap does, not always: index.css gives every canvas it. */}
+      <canvas ref={canvasRef} style={{ width: WIDTH, height: HEIGHT, display: 'block', pointerEvents: 'inherit' }} />
       <div ref={viewRef} className="absolute top-0 left-0 border border-nier-strong/80 pointer-events-none" style={{ backgroundColor: 'rgb(var(--c-strong) / 0.08)' }} />
     </div>
   )

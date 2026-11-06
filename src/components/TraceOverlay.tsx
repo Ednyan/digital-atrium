@@ -8,7 +8,7 @@ import MediaControls, { overTrace } from './MediaControls'
 import RemoteCursors from './RemoteCursors'
 import { hexToRgb } from '../lib/cursorLook'
 import { dashProps } from '../lib/strokeStyle'
-import { UNSUPPORTED } from '../lib/atriumFile'
+import { TRACES_PLACED_EVENT, UNSUPPORTED } from '../lib/atriumFile'
 import React, { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo, useSyncExternalStore } from 'react'
 import { flushSync } from 'react-dom'
 import type { Layer, Trace } from '../types/database'
@@ -16,6 +16,7 @@ import { supabase, isDesktop, isLocalData } from '../lib/supabase'
 import { useGameStore, lobbyFullMessage, useGamePick } from '../store/gameStore'
 import { useLatestHandlers } from '../hooks/useLatestHandlers'
 import { showToast } from '../lib/toast'
+import { keepOnTop, TOP_LAYER_RESET } from '../lib/topLayer'
 import { useTranslation } from '../lib/i18n'
 import { count } from '../lib/stats'
 import { isCanvasTarget, isEditableTarget } from '../lib/editableTarget'
@@ -36,9 +37,9 @@ import { useClampedMenuPosition } from '../hooks/useClampedMenuPosition'
 import { openExternalUrl } from '../lib/openExternal'
 import { privately, throughRelay, toEmbedUrl, withPlayerApi } from '../lib/embedUrl'
 import { compareOrder, drawRanks, groupIdOf, inOrder, keyAt, keysAt, keysBetween, keysOnTop, keysOnTopOfGroup, reorder, siblingsOf, topLevel, type Ordered } from '../lib/order'
-import { createGroup, reloadLayers, writeGroupKey, writeGroupTemplate } from '../hooks/useLayers'
+import { createGroup, letGoUnderSlots, reloadLayers, writeGroupKey, writeGroupTemplate } from '../hooks/useLayers'
 import { buildTraceInsertRow } from '../lib/traceInsert'
-import { boxContains, fillCrop, frameAround, heldBy, isFrame, isSlot, masonry, newFrame, placeUnits, putInFrame, readingOrder, slotPlacement, unitMiddle, unitsOf, withHeld, type FrameBox, type SlotFit } from '../lib/frames'
+import { boxInside, fillCrop, frameAround, frameAt, heldBy, isArranged, isFrame, isSlot, masonry, outOfSlot, slotLook, SLOT_FITS, SLOT_FIT_WORDS, underTheirSlots, newFrame, placeUnits, putInFrame, readingOrder, slotPlacement, unitBox, unitMiddle, unitsOf, withHeld, type FrameBox, type SlotFit } from '../lib/frames'
 import { APPLY_COLOUR_EVENT, type ApplyColour } from '../lib/palette'
 import { ELBOW_RADIUS, elbowRoute, lineCrosses } from '../lib/elbow'
 import { alignedHandle, boxHolds, borderMarks, handlesAt, pathLine, pathOutline, pointBetween, shiftPoints, snapToBorder, type PathCurve, type PathPoint, type TurnedBox } from '../lib/pathGeometry'
@@ -50,13 +51,13 @@ import HeldImage from './HeldImage'
 import { has } from '../lib/traceKinds'
 import { copiedStyle, copyStyle, shownValue, stylePatchFor } from '../lib/traceStyle'
 import { isLinkable, membersOf, scopeOf, spread, valuesHome, valueThreads, wordsUnread, type Change } from '../lib/templateValues'
-import { LinkButton, TemplateColumn, ValueLinkContext, ValuesSection, WordsLinkRow, type ValueLinking } from './ValueLink'
+import { LinkButton, ValueLinkContext, ValuesSection, WordsLinkRow, type ValueLinking } from './ValueLink'
 import type { TemplateValue } from '../lib/templateValues'
 import { knownTemplateMaker } from '../lib/platformAdmin'
 import FontSizeField from './FontSizeField'
 import TraceNameField from './TraceNameField'
 import { ARROW_SCALE, multiSelectionInk, previewFrameColour, rememberShapeStyle, selectionInk, shapePaint, shapeStyleOf, type ShapeStyle } from '../lib/shapeStyle'
-import { copyTraces } from '../lib/traceCopy'
+import { copyMakesGroups, copyTraces } from '../lib/traceCopy'
 import { ACTION_ICONS, ChoiceButton, Choices, CustomizationPanel, PanelFooter, Row, Section, Switch, TextAlignField, TextValignField, traceKindLabel, type FooterAction } from './Customization'
 import { MENU_ICONS, MenuIcon } from './AtriumMenu'
 import PinterestMark from './PinterestMark'
@@ -170,6 +171,9 @@ interface TraceOverlayProps {
   // batch edit. A new array reference is sent each time, like
   // multiSelectRequest above, so asking twice for the same set still fires.
   customizeRequest?: string[] | null
+  // A selection made in the Layer panel (its key: an id, or ids sorted and
+  // joined): selected, not customized -- until pressed on the canvas.
+  panelSelection?: { key: string } | null
   // One-shot request from LobbyScene: a brand-new path trace (just inserted
   // with a single starting point) that should be selected and immediately
   // put into point-placing mode, instead of leaving the user to find the
@@ -189,7 +193,7 @@ interface TraceOverlayProps {
   // when a box was dragged out for it (else its default), whether to open its
   // Customize panel, and a fresh object each time so asking twice at one
   // point still makes two.
-  frameRequest?: { x: number; y: number; width?: number; height?: number; customize?: boolean } | null
+  frameRequest?: { x: number; y: number; width?: number; height?: number; customize?: boolean; slot?: boolean } | null
   // While true, Ctrl+Z/Ctrl+Shift+Z are owned by the drawing-mode stroke
   // undo (see LobbyScene) instead of this file's trace undo/redo history.
   isDrawingMode?: boolean
@@ -228,6 +232,8 @@ interface TraceOverlayProps {
   canEdit?: boolean
   // In the template editor (lib/workshop): the template's values, and how they're kept.
   templateValues?: { values: TemplateValue[]; keep: (values: TemplateValue[]) => void } | null
+  // A panel of the atrium's open at the side (Layers): the template's gives way to it.
+  sidePanelOpen?: boolean
 }
 type TransformMode = 'none' | 'move' | 'scale' | 'rotate' | 'crop' | 'point' | 'control-in' | 'control-out' | 'move-path' | 'group-scale' | 'group-rotate'
 
@@ -367,6 +373,8 @@ const TRACE_CLIPBOARD_MIME = 'application/x-digital-atrium-traces'
 const TRACE_CLIPBOARD_TEXT_SENTINEL = '__DIGITAL_ATRIUM_TRACE_CLIPBOARD__'
 // Whether template values' links are shown as threads ("Show links"), on this device.
 const VALUE_THREADS = 'atrium.valueThreads'
+// That a slot takes and gives back only with Ctrl held: said once a visit (settleInFrames).
+let slotCtrlSaid = false
 
 // A trace's z-index is its place in the drawing order (lib/order's
 // drawRanks: 1 at the bottom, up to the number of traces). Selection handles (the `z-[1000000]` Tailwind classes below),
@@ -494,6 +502,11 @@ function OwnCursor({ hidden, zIndex, pointerInWindow, crosshair, pan }: {
   }
   const place = useCallback((el: HTMLDivElement | null) => { elRef.current = el; putAtPointer(el) }, [])
   const placeEdge = useCallback((el: HTMLDivElement | null) => { edgeRef.current = el; putAtPointer(el) }, [])
+  // Over everything, the top layer too: the outline, then the body over it.
+  useLayoutEffect(() => {
+    const stops = [edgeRef.current, elRef.current].flatMap(el => (el ? [keepOnTop(el)] : []))
+    return () => stops.forEach(stop => stop())
+  }, [hidden])
   useEffect(() => {
     const follow = (e: PointerEvent) => {
       pointerAt = { x: e.clientX, y: e.clientY }
@@ -599,11 +612,11 @@ function OwnCursor({ hidden, zIndex, pointerInWindow, crosshair, pan }: {
       )
     }
 
-    // Moved by putAtPointer and the pointer's own events, not by a render.
+    // Moved by putAtPointer and the pointer's own events, not by a render. In
+    // the top layer (lib/topLayer), over every menu, popover and dialog.
     const layer: React.CSSProperties = {
-      position: 'absolute',
-      left: 0,
-      top: 0,
+      ...TOP_LAYER_RESET,
+      position: 'fixed',
       willChange: 'transform',
       pointerEvents: 'none',
       zIndex,
@@ -616,7 +629,9 @@ function OwnCursor({ hidden, zIndex, pointerInWindow, crosshair, pan }: {
     // Player cursor
     return (
       <>
-      {outline && <div ref={placeEdge} data-cursor-edge="" style={{ ...layer, mixBlendMode: 'difference' }}>{outline}</div>}
+      {/* Always there, empty when there's no outline: put on top before the
+          body (lib/topLayer keeps that order), so the body lies over it. */}
+      <div ref={placeEdge} data-cursor-edge="" style={{ ...layer, mixBlendMode: 'difference' }}>{outline}</div>
       <div
         key="player-cursor"
         ref={place}
@@ -698,7 +713,7 @@ const TraceSlot = React.memo(
 // runs before it has to be laid out again.
 export const CULL_MARGIN = 500
 
-export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackground, gridLineSpacing, zoom, worldOffset, worldLayerRef, onEdgePan, lobbyId, selectedTraceId, setSelectedTraceId, multiSelectRequest, areaSelectRequest, lassoSelectRequest, selecting = false, customizeRequest, newPathRequest, newTextRequest, directSelect = false, frameRequest, isDrawingMode, hideCursor, panning = false, connectTool = false, clearRequest = 0, placing = false, onEditDrawing, hiddenTraceIds, toolSwitch = 0, onMultiSelectionChange, onExport, onCustomizeOpen, canEdit = true, templateValues = null }: TraceOverlayProps) {
+export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackground, gridLineSpacing, zoom, worldOffset, worldLayerRef, onEdgePan, lobbyId, selectedTraceId, setSelectedTraceId, multiSelectRequest, areaSelectRequest, lassoSelectRequest, selecting = false, customizeRequest, newPathRequest, newTextRequest, directSelect = false, frameRequest, isDrawingMode, hideCursor, panning = false, connectTool = false, clearRequest = 0, placing = false, onEditDrawing, hiddenTraceIds, toolSwitch = 0, onMultiSelectionChange, onExport, onCustomizeOpen, canEdit = true, templateValues = null, sidePanelOpen = false, panelSelection = null }: TraceOverlayProps) {
   const { t, language } = useTranslation()
   // A crop under way: the trace as cropped so far, in place of the store's,
   // and into the store as it ends (handleMouseUp). Written on every step,
@@ -3186,9 +3201,9 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
     const copy = () => copyTraces(sourceTraces, { x: offsetX, y: offsetY }, { userId, username, lobbyId, textName: n => t('atrium.layers.numberedText', { n }) })
     let copies: Trace[]
     try {
-      // A frame's copy makes groups and threads too: one step of undo for all
-      // of it (lib/traceCopy).
-      copies = await (sourceTraces.some(isFrame) ? queueLayerChange(() => withLayerUndo('duplicate', copy)) : copy())
+      // A frame's copy, or a whole group's, makes groups and threads too: one
+      // step of undo for all of it (lib/traceCopy).
+      copies = await (copyMakesGroups(sourceTraces) ? queueLayerChange(() => withLayerUndo('duplicate', copy)) : copy())
     } catch (error) {
       showToast(t('atrium.error.duplicateFailed', { message: error instanceof Error ? error.message : String(error) }))
       return
@@ -3464,13 +3479,26 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
       }
       for (const [id, key] of keys ?? []) (layers.some(l => l.id === id) ? groupKeys : traceKeys).set(id, key)
     }
-    if (traceKeys.size > 0) inOneStep(() => { for (const [id, orderKey] of traceKeys) updateTraceCustomization(id, { orderKey }) })
+    // What's put under its slot is out of it, in the same step (lib/frames
+    // underTheirSlots) -- worked out on the order to be, then one change a
+    // trace: a second one to the same trace would start from what it was.
+    if (traceKeys.size > 0) {
+      const now = useGameStore.getState()
+      const after = now.traces.map(t => (traceKeys.has(t.id) ? { ...t, orderKey: traceKeys.get(t.id)! } : t))
+      const out = new Map(underTheirSlots(after, drawRanks(after, now.layers)).map(t => [t.id, { frameId: null, ...outOfSlot(t, after.find(s => s.id === t.frameId)) }]))
+      inOneStep(() => {
+        for (const id of new Set([...traceKeys.keys(), ...out.keys()])) {
+          updateTraceCustomization(id, { ...(traceKeys.has(id) ? { orderKey: traceKeys.get(id) } : {}), ...out.get(id) })
+        }
+      })
+    }
     if (groupKeys.size > 0 && lobbyId) {
       void queueLayerChange(() => withLayerUndo('move group', async () => {
         for (const [id, key] of groupKeys) {
           const layer = useGameStore.getState().layers.find(l => l.id === id)
           if (layer) await writeGroupKey(layer, key, lobbyId)
         }
+        await letGoUnderSlots()
       }))
     }
   }
@@ -3657,13 +3685,13 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
 
   // The panel's traces' values (ValueLink): for developers, for now; only where
   // they're all kept by the one group, and are this person's to change.
-  const linkingFor = (targets: Trace[], column = false): ValueLinking | null => {
-    if ((!targets.length && !column) || !canEdit || !lobbyId || !knownTemplateMaker()) return null
+  const linkingFor = (targets: Trace[]): ValueLinking | null => {
+    if (!targets.length || !canEdit || !lobbyId || !knownTemplateMaker()) return null
     const shared = { traces: targets, fonts: FONT_FAMILY_OPTIONS, threads: valueThreadsOn, showThreads }
     // In the template editor, every trace is the template's, and its values are the workshop's.
     if (templateValues) {
       const group: Layer = { id: 'workshop', name: '', isGroup: true, userId: userId ?? '', createdAt: '', template: { values: templateValues.values } }
-      return { ...shared, group, members: traces, values: templateValues.values, change: valueChange(templateValues.values, templateValues.keep) }
+      return { ...shared, group, members: traces, values: templateValues.values, change: valueChange(templateValues.values, templateValues.keep), making: true }
     }
     const homes = targets.map(trace => valuesHome(trace, layers))
     const group = homes[0]
@@ -3807,6 +3835,8 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
   }
 
   const handleMouseDown = (e: React.MouseEvent, trace: Trace, mode: TransformMode, corner?: string) => {
+    // Pressed on the canvas: what's selected now is the canvas's, panel and all.
+    panelPickRef.current = null
     // Adding a path's points: another trace pressed is only where the next
     // point goes (handleClickOutside) -- not taken, nor selected.
     if (pathCreationModeRef.current && trace.id !== pathIdRef.current && e.button === 0) return
@@ -3860,9 +3890,12 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
     // still adds or removes a single trace.
     let selection = multiSelectedIds
     groupClickRef.current = null
-    // Direct select (the quick bar's, or Ctrl/Cmd for one click) takes the
-    // trace itself, as if it were in no group.
-    const direct = directSelect || e.ctrlKey || e.metaKey
+    // Direct select (the quick bar's) takes the trace itself, as if it were in
+    // no group. Ctrl/Cmd does for a click: the trace picked out as it's let go
+    // (groupClickRef, handleMouseUp). Dragged, the group moves whole -- Ctrl as
+    // it's let go is what puts a group in a slot or takes it out (settleInFrames),
+    // and it was taking one trace of the group instead (the user's, 2026-11-06).
+    const direct = directSelect
     const members = mode === 'move' && !e.shiftKey && !direct ? groupMembersOf(trace) : null
     if (members) {
       if (members.every(id => multiSelectedIds.has(id))) {
@@ -3872,6 +3905,7 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
         selection = new Set(members)
         setMultiSelectedIds(selection)
       }
+      if (e.ctrlKey || e.metaKey) groupClickRef.current = trace.id
     }
     // Direct, on a trace of a group selected whole: that trace alone. A
     // selection made any other way -- an area, Shift -- still moves together.
@@ -3977,7 +4011,13 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
     // them stays where it is.
     const taken = selection.size > 0 ? [...selection] : [trace.id]
     const takenFrames = new Set(taken.filter(id => traces.some(t => t.id === id && isFrame(t))))
-    const carriedByFrames = mode === 'move' ? heldBy(takenFrames, traces).map(t => t.id) : []
+    // Of what a frame holds, what's all inside it -- an arranged one's, all of
+    // it. Half out it's not carried, and leaves it once the frame's put down
+    // (settleInFrames): held before that rule (lib/frames).
+    const carriedByFrames = mode === 'move' ? unitsOf(traces, groupIdsNow(), new Set(heldBy(takenFrames, traces).map(t => t.id))).filter(unit => {
+      const holder = traces.find(f => f.id === unit[0].frameId)
+      return !holder || isArranged(holder) || boxInside(unitBox(unit, storedBox), storedBox(holder))
+    }).flat().filter(t => t.frameId && takenFrames.has(t.frameId)).map(t => t.id) : []
     const dragIds = new Set([...selection, ...carriedByFrames])
 
     // Store starting transforms for all multi-selected traces
@@ -4792,7 +4832,8 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
     }
   }
 
-  const handleMouseUp = async () => {
+  // `slots`: Ctrl or ⌘ held as it's let go -- slots take and give back (settleInFrames).
+  const handleMouseUp = async (slots = false) => {
     const activeTransformMode = transformModeRef.current
     const activeSelectedTraceId = selectedTraceIdRef.current
     const dragged = justDraggedRef.current
@@ -5040,7 +5081,7 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
     // rest: where a glide ends, or here. After the move's undo entry exists,
     // so the glide can finish it and the frames fold into it.
     const settle = () => {
-      if (activeTransformMode === 'move' && dragged && !releasedInPanel) settleInFrames(carried)
+      if (activeTransformMode === 'move' && dragged && !releasedInPanel) settleInFrames(carried, slots)
       else if (activeTransformMode === 'scale' && dragged && activeSelectedTraceId) settleFrameResize(activeSelectedTraceId)
     }
     if (!(thrown.length > 0 && startGlide(thrown, settle))) settle()
@@ -5385,12 +5426,12 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
           if (move) handleMouseMove(move)
         })
       }
-      const onUp = () => {
+      const onUp = (e: MouseEvent | TouchEvent) => {
         if (frame) { cancelAnimationFrame(frame); frame = 0 }
         const move = waiting
         waiting = null
         if (move) handleMouseMove(move)
-        handleMouseUp()
+        handleMouseUp(e.ctrlKey || e.metaKey)
       }
       const handleTouchMoveGlobal = (e: TouchEvent) => {
         if (e.touches.length === 1) {
@@ -5428,6 +5469,23 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
   // opens it (requestedRef: what was asked for stays open).
   const dismissedRef = useRef<string | null>(null)
   const requestedRef = useRef<string | null>(null)
+  // Picked in the Layer panel: selected without the panel opening -- the
+  // user's, 2026-11-06: to customize, the trace is clicked on the canvas, which
+  // lets this go (handleMouseDown). Ahead of the effect below, which reads it.
+  const panelPickRef = useRef<string | null>(null)
+  useEffect(() => { panelPickRef.current = panelSelection?.key ?? null }, [panelSelection])
+  // A panel opened on the right (Layers, Templates, ...) puts this one away: one
+  // there at a time. The selection stays, quiet as a Layer panel pick is, until
+  // a press on the canvas.
+  const sidePanelWasOpen = useRef(sidePanelOpen)
+  useEffect(() => {
+    if (sidePanelOpen && !sidePanelWasOpen.current && (editingTraceRef.current || showBatchEditPanel)) {
+      panelPickRef.current = selectionKey()
+      setEditingTrace(null)
+      setShowBatchEditPanel(false)
+    }
+    sidePanelWasOpen.current = sidePanelOpen
+  }, [sidePanelOpen])
   const autoOpenCustomization = useGameStore(state => state.autoOpenCustomization)
   // A playing trace heard from where it is (User Preferences).
   useSpatialSound(useGameStore(state => state.spatialSound))
@@ -5441,7 +5499,7 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
     // until Clickable is turned off. Customize in the menu still opens it.
     const selected = multiSelectedIds.size > 1 ? null : tracesRef.current.find(t => t.id === selectedTraceId)
     const opensLink = !!selected?.isClickable && !!selected.linkUrl
-    const wanted = (autoOpenCustomization && !opensLink) || key === requestedRef.current
+    const wanted = (autoOpenCustomization && !opensLink && key !== panelPickRef.current) || key === requestedRef.current
     // Let go after a drag: the panel left as it was, one trace or several --
     // for as long as that's what's selected, not for good.
     if (key !== draggedKeyRef.current) draggedKeyRef.current = null
@@ -5548,7 +5606,8 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
   // Boxes as the store holds them now (traceBoxFor's `stored`): these run in a
   // drag's own handlers, and after it.
   const storedBox = (trace: Trace): FrameBox => traceBoxFor(trace, undefined, 1, true)
-  const framesNow = (all: Trace[]) => all.filter(isFrame).map(f => ({ id: f.id, box: storedBox(f) }))
+  // `arranged`: one that sizes what's put in it, so takes it by its middle (lib/frames frameFor).
+  const framesNow = (all: Trace[]) => all.filter(isFrame).map(f => ({ id: f.id, box: storedBox(f), arranged: isArranged(f) }))
   const groupIdsNow = () => new Set(useGameStore.getState().layers.map(l => l.id))
 
   // Changes added to the undo step just recorded, so one Ctrl+Z takes them
@@ -5584,28 +5643,94 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
   // Traces' frames written to the store as it is now, and queued to save.
   // Folded into the last undo step, or, for a frame just made -- whose undo
   // takes the frame itself away -- into none.
+  // Out of a slot, a picture is whole again (lib/frames outOfSlot); into one,
+  // what went in is brought to the front (toTheFront).
   const applyFrameChanges = (changes: Map<string, string | null>, undo: 'fold' | 'none') => {
     const ops: { traceId: string; before: Partial<Trace>; after: Partial<Trace> }[] = []
+    const all = useGameStore.getState().traces
+    const slotIds = new Set(all.filter(isSlot).map(t => t.id))
+    const joined: Trace[] = []
     for (const [id, frameId] of changes) {
-      const live = useGameStore.getState().traces.find(t => t.id === id)
+      const live = all.find(t => t.id === id)
       if (!live) continue
-      ops.push({ traceId: id, before: { frameId: live.frameId ?? null }, after: { frameId } })
-      addTrace({ ...live, frameId })
-      markTraceChanged(id)
+      const left = live.frameId && live.frameId !== frameId ? outOfSlot(live, all.find(t => t.id === live.frameId)) : {}
+      // What the slot changed, as it was: a crop's place 0, its size and a scale 1 when unset.
+      const was: Partial<Trace> = {}
+      for (const key of Object.keys(left) as (keyof typeof left)[]) was[key] = live[key] ?? (key === 'cropX' || key === 'cropY' ? 0 : 1)
+      ops.push({ traceId: id, before: { frameId: live.frameId ?? null, ...was }, after: { frameId, ...left } })
+      // As an undo's change: what a drag left drawn for it gives way (applyUpdateTarget),
+      // or that copy -- stretched still -- went on being drawn till the next save.
+      applyUpdateTarget(useGameStore.getState(), id, { frameId, ...left })
+      if (frameId && slotIds.has(frameId) && live.frameId !== frameId) joined.push(live)
     }
+    ops.push(...toTheFront(joined))
     if (undo === 'fold') foldIntoLastUndo(ops)
+  }
+
+  // Into a slot: in front -- of the slot and of the template it's part of -- so
+  // it's seen (the user's, 2026-11-06). A trace on its own to the top of the
+  // stack (of its group's, when the slot is in that group too), in this step; a
+  // group to the top of the stack, written now as a group's place is, and left
+  // there by an undo. Put under its slot again by hand, it's out of it
+  // (letGoUnderSlots).
+  const toTheFront = (joined: Trace[]) => {
+    const ops: { traceId: string; before: Partial<Trace>; after: Partial<Trace> }[] = []
+    if (joined.length === 0) return ops
+    const { traces: all, layers: groups } = useGameStore.getState()
+    const ranks = drawRanks(all, groups)
+    const raised = new Set<string>()
+    for (const trace of [...joined].sort((a, b) => (ranks.get(a.id) ?? 0) - (ranks.get(b.id) ?? 0))) {
+      const slot = all.find(t => t.id === trace.frameId)
+      const group = groupIdOf(trace, groups)
+      if (group && group !== (slot ? groupIdOf(slot, groups) : null)) {
+        if (raised.has(group) || !lobbyId) continue
+        raised.add(group)
+        void queueLayerChange(async () => {
+          const now = useGameStore.getState()
+          const stack = inOrder(topLevel(now.traces, now.layers))
+          const layer = now.layers.find(l => l.id === group)
+          if (layer && stack[stack.length - 1]?.id !== group) await writeGroupKey(layer, keysOnTop(stack)[0], lobbyId)
+        })
+        continue
+      }
+      const now = useGameStore.getState()
+      const pool = inOrder(group ? now.traces.filter(t => t.layerId === group) : topLevel(now.traces, now.layers))
+      if (pool[pool.length - 1]?.id === trace.id) continue
+      const live = now.traces.find(t => t.id === trace.id)
+      if (!live) continue
+      const orderKey = group ? keysOnTopOfGroup(now.traces, group)[0] : keysOnTop(pool)[0]
+      ops.push({ traceId: trace.id, before: { orderKey: live.orderKey ?? null }, after: { orderKey } })
+      addTrace({ ...live, orderKey })
+      markTraceChanged(trace.id)
+    }
+    return ops
   }
 
   // Put down after a move: what was moved belongs to the frame its middle is
   // in now -- a group by the middle of all of it -- and what a frame carried
-  // stays in the frame that carried it.
-  const settleInFrames = (movedIds: string[]) => {
+  // stays in the frame that carried it. Slots only with Ctrl (or ⌘) held as
+  // it's let go (`slots`): without, what's in one stays in it, put back in its
+  // place, and what isn't doesn't fall in -- the user's, 2026-11-05.
+  const settleInFrames = (movedIds: string[], slots = false) => {
     const all = useGameStore.getState().traces
     const moved = all.filter(t => movedIds.includes(t.id))
     const movedFrames = new Set(moved.filter(isFrame).map(f => f.id))
     const loose = new Set(moved.filter(t => !isFrame(t) && !(t.frameId && movedFrames.has(t.frameId))).map(t => t.id))
+    // What a moved frame held but didn't carry (half out of it): placed where it is now.
+    for (const t of all) if (!isFrame(t) && t.frameId && movedFrames.has(t.frameId) && !movedIds.includes(t.id)) loose.add(t.id)
     if (loose.size === 0) return
-    const changes = placeUnits(unitsOf(all, groupIdsNow(), loose), framesNow(all), storedBox)
+    const units = unitsOf(all, groupIdsNow(), loose)
+    const frames = framesNow(all)
+    const slotIds = new Set(all.filter(isSlot).map(t => t.id))
+    const inSlot = (unit: Trace[]) => unit.some(t => t.frameId && slotIds.has(t.frameId))
+    const overSlot = (unit: Trace[]) => { const middle = unitMiddle(unit, storedBox); return slotIds.has(frameAt(frames, middle.x, middle.y) ?? '') }
+    if (!slots && !slotCtrlSaid && units.some(unit => inSlot(unit) || overSlot(unit))) {
+      slotCtrlSaid = true
+      showToast(t('templates.slotCtrl'))
+    }
+    const changes = slots
+      ? placeUnits(units, frames, storedBox)
+      : placeUnits(units.filter(unit => !inSlot(unit)), frames.filter(f => !slotIds.has(f.id)), storedBox)
     applyFrameChanges(changes, 'fold')
     // Arranged frames a unit left, joined, or was moved about in: laid out again.
     const touched = new Set<string>()
@@ -5625,7 +5750,7 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
     const resized = all.find(t => t.id === frameId)
     // An arranged frame keeps what it holds, laid out to its new width; a
     // trace resized in one goes back to its column.
-    if (resized?.frameArrange === 'masonry' || (resized && isSlot(resized))) { arrangeFrames([frameId], 'fold'); return }
+    if (resized && isArranged(resized)) { arrangeFrames([frameId], 'fold'); return }
     if (resized && !isFrame(resized) && resized.frameId) { arrangeFrames([resized.frameId], 'fold'); return }
     const frames = framesNow(all)
     const frame = frames.find(f => f.id === frameId)
@@ -5634,8 +5759,7 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
     const units = unitsOf(all, groupIdsNow()).filter(unit => {
       const current = unit[0].frameId && known.has(unit[0].frameId) ? unit[0].frameId : null
       if (current) return current === frameId
-      const middle = unitMiddle(unit, storedBox)
-      return boxContains(frame.box, middle.x, middle.y)
+      return boxInside(unitBox(unit, storedBox), frame.box)
     })
     applyFrameChanges(placeUnits(units, frames, storedBox), 'fold')
   }
@@ -5665,8 +5789,7 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
       ? unitsOf(all, groups, new Set(wrap))
       : unitsOf(all, groups).filter(unit => {
           if (unit.some(tr => tr.frameId && all.some(f => f.id === tr.frameId))) return false
-          const middle = unitMiddle(unit, storedBox)
-          return boxContains(box, middle.x, middle.y)
+          return boxInside(unitBox(unit, storedBox), box)
         })
     if (!slot) applyFrameChanges(putInFrame(units, frame.id), 'none')
     setMultiSelectedIds(new Set())
@@ -5715,8 +5838,12 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
   }
 
   // A slot's (lib/frames isSlot): what it holds -- one thing, or several fitted as
-  // one -- put on it and sized to it. Filling it, a picture is cropped about its
-  // middle to the slot's shape; anything else is fitted, as a group always is.
+  // one -- put on it and sized to it. One thing is sized from its own shape, not
+  // from the box it has now: a picture filling it is cropped about its middle to
+  // the slot's shape, and fitted or stretched it's all of it, the crop the slot's
+  // to take off again; anything else filling it is fitted. Sized from its box, a
+  // trace kept what was done to it -- the crop, a stretch -- and Fit looked just
+  // like what came before. Several (a group) are fitted, as they are.
   const slotArrangement = (frame: Trace, all: Trace[]) => {
     const held = new Set(all.filter(t => t.frameId === frame.id && !isFrame(t)).map(t => t.id))
     if (held.size === 0) return []
@@ -5728,15 +5855,22 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
     const outer = storedBox(frame), border = (frame.showBorder ?? true) ? (frame.borderWidth ?? 2) : 0
     const inside = { cx: outer.cx, cy: outer.cy, halfW: Math.max(1, outer.halfW - border), halfH: Math.max(1, outer.halfH - border) }
     const near = (a: number, b: number) => Math.abs(a - b) < 0.001
-    if (frame.frameArrange === 'fill' && one && (one.type === 'image' || one.type === 'video')) {
+    if (one && !isPathTrace(one)) {
       const base = getTraceSize(one)
       const w = Math.max(0.5, inside.halfW - edge), h = Math.max(0.5, inside.halfH - edge)
-      const crop = fillCrop(base.width / base.height, w / h)
-      const scale = (2 * w) / (base.width * crop.w)
+      const picture = one.type === 'image' || one.type === 'video'
+      const fill = frame.frameArrange === 'fill' && picture
+      const crop = fill ? fillCrop(base.width / base.height, w / h) : { x: 0, y: 0, w: 1, h: 1 }
+      const across = (2 * w) / (base.width * crop.w), down = (2 * h) / (base.height * crop.h)
+      const [scaleX, scaleY] = frame.frameArrange === 'stretch' ? [across, down] : fill ? [across, across] : [Math.min(across, down), Math.min(across, down)]
       const now = storedTransformOf(one)
-      const before = { x: now.x, y: now.y, scaleX: now.scaleX, scaleY: now.scaleY, cropX: one.cropX ?? 0, cropY: one.cropY ?? 0, cropWidth: one.cropWidth ?? 1, cropHeight: one.cropHeight ?? 1 }
-      const after = { x: inside.cx, y: inside.cy, scaleX: scale, scaleY: scale, cropX: crop.x, cropY: crop.y, cropWidth: crop.w, cropHeight: crop.h }
-      return (Object.keys(after) as (keyof typeof after)[]).every(key => near(before[key], after[key])) ? [] : [{ traceId: one.id, before, after }]
+      const before: Record<string, number> = { x: now.x, y: now.y, scaleX: now.scaleX, scaleY: now.scaleY }
+      const after: Record<string, number> = { x: inside.cx, y: inside.cy, scaleX, scaleY }
+      if (picture) {
+        Object.assign(before, { cropX: one.cropX ?? 0, cropY: one.cropY ?? 0, cropWidth: one.cropWidth ?? 1, cropHeight: one.cropHeight ?? 1 })
+        Object.assign(after, { cropX: crop.x, cropY: crop.y, cropWidth: crop.w, cropHeight: crop.h })
+      }
+      return Object.keys(after).every(key => near(before[key], after[key])) ? [] : [{ traceId: one.id, before: before as Partial<Trace>, after: after as Partial<Trace> }]
     }
     const place = slotPlacement(inside, { ...box, edge }, frame.frameArrange === 'stretch' && !!one)
     if (near(place.fx, 1) && near(place.fy, 1) && near(place.cx, box.cx) && near(place.cy, box.cy)) return []
@@ -5815,11 +5949,6 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
     if (editingTrace?.id === frameId) setEditingTrace({ ...editingTrace, frameArrange: fit })
     arrangeFrames([frameId], { withOps: [change] })
   }
-  // A slot made from the template editor's column, in the middle of the view.
-  const newSlot = () => {
-    const cx = (window.innerWidth / 2 - worldOffset.x) / zoom, cy = (window.innerHeight / 2 - worldOffset.y) / zoom
-    void createFrame({ cx, cy, halfW: 140, halfH: 100 }, [], true, 'fill')
-  }
 
   // The switch (the frame's menu): on, laid out at once -- one undo step with it.
   const setFrameArrange = (frameId: string, on: boolean) => {
@@ -5837,25 +5966,44 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
   // it's moved into one; others' arrive placed.)
   const joinArrangedFrames = (fresh: Trace[]) => {
     const all = useGameStore.getState().traces
-    const arranged = framesNow(all).filter(f => { const frame = all.find(t => t.id === f.id); return frame?.frameArrange === 'masonry' || (!!frame && isSlot(frame)) })
+    const arranged = framesNow(all).filter(f => f.arranged)
     if (arranged.length === 0 || !canEdit) return
     const known = new Set(all.map(t => t.id))
     const mine = fresh.filter(t => t.userId === userId && !isFrame(t) && Date.now() - Date.parse(t.createdAt) < 2 * 60_000)
     const loose = mine.filter(t => !(t.frameId && known.has(t.frameId)))
-    const changes = placeUnits(unitsOf(all, groupIdsNow(), new Set(loose.map(t => t.id))), arranged, storedBox)
+    // Not a unit with some of it in a frame already, or one with frames of its own
+    // (a template with slots): frames hold no frames, nor take what's in another.
+    const whole = unitsOf(all, groupIdsNow(), new Set(loose.map(t => t.id))).filter(unit =>
+      unit.every(t => !(t.frameId && known.has(t.frameId))) && !(unit[0].layerId && all.some(t => isFrame(t) && t.layerId === unit[0].layerId)))
+    // Into those that were there already, not ones that came with it: a template
+    // placed -- or opened in the editor, out of its group -- had what lay over its
+    // own slots pulled into them, its background fitted into a slot.
+    const came = new Set(fresh.map(t => t.id))
+    const changes = placeUnits(whole, arranged.filter(f => !came.has(f.id)), storedBox)
     if (changes.size > 0) applyFrameChanges(changes, 'fold')
     const inArranged = mine.flatMap(t => (t.frameId && arranged.some(f => f.id === t.frameId) ? [t.frameId] : []))
     arrangeFrames([...inArranged, ...[...changes.values()].filter((id): id is string => !!id)], 'fold')
   }
   const joinArrangedRef = useRef(joinArrangedFrames)
   joinArrangedRef.current = joinArrangedFrames
+  // A template or a file placed (lib/atriumFile): what landed on a slot or an
+  // arranged frame joins it, as a trace dropped there does -- a step of its own,
+  // after the placing's.
+  useEffect(() => {
+    const placed = (event: Event) => {
+      const ids = new Set((event as CustomEvent<string[]>).detail)
+      joinArrangedRef.current?.(useGameStore.getState().traces.filter(t => ids.has(t.id)))
+    }
+    window.addEventListener(TRACES_PLACED_EVENT, placed)
+    return () => window.removeEventListener(TRACES_PLACED_EVENT, placed)
+  }, [])
 
   // A picture's size is known once it has loaded: arranged frames laid out
   // again (unrecorded), a moment after the last of a batch.
   useEffect(() => {
     if (!canEdit) return
     const timer = window.setTimeout(() => {
-      const frames = useGameStore.getState().traces.filter(f => f.frameArrange === 'masonry' || isSlot(f)).map(f => f.id)
+      const frames = useGameStore.getState().traces.filter(isArranged).map(f => f.id)
       if (frames.length > 0) arrangeRef.current(frames, 'none')
     }, 250)
     return () => window.clearTimeout(timer)
@@ -5945,8 +6093,8 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
   useEffect(() => {
     if (!frameRequest) return
     // A click's frame at its usual size on screen, at any zoom.
-    const { x, y, width = FRAME_DEFAULT.width / zoom, height = FRAME_DEFAULT.height / zoom, customize } = frameRequest
-    void createFrame({ cx: x, cy: y, halfW: width / 2, halfH: height / 2 }, undefined, customize)
+    const { x, y, width = FRAME_DEFAULT.width / zoom, height = FRAME_DEFAULT.height / zoom, customize, slot } = frameRequest
+    void createFrame({ cx: x, cy: y, halfW: width / 2, halfH: height / 2 }, undefined, customize, slot ? 'fill' : undefined)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [frameRequest])
 
@@ -6639,8 +6787,10 @@ const isInSelection = selectedTraceId === trace.id || multiSelectedIds.has(trace
 const hitStrokes = trace.type === 'image' && !isInSelection ? strokeHits(trace.strokeData) : null
 
 // Apply customization defaults
-const showBorder = trace.showBorder ?? true
-const showBackground = trace.showBackground ?? true
+// A slot holding something shows nothing of its own (lib/frames slotLook).
+const shownLook = slotLook(trace, filledSlots.has(trace.id))
+const showBorder = shownLook.showBorder ?? true
+const showBackground = shownLook.showBackground ?? true
 const showDescription = trace.showDescription ?? false
 const showFilename = trace.showFilename ?? true
 const fontSize = trace.fontSize ?? 'medium'
@@ -7922,11 +8072,13 @@ return (
               <div key={i} data-frame-edge="" className="absolute pointer-events-auto cursor-move" style={edge} />
             ))}
             {isSlot(trace) && !filledSlots.has(trace.id) && (
-              <div data-slot-hint="" className="absolute inset-0 grid place-items-center p-3 pointer-events-none text-center text-[11px] tracking-[0.12em] uppercase opacity-60">
-                {t('templates.slotDrop')}
+              <div data-slot-hint="" className="absolute inset-0 grid place-items-center content-center gap-1 p-3 pointer-events-none text-center text-[11px] tracking-[0.12em] uppercase opacity-60">
+                <span>{t('templates.slotDrop')}</span>
+                {/* How what's dropped in will take its size: seen before there's anything to see it on. */}
+                <span data-slot-mode="" className="text-[10px] normal-case tracking-normal opacity-80">{t(SLOT_FIT_WORDS[trace.frameArrange as SlotFit][0])} · {t(SLOT_FIT_WORDS[trace.frameArrange as SlotFit][1])}</span>
               </div>
             )}
-            <div
+            {!isSlot(trace) && <div
               data-keeps-size=""
               data-frame-title=""
               className="absolute pointer-events-auto cursor-move text-xs font-semibold whitespace-nowrap select-none"
@@ -7978,11 +8130,10 @@ return (
               ) : (
                 <>
                   {trace.frameArrange === 'masonry' && <span title={t('atrium.frame.arranged')} className="mr-1 opacity-70">▦</span>}
-                  {isSlot(trace) && <span title={t('templates.slot')} className="mr-1 opacity-70">◫</span>}
                   {trace.content}
                 </>
               )}
-            </div>
+            </div>}
           </>
         )
       })()}
@@ -10096,11 +10247,7 @@ return (
                     name="slot-fit"
                     value={editingTrace.frameArrange as SlotFit}
                     onChange={fit => setSlotFit(editingTrace.id, fit)}
-                    options={[
-                      { value: 'fill', label: t('templates.slotFill'), title: t('templates.slotFillHint') },
-                      { value: 'fit', label: t('templates.slotFitWhole'), title: t('templates.slotFitWholeHint') },
-                      { value: 'stretch', label: t('templates.slotStretch'), title: t('templates.slotStretchHint') },
-                    ]}
+                    options={SLOT_FITS.map(fit => ({ value: fit, label: t(SLOT_FIT_WORDS[fit][0]), title: t(SLOT_FIT_WORDS[fit][1]) }))}
                   />
                 </Row>
               )}
@@ -10134,12 +10281,6 @@ return (
           </ValueLinkContext.Provider>
         )
       })()}
-
-      {templateValues && (
-        <ValueLinkContext.Provider value={linkingFor([], true)}>
-          <TemplateColumn onSlot={canEdit ? newSlot : undefined} slots={traces.filter(isSlot).map(slot => ({ id: slot.id, name: slot.content, fit: slot.frameArrange as SlotFit, filled: traces.some(t => t.frameId === slot.id) }))} onSelectSlot={id => { setMultiSelectedIds(new Set()); setSelectedTraceId(id) }} />
-        </ValueLinkContext.Provider>
-      )}
 
       {/* Batch Edit (BatchEditPanel): what the selection's traces have, each
           change to those that have it, as one step of undo. */}

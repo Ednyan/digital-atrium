@@ -20,6 +20,7 @@ import {
   readPackingShape,
   writePackingShape,
 } from '../lib/atriumPreferences'
+import { ColourInput } from './ColourPicker'
 
 // User Preferences, docked on the right as the Customization panel is: you
 // (name and cursor colour, the account's, written on Save), then how you
@@ -235,12 +236,12 @@ export default function ProfileCustomization({ onClose, lobbyId }: ProfileCustom
               className={`relative h-9 border-2 cursor-pointer ${PRESET_COLORS.some(c => c.toLowerCase() === selectedColor.toLowerCase()) ? 'border-nier-border/30' : 'border-nier-bg'}`}
               style={{ background: PRESET_COLORS.some(c => c.toLowerCase() === selectedColor.toLowerCase()) ? 'conic-gradient(from 90deg, #ff6161, #e8c15a, #9ad4c4, #a8b6d9, #c77dff, #ff6161)' : selectedColor }}
             >
-              <input
-                type="color"
+              <ColourInput
                 value={selectedColor}
-                onChange={(e) => setSelectedColor(e.target.value)}
-                aria-label={t('atrium.profile.anyOtherColour')}
-                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                onChange={setSelectedColor}
+                label={t('atrium.profile.anyOtherColour')}
+                className="absolute inset-0 w-full h-full cursor-pointer"
+                style={{ backgroundColor: 'transparent' }}
               />
             </label>
           </div>

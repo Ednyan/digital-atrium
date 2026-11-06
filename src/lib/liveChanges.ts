@@ -23,7 +23,8 @@ import { onRoomEvent, roomStatus, roomUrl, sendThroughRoom, watchRooms } from '.
 
 export type LiveTable = 'traces' | 'layers' | 'trace_links' | 'lobby_locations'
 /** Fired on window with the ids of traces just taken from someone else's
- *  save (useTraces): what's drawn here for them gives way (TraceOverlay). */
+ *  save (useTraces), or changed from outside the canvas (the Layer panel's
+ *  slots, hooks/useLayers): what's drawn here for them gives way (TraceOverlay). */
 export const TRACES_RECEIVED_EVENT = 'atrium:traces-received'
 /** Fired on window with an atrium's id once its own row -- its name, its
  *  theme -- has changed in the database from elsewhere (a Drive atrium's

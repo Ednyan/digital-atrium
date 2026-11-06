@@ -132,7 +132,9 @@ function lookAtAccount(): Promise<void> {
       if (file) moved.push(await upload(index, owner, template, file, (await onDevice(template.id, 'picture')) ?? null))
     }
     if (!moved.length) return
-    index.list = [...moved, ...index.list]
+    // One of the account's changed here out of its reach: this one, now.
+    const movedIds = new Set(moved.map(t => t.id))
+    index.list = [...moved, ...index.list.filter(t => !movedIds.has(t.id))]
     await writeIndex(index)
     await inStore('readwrite', files => { for (const { id } of moved) { files.delete(`${id}.atrium`); files.delete(`${id}.picture`) } }).catch(() => undefined)
     const gone = new Set(moved.map(t => t.id))
@@ -147,31 +149,43 @@ function lookAtAccount(): Promise<void> {
 
 // ---------------------------------------------------------------- either
 
-/** A template made: kept on the account signed in, else on this device; listed first. */
-export async function keepTemplate(name: string, file: Blob, picture: Blob | null, counts: { traces: number; values: number }): Promise<MyTemplate> {
-  const made: MyTemplate = { id: crypto.randomUUID(), name, madeAt: Date.now(), ...counts }
+const find = (id: string) => keptList().find(t => t.id === id)
+
+/** A template made -- or, `replacing` one of one's own, changed: kept on the account
+ *  signed in, else on this device; listed first. */
+export async function keepTemplate(name: string, file: Blob, picture: Blob | null, counts: { traces: number; values: number }, replacing?: string | null): Promise<MyTemplate> {
+  const old = replacing ? find(replacing) : undefined
+  const made: MyTemplate = { id: old?.id ?? crypto.randomUUID(), name, madeAt: Date.now(), ...counts }
+  const others = () => keptList().filter(t => t.id !== made.id)
+  // Its files on this device: the template, or the copy of the account's (partOf).
+  const onHere = () => inStore('readwrite', files => {
+    files.put(file, `${made.id}.atrium`)
+    if (picture) files.put(picture, `${made.id}.picture`)
+    else files.delete(`${made.id}.picture`)
+  })
   const owner = await account()
   if (owner) {
     try {
       // Its list as it is now, so one made on another device since stays in it.
       const index = await readIndex()
       const kept = await upload(index, owner, made, file, picture)
-      await writeIndex({ ...index, list: [kept, ...index.list] })
-      writeList([kept, ...keptList()])
+      await writeIndex({ ...index, list: [kept, ...index.list.filter(t => t.id !== made.id)] })
+      writeList([kept, ...others()])
+      await onHere().catch(() => undefined)
+      // What it was, let go once what it is now is listed.
+      if (old?.account) {
+        const hosted = await store()
+        for (const id of [old.account.file, old.account.picture]) if (id) await hosted.remove(id).catch(() => undefined)
+      }
       return kept
     } catch (error) {
       console.warn('My templates: kept on this device, the account out of reach', error)
     }
   }
-  await inStore('readwrite', files => {
-    files.put(file, `${made.id}.atrium`)
-    if (picture) files.put(picture, `${made.id}.picture`)
-  })
-  writeList([made, ...keptList()])
+  await onHere()
+  writeList([made, ...others()])
   return made
 }
-
-const find = (id: string) => keptList().find(t => t.id === id)
 
 // An account's file, read once a visit -- the panel asks for every one each time
 // it opens -- and a copy kept on the device, for when the account is out of reach

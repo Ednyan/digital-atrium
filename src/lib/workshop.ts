@@ -5,12 +5,15 @@
 
 import { useEffect, useState } from 'react'
 import type { TemplateValue } from './templateValues'
+import type { AtriumFile } from './atriumFormat'
 import { isDesktop, supabase } from './supabase'
 
 // The most traces a template holds: Save refuses more (TemplateWorkshop).
 export const TEMPLATE_TRACES = 50
 
-export interface Workshop { lobbyId: string; name: string; values: TemplateValue[]; from: string | null }
+// `editing`: the template of one's own being changed (lib/myTemplates), which Save
+// replaces; its traces are put in once (`loaded`) as the editor opens (LobbyScene).
+export interface Workshop { lobbyId: string; name: string; values: TemplateValue[]; from: string | null; editing: string | null; loaded: boolean }
 
 const KEY = 'atrium.workshop'
 const CHANGED = 'atrium:workshop'
@@ -18,7 +21,7 @@ const CHANGED = 'atrium:workshop'
 function read(): Workshop | null {
   try {
     const kept = JSON.parse(localStorage.getItem(KEY) ?? 'null')
-    return kept && typeof kept.lobbyId === 'string' ? { name: '', values: [], from: null, ...kept } : null
+    return kept && typeof kept.lobbyId === 'string' ? { name: '', values: [], from: null, editing: null, loaded: true, ...kept } : null
   } catch { return null }
 }
 function write(workshop: Workshop | null) {
@@ -34,8 +37,14 @@ export const isWorkshop = (lobbyId: string) => read()?.lobbyId === lobbyId
 // One begun and left some other way than Save or Cancel -- a closed tab -- to be let go.
 export const workshopLeft = () => read()?.lobbyId ?? null
 
-/** The workshop's name or values changed. */
-export function keepWorkshop(change: Partial<Pick<Workshop, 'name' | 'values'>>) {
+// Into the editor and back out to the atrium it was begun from: at once, without
+// the atrium's crossing (App). Asked for as it's left, for a moment.
+let quiet: { lobbyId: string; until: number } | null = null
+export const enterQuietly = (lobbyId: string) => { quiet = { lobbyId, until: Date.now() + 10_000 } }
+export const quietEntry = (lobbyId: string) => isWorkshop(lobbyId) || (quiet?.lobbyId === lobbyId && Date.now() < quiet.until)
+
+/** The workshop's name or values changed, or what it's editing put in. */
+export function keepWorkshop(change: Partial<Pick<Workshop, 'name' | 'values' | 'loaded'>>) {
   const kept = read()
   if (kept) write({ ...kept, ...change })
 }
@@ -52,21 +61,38 @@ export function useWorkshop(lobbyId: string): Workshop | null {
   return workshop
 }
 
-/** A template begun: its atrium made in the vault -- this browser's, or the
- *  desktop's own -- with the look of the one it's begun from. Its id, to go to. */
-export async function beginWorkshop(name: string, from: string | null, theme: unknown): Promise<string> {
+/** A template saved, as the editor has it: its traces and groups out of the
+ *  template's own group (saveTemplate in LobbyScene puts them in it), and its values. */
+export function templateParts(file: AtriumFile): { file: AtriumFile; values: TemplateValue[] } {
+  const root = file.layers.find(layer => layer.template && !layer.parent_id)
+  if (!root) return { file, values: [] }
+  const out = (id: string | null | undefined) => (id === root._local_id ? null : id ?? null)
+  return {
+    file: {
+      ...file,
+      layers: file.layers.filter(layer => layer !== root).map(layer => ({ ...layer, parent_id: out(layer.parent_id) })),
+      traces: file.traces.map(row => ({ ...row, _local_layer_id: out(row._local_layer_id) })),
+    },
+    values: root.template?.values ?? [],
+  }
+}
+
+/** A template begun -- or one of one's own, to change (`edit`): its atrium made in
+ *  the vault, this browser's or the desktop's own. Its look is the interface's
+ *  (LobbyScene). Its id, to go to. */
+export async function beginWorkshop(name: string, from: string | null, edit?: { id: string; values: TemplateValue[] }): Promise<string> {
   await endWorkshop()
   const { browserEngine, rememberBrowserAtrium } = await import('./browserAtriums')
   const client = isDesktop ? supabase : (await browserEngine()).localClient
   const { data: { user } } = await client.auth.getUser()
   if (!user) throw new Error('Not authenticated')
   const { data, error } = await (client.from('lobbies') as any)
-    .insert({ name, owner_user_id: user.id, password_hash: null, is_public: false, max_players: 1, theme_settings: theme ?? null })
+    .insert({ name, owner_user_id: user.id, password_hash: null, is_public: false, max_players: 1, theme_settings: null })
     .select()
     .single()
   if (error || !data) throw error ?? new Error('the workshop was not made')
   if (!isDesktop) rememberBrowserAtrium(data.id)
-  write({ lobbyId: data.id, name, values: [], from })
+  write({ lobbyId: data.id, name, values: edit?.values ?? [], from, editing: edit?.id ?? null, loaded: !edit })
   return data.id
 }
 

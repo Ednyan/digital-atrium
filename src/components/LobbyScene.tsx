@@ -11,7 +11,7 @@ import { Application, Graphics, Text, Container, TilingSprite, Texture, Rectangl
 import '@pixi/unsafe-eval'
 import { useGameStore, LOBBY_SIZE_LIMIT, lobbyFullMessage, unsavedActions, useGamePick, AUTO_SAVE_CONSTANT_MS } from '../store/gameStore'
 import ThemeToggle from './ThemeToggle'
-import { currentTracePreset } from '../lib/tracePresets'
+import { currentTracePreset, defaultPresetFor } from '../lib/tracePresets'
 import { readPackingShape } from '../lib/atriumPreferences'
 import { usePresence } from '../hooks/usePresence'
 import { mapRowToTrace } from '../hooks/useTraces'
@@ -33,6 +33,7 @@ import { isGhostEntry as resolveGhostEntry } from '../lib/operatorGhost'
 import { showToast } from '../lib/toast'
 import PalettePanel from './PalettePanel'
 import OverlayPanel from './OverlayPanel'
+import MinimapPanel from './MinimapPanel'
 import { inOverlayMode, overlayNow, seeingThrough, setOverlay, useOverlay } from '../lib/overlay'
 import { LOBBY_CHANGED_EVENT, liveTable } from '../lib/liveChanges'
 import { endedFor, isDriveAtrium, isDriveOwner, isDriveViewer, isHostedAtrium, spaceOf, watchDriveStatus, type DriveEnd } from '../lib/driveSync'
@@ -48,7 +49,7 @@ import { useClampedMenuPosition } from '../hooks/useClampedMenuPosition'
 import { discardAllChanges, saveAllChanges, startAutosave } from '../lib/traceSave'
 import { changeLocations, mapLocationRow, receiveLocations } from '../lib/locations'
 import { convertEmbedToInternalImage } from '../lib/traceConvert'
-import { groupIdOf, inOrder, keyAt, keysOnTopOfGroup, newTraceOrderFields, topLevel } from '../lib/order'
+import { drawRanks, groupIdOf, inOrder, keyAt, keysBetween, keysOnTopOfGroup, newTraceOrderFields, topLevel } from '../lib/order'
 import { inferFileExtension, uploadTraceFile } from '../lib/traceUpload'
 import { fileTitle, firstFreeName, nextShapeName, nextTextName, nextUntitledName } from '../lib/traceNames'
 import { insertTrace } from '../lib/traceWrites'
@@ -73,12 +74,12 @@ import type { PresentationFormat } from '../lib/presentationExport'
 import QuickBar, { EmptyCanvasHint, HistoryButtons, QUICK_ORDER, ToolHint, type PlaceTool, type QuickAction, QuickBarEditor, ViewBarEditor } from './QuickBar'
 import { inTutorial, tutorialFinished } from '../lib/tutorial'
 import { count, noteToday } from '../lib/stats'
-import { beginWorkshop, endWorkshop, keepWorkshop, TEMPLATE_TRACES, useWorkshop } from '../lib/workshop'
-import { keepTemplate } from '../lib/myTemplates'
+import { beginWorkshop, endWorkshop, enterQuietly, keepWorkshop, TEMPLATE_TRACES, templateParts, useWorkshop, workshopOf } from '../lib/workshop'
+import { keepTemplate, templateFile, type MyTemplate } from '../lib/myTemplates'
 import { checkTemplateMaker, knownTemplateMaker } from '../lib/platformAdmin'
-import WorkshopBar from './TemplateWorkshop'
+import { WorkshopActions, WorkshopEmptyHint, WorkshopFrame, WorkshopSlotTool, WorkshopTitle } from './TemplateWorkshop'
 import type { TemplateValue } from '../lib/templateValues'
-import TemplateReveal from './TemplateReveal'
+import TemplateReveal, { assemblyOf, type Assembly } from './TemplateReveal'
 import { rememberCard } from '../lib/atriumCards'
 import { isBoxShape, type BoxShape } from '../lib/shapeStyle'
 import { roundedPolygonPath, shapePolygon } from '../lib/traceGeometry'
@@ -109,12 +110,27 @@ import type { View } from '../lib/worldCamera'
 import { useMenuGlide } from './MenuGlide'
 // pathSimplify no longer needed - drawings saved as raster images
 import type { Layer, Lobby, Trace } from '../types/database'
+import { ColourInput } from './ColourPicker'
 
 const MIN_ZOOM = 0.15
 const MAX_ZOOM = 1.40
 // Recenter shows every trace unless that draws them smaller than this, and
 // keeps this much room, in pixels, between them and the menus at the
 // screen's edges (or the edges themselves).
+// The template editor's top bar (lib/workshop): its layers, and the view's own tools.
+const WORKSHOP_VIEW = ['layers', 'recenter', 'fullscreen', 'hide-ui']
+// A panel hanging under its view-bar button (OverlayPanel, MinimapPanel): a press
+// anywhere but on it or its button closes it, as Escape does.
+function useHangingPanel(open: boolean, close: () => void, within: string) {
+  useEffect(() => {
+    if (!open) return
+    const away = (e: PointerEvent) => { if (!(e.target as Element).closest?.(within)) close() }
+    const escape = (e: KeyboardEvent) => { if (e.key === 'Escape') close() }
+    window.addEventListener('pointerdown', away, true)
+    window.addEventListener('keydown', escape)
+    return () => { window.removeEventListener('pointerdown', away, true); window.removeEventListener('keydown', escape) }
+  }, [open])
+}
 const RECENTER_MIN_ZOOM = 0.25
 const RECENTER_MARGIN = 32
 // One keypress of zoom, and the same with Ctrl held.
@@ -776,11 +792,19 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
     setShowViewBarEditor(false)
     setShowTemplates(false)
   }, [])
+  // One panel on the right at a time (the user's, 2026-11-06): opening one puts
+  // the others away -- a trace's Customization panel too (TraceOverlay
+  // sidePanelOpen), as that one opening puts these away (onCustomizeOpen).
+  const toggleSidePanel = (isOpen: boolean, show: (on: boolean) => void) => {
+    if (isOpen) { show(false); return }
+    closeSidePanels()
+    show(true)
+  }
   // The atrium's locations live in the store and are saved with the rest, each change
   // a step of undo (lib/locations). Presentation mode is here, not in
   // LocationsPanel, so it keeps running after the panel is closed.
   const { locations } = useGamePick('locations')
-  const { showMinimap, setShowMinimap } = useGamePick('showMinimap', 'setShowMinimap')
+  const { showMinimap } = useGamePick('showMinimap')
   const [presentationMode, setPresentationMode] = useState(false)
   const [presentationIndex, setPresentationIndex] = useState(0)
   const presentationModeRef = useRef(false)
@@ -794,15 +818,10 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
   const [showPalette, setShowPalette] = useState(false)
   const [showOverlay, setShowOverlay] = useState(false)
   const overlay = useOverlay()
-  // Its panel hangs under its button: a press anywhere else closes it, as Escape does.
-  useEffect(() => {
-    if (!showOverlay) return
-    const away = (e: PointerEvent) => { if (!(e.target as Element).closest?.('[data-overlay-panel], [data-view="overlay"]')) setShowOverlay(false) }
-    const escape = (e: KeyboardEvent) => { if (e.key === 'Escape') setShowOverlay(false) }
-    window.addEventListener('pointerdown', away, true)
-    window.addEventListener('keydown', escape)
-    return () => { window.removeEventListener('pointerdown', away, true); window.removeEventListener('keydown', escape) }
-  }, [showOverlay])
+  useHangingPanel(showOverlay, () => setShowOverlay(false), '[data-overlay-panel], [data-view="overlay"]')
+  // The minimap's ways (MinimapPanel), under its button.
+  const [showMinimapPanel, setShowMinimapPanel] = useState(false)
+  useHangingPanel(showMinimapPanel, () => setShowMinimapPanel(false), '[data-minimap-panel], [data-view="minimap"]')
   // Click-through on: its panel goes, out of the way of what's behind.
   useEffect(() => { if (overlay.clickThrough) setShowOverlay(false) }, [overlay.clickThrough])
   // Seen through (lib/overlay; index.css): the page clear where the desktop
@@ -831,6 +850,10 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
   // pick another in Atrium Themes or press light/dark -- for you alone,
   // remembered for this atrium on this device.
   const { resolved: uiTheme, setTheme: setUiTheme } = useLandingTheme()
+  // The template being made here, if this is the template editor's atrium (lib/workshop).
+  const workshop = useWorkshop(lobbyId)
+  const workshopRef = useRef(workshop)
+  workshopRef.current = workshop
   const customThemes = useCustomThemes()
   const specialThemes = useSpecialThemes()
   const [viewRef, setViewRef] = useState<ThemeRef>(() => readView(lobbyId, uiTheme) ?? 'atrium')
@@ -854,9 +877,11 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
     rememberLast(lobbyId, themeModeOf(viewRef, atrium, customThemesNow()), viewRef)
     seeIn(lastThemeOf(lobbyId, uiTheme === 'light' ? 'dark' : 'light', atrium))
   }
+  // The template editor's (lib/workshop) is Abyss or Markerboard, as the interface
+  // is dark or light: none of the atrium's own, nobody's custom ones.
   const viewTheme = useMemo(
-    () => themeOf(viewRef, currentLobby?.themeSettings, customThemes) ?? currentLobby?.themeSettings,
-    [viewRef, currentLobby?.themeSettings, customThemes, specialThemes],
+    () => (workshop ? themeOf(`preset:${defaultPresetFor(uiTheme === 'light').id}`, null, []) : themeOf(viewRef, currentLobby?.themeSettings, customThemes) ?? currentLobby?.themeSettings),
+    [workshop, uiTheme, viewRef, currentLobby?.themeSettings, customThemes, specialThemes],
   )
   themeSettingsRef.current = viewTheme
   // Seen in the special theme being made in Developers: said so, with the
@@ -890,6 +915,10 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
   // its own selection state internally, so this is passed down rather than
   // lifting that state up wholesale.
   const [multiSelectRequest, setMultiSelectRequest] = useState<string[] | null>(null)
+  // What the Layer panel last selected (TraceOverlay panelSelection), keyed as
+  // the canvas keys a selection: one id, or several sorted and joined.
+  const [panelSelection, setPanelSelection] = useState<{ key: string } | null>(null)
+  const selectionKeyOf = (ids: string[]) => (ids.length > 1 ? [...ids].sort().join(',') : ids[0] ?? '')
   // A shift+drag area, in world units, for TraceOverlay to select from.
   const [areaSelectRequest, setAreaSelectRequest] = useState<Box | null>(null)
   const [lassoSelectRequest, setLassoSelectRequest] = useState<{ x: number; y: number }[] | null>(null)
@@ -902,7 +931,7 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
   // on the value fires once per request without needing to be reset.
   const [newTextTraceId, setNewTextTraceId] = useState<{ id: string; drawn?: boolean } | null>(null)
   // A frame for TraceOverlay to make, from the canvas menu.
-  const [frameRequest, setFrameRequest] = useState<{ x: number; y: number; width?: number; height?: number; customize?: boolean } | null>(null)
+  const [frameRequest, setFrameRequest] = useState<{ x: number; y: number; width?: number; height?: number; customize?: boolean; slot?: boolean } | null>(null)
   // The quick bar's armed tool (QuickBar): the next press on the canvas
   // places one of these, rather than panning or selecting.
   const [placeTool, setPlaceTool] = useState<PlaceTool | null>(null)
@@ -1009,10 +1038,6 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
   // Where leaving goes: the atrium browser, unless the way out pressed was
   // Back to Developers.
   const leaveToRef = useRef<string | undefined>(undefined)
-  // The template being made here, if this is the template editor's atrium (lib/workshop).
-  const workshop = useWorkshop(lobbyId)
-  const workshopRef = useRef(workshop)
-  workshopRef.current = workshop
   // The room as it's seen, for the atrium's preview (lib/atriumPreview): its
   // colour, its picture as drawGrid placed it, and the canvas's own layers --
   // ground, grid, particles -- without the arrows to traces off screen, which
@@ -2338,6 +2363,11 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
         setExportOf({ ids: selectionRef.current })
         return
       }
+      if ((e.key === 's' || e.key === 'S') && !e.ctrlKey && !e.metaKey && !e.altKey && workshopRef.current && canEditRef.current) {
+        e.preventDefault()
+        quickActionRef.current('slot')
+        return
+      }
       if ((e.key === 'k' || e.key === 'K') && !e.ctrlKey && !e.metaKey && !e.altKey) {
         e.preventDefault()
         if (isDrawingModeRef.current) drawingKeysRef.current.leaveDrawing()
@@ -2618,7 +2648,7 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
       setPlaceTool(null)
       return
     }
-    if (action === 'text' || isBoxShape(action) || action === 'path' || action === 'frame' || action === 'embed') {
+    if (action === 'text' || isBoxShape(action) || action === 'path' || action === 'frame' || action === 'slot' || action === 'embed') {
       setMapContextMenu(null)
       setPlaceTool(prev => (prev === action ? null : action))
       return
@@ -2699,8 +2729,9 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
       if (id) setNewTextTraceId({ id, drawn: dragged })
       return
     }
-    if (tool === 'frame') {
-      setFrameRequest(dragged ? { x: centre.x, y: centre.y, width, height, customize: true } : { x: a.x, y: a.y, customize: true })
+    if (tool === 'frame' || tool === 'slot') {
+      const slot = tool === 'slot'
+      setFrameRequest(dragged ? { x: centre.x, y: centre.y, width, height, customize: true, slot } : { x: a.x, y: a.y, customize: true, slot })
       return
     }
     if (tool === 'path') {
@@ -2781,7 +2812,7 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
     })
     show(ellipse, tool === 'circle', { cx: left + w / 2, cy: top + h / 2, rx: Math.max(0, w / 2 - inset), ry: Math.max(0, h / 2 - inset) }, shapeLook)
     const radius = tool === 'rectangle' && style ? Math.min(style.cornerRadius * zoom, (w - inset * 2) / 2, (h - inset * 2) / 2) : 0
-    show(rect, tool === 'rectangle' || tool === 'frame' || tool === 'text', {
+    show(rect, tool === 'rectangle' || tool === 'frame' || tool === 'slot' || tool === 'text', {
       x: left + inset, y: top + inset, width: Math.max(0, w - inset * 2), height: Math.max(0, h - inset * 2), rx: radius, ry: radius,
     }, tool === 'rectangle' ? shapeLook : guide)
     // A triangle, diamond or parallelogram (lib/traceGeometry), as drawn.
@@ -2967,6 +2998,8 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
     const view = contentView(boxes, width, height, insets, RECENTER_MIN_ZOOM, 1)
     flyTo(view?.cx ?? 0, view?.cy ?? 0, view?.zoom ?? 1)
   }
+  const recenterRef = useRef(recenter)
+  recenterRef.current = recenter
 
   // --- Locations (lib/locations: in the store, saved like everything else) ---
   const loadLocations = useCallback(async () => {
@@ -4931,23 +4964,18 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
     leaveWithTransition()
   }
 
-  // The template editor (lib/workshop): its values for the canvas, its column beside
-  // the panels -- which move over for it -- and its two ways out.
-  const workshopValues = useMemo(() => (workshop ? { values: workshop.values, keep: (values: TemplateValue[]) => keepWorkshop({ values }) } : null), [workshop])
-  const inWorkshop = !!workshop
-  useEffect(() => {
-    if (!inWorkshop) return
-    document.documentElement.style.setProperty('--right-rail', 'calc(1rem + 19.5rem)')
-    return () => { document.documentElement.style.removeProperty('--right-rail') }
-  }, [inWorkshop])
+  // The template editor (lib/workshop): its values for the canvas -- made and
+  // linked in a trace's own panel (ValueLink ValuesSection) -- and its two ways out.
+  const workshopValues = useMemo(() => (workshop ? { values: workshop.values, keep: (values: TemplateValue[]) => keepWorkshop({ values }) } : null), [workshop?.values])
   const [workshopBusy, setWorkshopBusy] = useState(false)
   const [workshopProblem, setWorkshopProblem] = useState<string | null>(null)
-  const [reveal, setReveal] = useState<{ name: string; picture: Blob | null; traces: number; values: number } | null>(null)
+  const [reveal, setReveal] = useState<{ name: string; picture: Blob | null; assembly: Assembly | null; traces: number; values: number } | null>(null)
   // Back where it was begun, all of it let go: nothing here is saved.
   const backFromWorkshop = () => {
     const from = workshopRef.current?.from
     useGameStore.getState().clearPendingChanges()
     void endWorkshop()
+    if (from) enterQuietly(from)
     leaveToRef.current = from ? `/atrium/${from}` : undefined
     leaveWithTransition()
   }
@@ -4976,13 +5004,26 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
     try {
       const name = kept.name.trim() || t('templates.untitled')
       const root: Layer = { id: 'template', name, isGroup: true, parentId: null, userId: userId ?? '', createdAt: '', template: { values: kept.values } }
+      // All of it in that one group, keyed afresh in the order it's drawn here: a
+      // trace's own key only orders it among what shares its group -- the stack's,
+      // or a group's -- so, kept, the template came out of order (a group's traces
+      // under loose ones they were over).
+      const ranks = drawRanks(all, groups)
+      const keys = keysBetween(null, null, all.length)
+      const keyOf = new Map([...all].sort((a, b) => (ranks.get(a.id) ?? 0) - (ranks.get(b.id) ?? 0)).map((trace, i) => [trace.id, keys[i]]))
       const { atriumFileBlob } = await import('../lib/atriumFile')
-      const file = await atriumFileBlob({ traces: all.map(trace => ({ ...trace, layerId: root.id })), links: threads, layers: [root], locations: [] }, { name, themeSettings: null, isPublic: false, maxPlayers: 0 })
+      const file = await atriumFileBlob({ traces: all.map(trace => ({ ...trace, layerId: root.id, orderKey: keyOf.get(trace.id) })), links: threads, layers: [root], locations: [] }, { name, themeSettings: null, isPublic: false, maxPlayers: 0 })
       const { exportImage } = await import('../lib/exportImage')
-      const picture = await exportImage(all, threads, groups, { format: 'png', scale: 1, background: viewTheme?.backgroundColor || '#0a0a0f', maxSide: 900, type: 'image/webp', quality: 0.85 }).then(made => made.blob).catch(() => null)
-      await keepTemplate(name, file, picture, { traces: all.length, values: kept.values.length })
+      const background = viewTheme?.backgroundColor || '#0a0a0f'
+      const shot = await exportImage(all, threads, groups, { format: 'png', scale: 1, background, maxSide: 900, type: 'image/webp', quality: 0.85 }).catch(() => null)
+      const picture = shot?.blob ?? null
+      await keepTemplate(name, file, picture, { traces: all.length, values: kept.values.length }, kept.editing)
       if (pinsLeft) showToast(t('templates.pinsLeftOut'))
-      if (useGameStore.getState().templateReveal) setReveal({ name, picture, traces: all.length, values: kept.values.length })
+      if (useGameStore.getState().templateReveal) {
+        // Its traces, each alone, for the reveal to pull together.
+        const assembly = shot ? await assemblyOf(all, groups, shot, background).catch(() => null) : null
+        setReveal({ name, picture, assembly, traces: all.length, values: kept.values.length })
+      }
       else {
         showToast(t('templates.saved', { name }))
         madeTemplate()
@@ -5000,9 +5041,35 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
   const [templateMaker, setTemplateMaker] = useState(knownTemplateMaker)
   // What's kept once it's asked is the answer: the worker's, or, unreachable, the last one.
   useEffect(() => { void checkTemplateMaker().then(() => setTemplateMaker(knownTemplateMaker())) }, [userId])
-  const startTemplate = async () => {
+  // A template being changed: its traces and groups put in once, as the editor
+  // opens on it (App holds that until the atrium's traces are read).
+  useEffect(() => {
+    // The record as it is now, not as this render read it: run again before a
+    // render -- StrictMode runs it twice -- it put the template in twice.
+    const live = workshopOf(lobbyId)
+    if (!live?.editing || live.loaded || !canEdit || !userId) return
+    keepWorkshop({ loaded: true })
+    void templateFile(live.editing).then(file => {
+      if (!file) { showToast(t('templates.openFailed')); return }
+      return placeAtriumFile(templateParts(file).file, screenToWorld(window.innerWidth / 2, window.innerHeight / 2), true)
+    }).then(() => recenterRef.current())
+  }, [workshop?.lobbyId, canEdit, userId])
+  // Into the editor: the view on what's in it (the user's, 2026-11-06) -- once
+  // the menus have come in, as Recenter keeps clear of them.
+  useEffect(() => {
+    if (!workshop) return
+    const timer = window.setTimeout(() => recenterRef.current(), 450)
+    return () => window.clearTimeout(timer)
+  }, [workshop?.lobbyId])
+
+  // A new one, or one of one's own to change (`template`). What's changed here
+  // is saved first, unasked; only a save that fails asks, as leaving does.
+  const openWorkshop = async (template?: MyTemplate) => {
+    if (useGameStore.getState().hasPendingChanges()) await saveAllChanges()
     try {
-      const id = await beginWorkshop(t('templates.untitled'), lobbyId, currentLobby?.themeSettings ?? null)
+      const parts = template ? await templateFile(template.id).then(file => file && templateParts(file)) : null
+      if (template && !parts) throw new Error('the template could not be read')
+      const id = await beginWorkshop(template?.name ?? t('templates.untitled'), lobbyId, template && parts ? { id: template.id, values: parts.values } : undefined)
       setShowTemplates(false)
       askToLeave(`/atrium/${id}`)
     } catch (error) {
@@ -5016,12 +5083,12 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
   // The parts of the interface a phone lays out differently (narrow): made
   // once, and placed where the layout puts them.
   const viewItems: MenuItem[] = [
-    { id: 'layers', icon: MENU_ICONS.layers, label: t('atrium.layers.title'), open: showLayerPanel, onSelect: () => { setShowThemeCustomization(false); setShowProfileCustomization(false); setShowLayerPanel(open => !open) } },
-    { id: 'locations', icon: MENU_ICONS.locations, label: t('atrium.locations.title'), open: showLocationsPanel, onSelect: () => { setShowThemeCustomization(false); setShowProfileCustomization(false); setShowLocationsPanel(open => !open) } },
+    { id: 'layers', icon: MENU_ICONS.layers, label: t('atrium.layers.title'), open: showLayerPanel, onSelect: () => toggleSidePanel(showLayerPanel, setShowLayerPanel) },
+    { id: 'locations', icon: MENU_ICONS.locations, label: t('atrium.locations.title'), open: showLocationsPanel, onSelect: () => toggleSidePanel(showLocationsPanel, setShowLocationsPanel) },
     { id: 'palette', icon: MENU_ICONS.palette, label: t('atrium.hud.palette'), open: showPalette, onSelect: () => setShowPalette(open => !open) },
-    ...(canEdit ? [{ id: 'templates', icon: MENU_ICONS.templates, label: t('templates.title'), open: showTemplates, onSelect: () => { const was = showTemplates; closeSidePanels(); setShowTemplates(!was) } }] : []),
+    ...(canEdit ? [{ id: 'templates', icon: MENU_ICONS.templates, label: t('templates.title'), open: showTemplates, onSelect: () => toggleSidePanel(showTemplates, setShowTemplates) }] : []),
     // The minimap, on unless turned off here; lit while it's on.
-    ...(narrow ? [] : [{ id: 'minimap', icon: MENU_ICONS.minimap, label: t('atrium.hud.minimap'), apart: true, lit: showMinimap, onSelect: () => setShowMinimap(!showMinimap) }]),
+    ...(narrow ? [] : [{ id: 'minimap', icon: MENU_ICONS.minimap, label: t('atrium.hud.minimap'), apart: true, lit: showMinimap, open: showMinimapPanel, panel: <MinimapPanel />, onSelect: () => setShowMinimapPanel(open => !open) }]),
     { id: 'recenter', icon: MENU_ICONS.recenter, label: t('atrium.hud.recenter'), hint: 'Shift+1', apart: narrow, onSelect: recenter },
     { id: 'fullscreen', icon: isFullscreen ? MENU_ICONS.minimize : MENU_ICONS.maximize, label: isFullscreen ? t('atrium.hud.leaveFullscreen') : t('atrium.hud.fullscreen'), hint: 'F11', onSelect: toggleFullscreen },
     { id: 'hide-ui', icon: MENU_ICONS.hide, label: t('atrium.hud.hideUi'), onSelect: () => setUiHidden(true) },
@@ -5071,6 +5138,7 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
       onLaserSettings={changeLaserSettings}
       onCustomize={() => customizeBar(setShowQuickBarEditor)}
       horizontal={narrow}
+      template={!!workshop}
     />
   )
   const readout = (
@@ -5122,6 +5190,7 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
           <TraceOverlay
             traces={traces}
             templateValues={workshopValues}
+            sidePanelOpen={showLayerPanel || showLocationsPanel || showQuickBarEditor || showViewBarEditor || showThemeCustomization || showProfileCustomization || showTemplates}
             atriumBackground={viewTheme?.backgroundColor}
             gridLineSpacing={viewTheme?.gridLineSpacing}
             onPaste={pasteOnCanvas}
@@ -5133,6 +5202,7 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
             selectedTraceId={selectedTraceId}
             setSelectedTraceId={setSelectedTraceId}
             multiSelectRequest={multiSelectRequest}
+            panelSelection={panelSelection}
             areaSelectRequest={areaSelectRequest}
             lassoSelectRequest={lassoSelectRequest}
             selecting={selectTool}
@@ -5260,7 +5330,10 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
           the corner. Each its icon, its name drawn out below it under the
           pointer (HudIconButton). Viewing the atrium is the right bar's. */}
       {workshop && !uiHidden && (
-        <WorkshopBar workshop={workshop} traces={traces.length} busy={workshopBusy} problem={workshopProblem} onCancel={backFromWorkshop} onSave={() => void saveTemplate()} />
+        <>
+          <WorkshopFrame />
+          <WorkshopActions traces={traces.length} busy={workshopBusy} problem={workshopProblem} onCancel={backFromWorkshop} onSave={() => void saveTemplate()} />
+        </>
       )}
       {reveal && <TemplateReveal {...reveal} onDone={() => { setReveal(null); madeTemplate() }} />}
       <div ref={sessionBarRef} data-hud-end="" className={`hud-in-right fixed top-4 right-4 z-[10000] flex items-center gap-2 font-mono pointer-events-auto ${workshop && !uiHidden ? 'hidden' : ''}`} style={{ '--base': '180ms', '--i': 1 } as CSSProperties}>
@@ -5365,7 +5438,13 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
           ViewBar) -- on a phone, in the menu, where the top has no room for
           them beside the atrium's name -- and in the bottom-right corner, the
           usage, which a phone does without. */}
-      {!uiHidden && !narrow && (
+      {!uiHidden && workshop && (
+      <div className="hud-in-top fixed top-4 left-1/2 -translate-x-1/2 z-[9999] pointer-events-none flex items-start" style={{ '--base': '180ms', '--i': 1 } as CSSProperties}>
+        {/* The template editor's: what it needs of the bar, and nothing to customize. */}
+        <ViewBar items={viewItems.filter(item => WORKSHOP_VIEW.includes(item.id))} />
+      </div>
+      )}
+      {!uiHidden && !narrow && !workshop && (
       <div className="hud-in-top fixed top-4 left-1/2 -translate-x-1/2 z-[9999] pointer-events-none flex items-start" style={{ '--base': '180ms', '--i': 1 } as CSSProperties}>
         <ViewBar items={viewItems} onCustomize={() => customizeBar(setShowViewBarEditor)} />
         {/* The palette slides out beside it, and the two stay in the middle
@@ -5381,7 +5460,7 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
       )}
       {/* The atrium in miniature while the view moves, above the usage (a
           preference); a press on it takes the view there. */}
-      {showMinimap && !uiHidden && !narrow && (
+      {showMinimap && !uiHidden && !narrow && !workshop && (
         <Minimap ref={minimapRef} onMove={(x, y) => { cameraFlyToRef.current = null; cameraPositionRef.current = { x, y } }} />
       )}
       {/* A phone, or a narrow window, has the view bar in its menu: these, under the top row. */}
@@ -5391,7 +5470,7 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
         {isDesktop && showOverlay && <OverlayPanel />}
       </div>
       )}
-      {!uiHidden && !narrow && (
+      {!uiHidden && !narrow && !workshop && (
       <div className="hud-in-bottom fixed bottom-4 right-4 z-[9999] pointer-events-none" style={{ '--base': '180ms', '--i': 3 } as CSSProperties}>
         {/* How much the atrium holds: the size alone, in the unit it has
             reached (lib/size); its limit, on the web, when pointed at -- and
@@ -5443,9 +5522,11 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
       {/* HUD + presentation quick-toggle, in one row so the toggle always
           sits just to the right of the HUD regardless of its width. */}
       <div data-hud="true" data-hud-start="" className="shrink-0 flex items-start gap-2 pointer-events-none">
+      {workshop && <WorkshopTitle workshop={workshop} traces={traces.length} />}
       {/* The atrium's menu: three lines, and open, a column of icons whose
           names slide out beside them (AtriumMenu). Choosing one that opens
           something elsewhere closes it; Share and Language open beside it. */}
+      {!workshop && (<>
       <AtriumMenu
         open={menuOpen}
         onOpenChange={setMenuOpen}
@@ -5591,6 +5672,7 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
           </div>
         )}
       </div>
+      </>)}
       {canEdit && !narrow && history}
 
       {/* Presentation quick-toggle -- only shown when locations exist. A fixed
@@ -5598,7 +5680,7 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
           when the HUD is expanded), collapsed to just the centered play icon;
           reveals the "Present" label on hover (where it may grow past square).
           Green while presentation mode is active. */}
-      {locations.length > 0 && (
+      {locations.length > 0 && !workshop && (
         <button
           onClick={togglePresentationMode}
           className="atrium-btn group pointer-events-auto font-mono w-[2.125rem] hover:w-auto px-0 hover:px-4"
@@ -5621,7 +5703,13 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
         {/* The quick bar: a tool for each kind of trace, in the middle of what
             the menu and the readout leave -- in more columns, when that is
             short. None, for an atrium that can only be looked at. */}
-        {canEdit && quickBar}
+        {/* In the template editor, its Slot tool above it, a thing of its own. */}
+        {canEdit && (workshop ? (
+          <div className="flex flex-col items-start gap-2">
+            <WorkshopSlotTool armed={placeTool === 'slot'} onPick={() => quickAction('slot')} />
+            {quickBar}
+          </div>
+        ) : quickBar)}
       </div>
         {/* At the foot of the column: the zoom and the pointer's place. */}
         {readout}
@@ -5727,7 +5815,8 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
         </Suspense>
       )}
 
-      {canEdit && !tutorial && !placeTool && !isDrawingMode && (
+      {canEdit && workshop && !placeTool && !isDrawingMode && <WorkshopEmptyHint ink={textColourOn(viewTheme?.backgroundColor)} />}
+      {canEdit && !tutorial && !workshop && !placeTool && !isDrawingMode && (
         <EmptyCanvasHint
           ink={textColourOn(viewTheme?.backgroundColor)}
           localFiles={isLocalData}
@@ -5965,13 +6054,13 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
                         {!fromPalette && (
                           <span className="pointer-events-none absolute right-1 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full border border-black/30" style={{ background: ANY_COLOUR }} />
                         )}
-                        <input
-                          type="color"
+                        <ColourInput
                           data-any-colour=""
                           value={drawingColor}
-                          onChange={(e) => setDrawingColor(e.target.value)}
-                          aria-label={t('atrium.draw.anyColour')}
-                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                          onChange={setDrawingColor}
+                          label={t('atrium.draw.anyColour')}
+                          className="absolute inset-0 w-full h-full cursor-pointer"
+                          style={{ backgroundColor: 'transparent' }}
                         />
                       </label>
                     </div>
@@ -6381,7 +6470,8 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
           <TemplatesPanel
             context={templateContext}
             onClose={() => setShowTemplates(false)}
-            onNew={templateMaker && !workshop ? () => void startTemplate() : undefined}
+            onNew={templateMaker && !workshop ? () => void openWorkshop() : undefined}
+            onEdit={templateMaker && !workshop ? template => void openWorkshop(template) : undefined}
             onPlace={(file, screen) => {
               count('templates')
               void placeAtriumFile(file, screen ? screenToWorld(screen.x, screen.y) : screenToWorld(window.innerWidth / 2, window.innerHeight / 2), true)
@@ -6398,15 +6488,16 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
           selectedTraceId={selectedTraceId}
           multiSelectedTraceIds={multiSelectedTraceIds}
           canEdit={canEdit}
+          // What the panel selects is selected, without the Customization panel:
+          // that opens from the canvas (TraceOverlay panelSelection).
           onSelectTrace={(traceId) => {
-            // onSelectTrace called
+            setPanelSelection({ key: traceId })
             setSelectedTraceId(traceId)
-            // setSelectedTraceId called
           }}
-          onSelectGroupTraces={(traceIds) => setMultiSelectRequest(traceIds)}
+          onSelectGroupTraces={(traceIds) => { setPanelSelection({ key: selectionKeyOf(traceIds) }); setMultiSelectRequest(traceIds) }}
           // Same channel a group-header click already uses: the panel says what
           // should be selected, and the canvas is what holds a selection.
-          onSetSelection={(traceIds) => setMultiSelectRequest([...traceIds])}
+          onSetSelection={(traceIds) => { setPanelSelection({ key: selectionKeyOf([...traceIds]) }); setMultiSelectRequest([...traceIds]) }}
           onCustomize={(traceIds) => {
             if (traceIds.length === 0) return
             setShowLayerPanel(false)

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from '../lib/i18n'
 import type { LobbyLocation } from '../types/database'
 import type { PresentationFormat } from '../lib/presentationExport'
+import { ColourInput } from './ColourPicker'
 
 // Custom drag MIME so LobbyScene's canvas-wide file/URL drop handlers can
 // recognize and ignore an in-panel location-reorder drag (same reasoning as
@@ -235,12 +236,12 @@ export default function LocationsPanel({
         </div>
         <label className="flex items-center gap-2 text-nier-bg/80 text-[11px] tracking-wider uppercase">
           {t('atrium.locations.exportBackground')}
-          <input
-            type="color"
+          <ColourInput
             data-export-background=""
+            label={t('atrium.locations.exportBackground')}
             value={slideBackground}
-            onChange={event => setBackground(event.target.value)}
-            className="w-8 h-6 p-0 border border-nier-border/40 bg-transparent cursor-pointer"
+            onChange={setBackground}
+            className="w-8 h-6 border border-nier-border/40 cursor-pointer"
           />
           {background !== null && (
             <button type="button" onClick={() => setBackground(null)} className="text-nier-bg/70 hover:text-nier-strong normal-case tracking-normal" title={t('atrium.locations.exportBackgroundTheme')}>

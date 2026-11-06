@@ -5,9 +5,11 @@
 // read off where things happen to lie, so a frame dragged across other traces
 // doesn't take them with it. A trace or a group joins a frame when it's put
 // in one -- dropped in it, wrapped in it, or a frame made around it -- and
-// leaves when it's taken out. It's in when its middle is: a thing half in is
-// wherever most of it is. A group joins and leaves whole, by the middle of
-// all of it, so a frame never carries half a group away. Frames hold no
+// leaves when it's taken out. It's in when all of it is: half in, half out, it
+// isn't, and the frame doesn't carry it (the user's, 2026-11-06). A slot or a
+// frame that arranges what's put in it sizes that to fit, so for those its
+// middle is enough (frameFor). A group joins and leaves whole, by the box
+// round all of it, so a frame never carries half a group away. Frames hold no
 // frames.
 //
 // A deleted frame leaves its traces' frameId behind, pointing at nothing,
@@ -67,8 +69,29 @@ export function newFrame(
 export const boxContains = (box: FrameBox, x: number, y: number) =>
   Math.abs(x - box.cx) <= box.halfW && Math.abs(y - box.cy) <= box.halfH
 
-// The frame a point is in: the smallest that holds it, so a small frame lying
-// on a big one takes what is put in it.
+// A box inside another, all of it (with a hair's give, for what was put flush).
+export const boxInside = (inner: FrameBox, outer: FrameBox) =>
+  inner.cx - inner.halfW >= outer.cx - outer.halfW - 0.5 && inner.cx + inner.halfW <= outer.cx + outer.halfW + 0.5 &&
+  inner.cy - inner.halfH >= outer.cy - outer.halfH - 0.5 && inner.cy + inner.halfH <= outer.cy + outer.halfH + 0.5
+
+// A frame where something might be put: `arranged` when it sizes what's put in
+// it (a slot, masonry).
+export interface FramePlace { id: string; box: FrameBox; arranged?: boolean }
+
+/** The frame something (its box) is in: the smallest that holds it -- all of
+ *  it, for a frame; its middle, for an arranged one -- so a small frame lying on
+ *  a big one takes what is put in it. */
+export function frameFor(frames: FramePlace[], unit: FrameBox): string | null {
+  let best: { id: string; area: number } | null = null
+  for (const { id, box, arranged } of frames) {
+    if (!(arranged ? boxContains(box, unit.cx, unit.cy) : boxInside(unit, box))) continue
+    const area = box.halfW * box.halfH
+    if (!best || area < best.area) best = { id, area }
+  }
+  return best?.id ?? null
+}
+
+// The frame a point is in: the smallest that holds it.
 export function frameAt(frames: { id: string; box: FrameBox }[], x: number, y: number): string | null {
   let best: { id: string; area: number } | null = null
   for (const { id, box } of frames) {
@@ -99,13 +122,27 @@ export function withHeld<T extends Framed>(chosen: T[], all: T[]): T[] {
 // original's group, as a group is one unit; or the one it lands in.
 export function frameOfCopy(
   trace: Framed, ids: Map<string, string>, keepsGroup: boolean,
-  frames: { id: string; box: FrameBox }[], landed: { x: number; y: number },
+  frames: FramePlace[], landed: FrameBox,
 ): string | null {
   if (isFrame(trace)) return null
   const copied = trace.frameId ? ids.get(trace.frameId) : undefined
   if (copied) return copied
   if (keepsGroup) return trace.frameId && frames.some(f => f.id === trace.frameId) ? trace.frameId : null
-  return frameAt(frames, landed.x, landed.y)
+  return frameFor(frames, landed)
+}
+
+/** The groups (by id) a copy of `sources` makes anew (lib/traceCopy): one copied
+ *  whole -- every trace of it, as Duplicate on a group or a template copies --
+ *  or one a copied frame holds. Any other copy stays in its original's group. */
+export function groupsCopiedWhole<T extends Framed>(sources: T[], traces: T[], groupIds: Set<string>): Set<string> {
+  const ids = new Set(sources.map(t => t.id))
+  const frames = new Set(sources.filter(isFrame).map(f => f.id))
+  const out = new Set<string>()
+  for (const t of sources) {
+    if (!t.layerId || !groupIds.has(t.layerId) || out.has(t.layerId)) continue
+    if ((t.frameId && frames.has(t.frameId)) || traces.every(o => o.layerId !== t.layerId || ids.has(o.id))) out.add(t.layerId)
+  }
+  return out
 }
 
 // The traces taken as one: every trace of a group together, or one trace on
@@ -132,32 +169,26 @@ export function unitsOf<T extends Framed>(traces: T[], groups: Set<string>, of?:
   return of ? units.filter(unit => unit.some(t => of.has(t.id))) : units
 }
 
-// The middle of a unit: of the box around all of its traces.
+// The box around all of a unit's traces.
+export const unitBox = <T>(unit: T[], boxOf: (trace: T) => FrameBox): FrameBox => frameAround(unit.map(boxOf), 0)
+// Its middle.
 export function unitMiddle<T>(unit: T[], boxOf: (trace: T) => FrameBox): { x: number; y: number } {
-  let left = Infinity, top = Infinity, right = -Infinity, bottom = -Infinity
-  for (const t of unit) {
-    const b = boxOf(t)
-    left = Math.min(left, b.cx - b.halfW)
-    right = Math.max(right, b.cx + b.halfW)
-    top = Math.min(top, b.cy - b.halfH)
-    bottom = Math.max(bottom, b.cy + b.halfH)
-  }
-  return { x: (left + right) / 2, y: (top + bottom) / 2 }
+  const box = unitBox(unit, boxOf)
+  return { x: box.cx, y: box.cy }
 }
 
-// Where each of these units now belongs, by where its middle is -- only the
-// traces whose frame changes: trace id to frame id, or null for none. A
-// frameId left pointing at a deleted frame is cleared here, once its trace
-// has been placed somewhere else.
+// Where each of these units now belongs (frameFor: all of it in a frame, its
+// middle in an arranged one) -- only the traces whose frame changes: trace id
+// to frame id, or null for none. A frameId left pointing at a deleted frame is
+// cleared here, once its trace has been placed somewhere else.
 export function placeUnits<T extends Framed>(
   units: T[][],
-  frames: { id: string; box: FrameBox }[],
+  frames: FramePlace[],
   boxOf: (trace: T) => FrameBox,
 ): Map<string, string | null> {
   const changes = new Map<string, string | null>()
   for (const unit of units) {
-    const middle = unitMiddle(unit, boxOf)
-    const frame = frameAt(frames, middle.x, middle.y)
+    const frame = frameFor(frames, unitBox(unit, boxOf))
     for (const t of unit) if ((t.frameId ?? null) !== frame) changes.set(t.id, frame)
   }
   return changes
@@ -255,6 +286,42 @@ export function masonry(frame: FrameBox, units: ArrangeUnit[]): { frame: FrameBo
 export type SlotFit = 'fill' | 'fit' | 'stretch'
 export const SLOT_FITS: SlotFit[] = ['fill', 'fit', 'stretch']
 export const isSlot = (trace: { frameArrange?: string | null }) => (SLOT_FITS as (string | null | undefined)[]).includes(trace.frameArrange)
+/** A frame that sizes what's put in it -- a slot, masonry -- so takes it by its middle (frameFor). */
+export const isArranged = (trace: { frameArrange?: string | null }) => trace.frameArrange === 'masonry' || isSlot(trace)
+/** Each fit's name and what it does, as the interface says them (translation keys). */
+export const SLOT_FIT_WORDS = {
+  fill: ['templates.slotFill', 'templates.slotFillHint'],
+  fit: ['templates.slotFitWhole', 'templates.slotFitWholeHint'],
+  stretch: ['templates.slotStretch', 'templates.slotStretchHint'],
+} as const satisfies Record<SlotFit, readonly [string, string]>
+
+/** How a slot is drawn -- on the canvas and in a picture of it alike: never with a
+ *  title; empty, as the dashed place it is; holding something, as nothing at all,
+ *  so what it holds is all that's seen. Any other trace as it is. */
+export function slotLook<T extends Pick<Trace, 'frameArrange' | 'showBorder' | 'showBackground'>>(trace: T, filled: boolean): T {
+  return isSlot(trace) && filled ? { ...trace, showBorder: false, showBackground: false } : trace
+}
+
+/** A trace leaving `slot`, without what the slot did to it: a picture whole
+ *  again, if the slot filled it -- that crop was the slot's; its own shape again,
+ *  if the slot stretched it, as big as fits where it was. What to change on it
+ *  (nothing, mostly). */
+export function outOfSlot(
+  trace: Pick<Trace, 'type' | 'scaleX' | 'scaleY'>, slot: Pick<Trace, 'frameArrange'> | undefined,
+): Partial<Pick<Trace, 'cropX' | 'cropY' | 'cropWidth' | 'cropHeight' | 'scaleX' | 'scaleY'>> {
+  if (slot?.frameArrange === 'fill' && (trace.type === 'image' || trace.type === 'video')) return { cropX: 0, cropY: 0, cropWidth: 1, cropHeight: 1 }
+  const sx = trace.scaleX ?? 1, sy = trace.scaleY ?? 1
+  if (slot?.frameArrange === 'stretch' && Math.abs(sx - sy) > 1e-6) return { scaleX: Math.min(sx, sy), scaleY: Math.min(sx, sy) }
+  return {}
+}
+
+/** What's in a slot but drawn under it (`ranks`, lib/order drawRanks): put there by
+ *  hand in the Layer panel, so out of it, on its own again -- what's in a slot is
+ *  always in front of it (the user's, 2026-11-06). */
+export function underTheirSlots<T extends Framed & Pick<Trace, 'frameArrange'>>(traces: T[], ranks: Map<string, number>): T[] {
+  const slots = new Set(traces.filter(isSlot).map(t => t.id))
+  return traces.filter(t => !!t.frameId && slots.has(t.frameId) && (ranks.get(t.id) ?? 0) < (ranks.get(t.frameId) ?? 0))
+}
 
 /** Where what a slot holds goes: its middle on the slot's, scaled `fx` across and
  *  `fy` down -- the same both ways, to fit, unless `stretch`. `slot` is its inside;

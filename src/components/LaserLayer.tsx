@@ -307,7 +307,11 @@ export default function LaserLayer({ active, settings, view, onPointerInside }: 
     onLaserActivity(kick)
     return () => {
       onLaserActivity(null)
+      // Forgotten as well as cancelled: kept, a frame that will never come
+      // stood for one asked for, and kick() asked for none again -- mounted
+      // anew (StrictMode does it at once), it never drew.
       if (frame.current !== null) cancelAnimationFrame(frame.current)
+      frame.current = null
     }
   }, [])
   // Put away: the dot goes.

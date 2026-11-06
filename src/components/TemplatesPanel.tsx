@@ -8,7 +8,7 @@ import { useTranslation } from '../lib/i18n'
 import { isCanvasTarget } from '../lib/editableTarget'
 import { allTemplates, DIGITAL_ATRIUM_FOLDER, type TemplateContext, type TemplateFolder, type TemplateItem, type TemplateNode } from '../lib/templates'
 import type { AtriumFile } from '../lib/atriumFormat'
-import { forgetTemplate, templateFile, templatePicture, useMyTemplates } from '../lib/myTemplates'
+import { forgetTemplate, templateFile, templatePicture, useMyTemplates, type MyTemplate } from '../lib/myTemplates'
 
 const PINS_KEY = 'atrium.templates.quick'
 const MOST_PINNED = 8
@@ -52,13 +52,15 @@ function Thumb({ file, size = 44 }: { file: AtriumFile; size?: number }) {
 // One's own (lib/myTemplates), among the panel's: by its id with this before it.
 const MINE = 'mine:'
 
-export default function TemplatesPanel({ context, onPlace, onClose, onNew }: {
+export default function TemplatesPanel({ context, onPlace, onClose, onNew, onEdit }: {
   context: TemplateContext
   // A template to place: where the pointer let go, or (none) the middle of the view.
   onPlace: (file: AtriumFile, screen?: { x: number; y: number }) => void
   onClose: () => void
-  // A new one begun, in the template editor (lib/workshop): developers only, for now.
+  // A new one begun, or one's own changed, in the template editor (lib/workshop):
+  // developers only, for now.
   onNew?: () => void
+  onEdit?: (template: MyTemplate) => void
 }) {
   const { t } = useTranslation()
   const [pins, setPins] = useState(readPins)
@@ -137,7 +139,8 @@ export default function TemplatesPanel({ context, onPlace, onClose, onNew }: {
   const thumbOf = (id: string, size?: number) => {
     const own = id.startsWith(MINE) ? id.slice(MINE.length) : null
     const picture = own && minePictures.get(own)
-    if (picture) return <img src={picture} alt="" className="shrink-0 object-contain" style={{ width: size ?? 44, height: (size ?? 44) * 0.72 }} />
+    // Not the browser's to drag: pressed, it's the panel's drag (an image's own carries no template).
+    if (picture) return <img src={picture} alt="" draggable={false} className="shrink-0 object-contain" style={{ width: size ?? 44, height: (size ?? 44) * 0.72 }} />
     const file = own ? mineFiles.get(own) : files.get(id)
     return file ? <Thumb file={file} size={size} /> : null
   }
@@ -158,7 +161,19 @@ export default function TemplatesPanel({ context, onPlace, onClose, onNew }: {
           {thumbOf(node.id)}
           <span className="min-w-0 truncate text-nier-strong text-xs">{own ? node.name : nameOf(node.name)}</span>
         </button>
-        {/* One's own: let go of, asked once. */}
+        {/* One's own: changed in the editor, or let go of, asked once. */}
+        {own && onEdit && (
+          <button
+            type="button"
+            data-template-edit={own}
+            aria-label={t('templates.editMine', { name: node.name })}
+            title={t('templates.editMine', { name: node.name })}
+            onClick={() => { const template = mine.find(m => m.id === own); if (template) onEdit(template) }}
+            className="shrink-0 w-7 h-7 flex items-center justify-center text-nier-bg/70 hover:text-nier-strong opacity-0 group-hover:opacity-100 focus:opacity-100 [@media(hover:none)]:opacity-100 transition-opacity"
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" aria-hidden="true"><path d="M4 20 H8 L19 9 L15 5 L4 16 Z M13 7 L17 11" /></svg>
+          </button>
+        )}
         {own ? (
           <button
             type="button"

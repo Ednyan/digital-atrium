@@ -3,16 +3,14 @@ import { supabase } from '../lib/supabase'
 import { useGameStore, useGamePick } from '../store/gameStore'
 import { tCount, useTranslation } from '../lib/i18n'
 import type { Layer, Trace } from '../types/database'
-import { drawRanks, inOrder, isValidOrderKey, keyAt, keysBetween, keysOnTop, topLevel, type Ordered } from '../lib/order'
+import { drawRanks, inOrder, isValidOrderKey, keysBetween, topLevel, type Ordered } from '../lib/order'
 import { feelSpring, feelStep } from '../lib/dragFeel'
 import { panelDrop, type PanelDropTarget } from '../lib/panelDrop'
 import { cleanTitle } from '../lib/traceNames'
-import { createGroup as insertGroup, mapRowToLayer, reloadLayers, writeGroupKey } from '../hooks/useLayers'
-import { mapRowToTrace } from '../hooks/useTraces'
+import { createGroup as insertGroup, letGoUnderSlots, reloadLayers, writeGroupKey } from '../hooks/useLayers'
 import { queueLayerChange } from '../lib/layerQueue'
 import { UNLOCKED, isLockedTrace } from '../lib/traceLock'
 import { withLayerUndo } from '../lib/layerUndo'
-import { buildTraceInsertRow } from '../lib/traceInsert'
 import { copyTraces } from '../lib/traceCopy'
 import { withHeld } from '../lib/frames'
 import { useClampedMenuPosition } from '../hooks/useClampedMenuPosition'
@@ -508,54 +506,18 @@ export default function LayerPanel({ lobbyId, onClose, selectedTraceId, multiSel
   // Copies a group and everything in it into a brand-new group, so the copies
   // are independently groupable rather than piling into the original (which is
   // what duplicating the traces alone would do -- they inherit layer_id).
+  // A copy of the group, just above it, made as Duplicate on the canvas makes one
+  // (lib/traceCopy): its values (a placed template's), what its slots and frames
+  // hold, and the threads between its traces come with it.
   const duplicateGroupNow = async (layerId: string) => {
     if (!supabase || !canEdit || !userId) return
-    const groups = inOrder(useGameStore.getState().layers)
-    const at = groups.findIndex(l => l.id === layerId)
-    if (at === -1) return
-    const source = groups[at]
-
+    const sourceTraces = groupBottomUp(layerId)
+    if (sourceTraces.length === 0) return
     setIsBusy(true)
     try {
-      // Just above the original, in the stack.
-      const stack = stackBottomUp()
-      const orderKey = keyAt(stack, stack.findIndex(item => item.id === layerId) + 1) ?? keysOnTop(stack)[0]
-      const { data: created, error: layerError } = await (supabase.from('layers') as any)
-        .insert({
-          name: `${source.name} copy`,
-          order_key: orderKey,
-          is_group: true,
-          user_id: userId,
-          lobby_id: lobbyId,
-          // A placed template's copy keeps its values, as its traces keep their links.
-          ...(source.template ? { template: source.template } : {}),
-        })
-        .select()
-        .single()
-
-      if (layerError || !created) {
-        console.error('Error duplicating group:', layerError)
-        return
-      }
-      useGameStore.getState().putLayer(mapRowToLayer(created))
-
-      // The copies keep their keys: a key orders a trace within its group, so
-      // the same keys in the new group are the same order.
-      const sourceTraces = groupBottomUp(layerId)
-      if (sourceTraces.length > 0) {
-        const rows = sourceTraces.map(trace => ({
-          ...buildTraceInsertRow(trace, userId, username, lobbyId, 0, 0),
-          layer_id: created.id,
-        }))
-        const { data: inserted, error: tracesError } = await (supabase.from('traces') as any).insert(rows).select()
-        if (tracesError) {
-          console.error('Error duplicating group traces:', tracesError)
-        } else if (Array.isArray(inserted)) {
-          // Onto the canvas too. Left to realtime, which desktop doesn't have,
-          // the copies only appeared once the atrium was opened again.
-          for (const row of inserted) useGameStore.getState().addTrace(mapRowToTrace(row))
-        }
-      }
+      await copyTraces(withHeld(sourceTraces, useGameStore.getState().traces), { x: 0, y: 0 }, { userId, username, lobbyId, textName: n => t('atrium.layers.numberedText', { n }) })
+    } catch (error) {
+      console.error('Error duplicating group:', error)
     } finally {
       setIsBusy(false)
     }
@@ -1075,8 +1037,14 @@ export default function LayerPanel({ lobbyId, onClose, selectedTraceId, multiSel
   // Each one also a step in the atrium's undo history (lib/layerUndo): these
   // write to the database at once, and used to be the one kind of change
   // Ctrl+Z couldn't take back.
+  // And after each, what it left under its slot is out of it (lib/frames
+  // underTheirSlots), in the same step: undone, it's back in.
   const queued = <A extends unknown[]>(change: (...args: A) => Promise<unknown>, label = 'layers') =>
-    (...args: A) => queueLayerChange(() => withLayerUndo(label, () => change(...args)))
+    (...args: A) => queueLayerChange(() => withLayerUndo(label, async () => {
+      const done = await change(...args)
+      await letGoUnderSlots()
+      return done
+    }))
   const doCreateGroup = queued(doCreateGroupNow)
   const doDeleteGroup = queued(doDeleteGroupNow)
   const doDeleteTrace = queued(doDeleteTraceNow)

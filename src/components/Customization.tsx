@@ -17,7 +17,7 @@ import type { Trace } from '../types/database'
 import { MenuIcon, SlideLabel } from './AtriumMenu'
 import { useGamePick } from '../store/gameStore'
 
-export type SectionId = 'values' | 'name' | 'style' | 'fill' | 'outline' | 'text' | 'shape' | 'content' | 'effects' | 'size' | 'brush' | 'colour' | 'stroke' | 'exr' | 'look'
+export type SectionId = 'values' | 'slots' | 'name' | 'style' | 'fill' | 'outline' | 'text' | 'shape' | 'content' | 'effects' | 'size' | 'brush' | 'colour' | 'stroke' | 'exr' | 'look'
   | 'background' | 'border' | 'shadow' | 'light' | 'captions' | 'arrange'
   // Atrium Themes (ThemeCustomization).
   | 'presets' | 'mine' | 'grid' | 'room' | 'particles' | 'ground'
@@ -53,7 +53,9 @@ const readFolded = (): Set<string> => {
   try { return new Set(JSON.parse(localStorage.getItem(FOLDED_KEY) || '[]')) } catch { return new Set() }
 }
 
-export function CustomizationPanel({ subtitle, onClose, closeLabel, actions, zIndex, children }: {
+export function CustomizationPanel({ title, subtitle, onClose, closeLabel, actions, zIndex, children }: {
+  // Customization, unless it's another's panel in the same place (the template editor's).
+  title?: string
   // What it's customizing: a kind ("Rectangle"), a count, a tool.
   subtitle?: string
   onClose?: () => void
@@ -72,7 +74,7 @@ export function CustomizationPanel({ subtitle, onClose, closeLabel, actions, zIn
     >
       <header className="shrink-0 flex items-center justify-between gap-2 pl-4 pr-2 py-2 border-b border-nier-border/25">
         <h2 className="min-w-0 truncate text-nier-strong text-[11px] tracking-[0.2em] uppercase">
-          {t('atrium.customize.panel')}
+          {title ?? t('atrium.customize.panel')}
           {subtitle && <span className="text-nier-bg/60"> · {subtitle}</span>}
         </h2>
         {onClose && (

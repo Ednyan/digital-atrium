@@ -433,7 +433,8 @@ export default function ContributorsAtrium({ onClose, onContribute, thanks = fal
         || Math.abs(Math.log(zoom / chosen.zoom)) > Math.log(1.125) ? camera.current : chosen))
     })
   }, [])
-  useEffect(() => () => cancelAnimationFrame(frame.current), [])
+  // Forgotten as well as cancelled, or a remount (StrictMode's) never asks for one again.
+  useEffect(() => () => { cancelAnimationFrame(frame.current); frame.current = 0 }, [])
   const dragRef = useRef<{ x: number; y: number; startX: number; startY: number } | null>(null)
   const [dragging, setDragging] = useState(false)
   const [legendOpen, setLegendOpen] = useState(() => typeof window === 'undefined' || window.innerWidth >= 640)

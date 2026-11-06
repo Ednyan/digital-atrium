@@ -265,7 +265,9 @@ export default function AtriumMenu({ open, onOpenChange, items }: {
 // below it. What `open` is says what it has open (its panel), pressed. Put in an
 // order of one's own, separators too (ViewBarEditor); as many as there's room for
 // between what's at the top left and right, the rest under More, always last.
-export function ViewBar({ items, onCustomize }: { items: MenuItem[]; onCustomize: () => void }) {
+// `onCustomize`: the bar's editor, from under More; without it (the template
+// editor's few tools) More is only there for what doesn't fit.
+export function ViewBar({ items, onCustomize }: { items: MenuItem[]; onCustomize?: () => void }) {
   const { t } = useTranslation()
   const { viewBarOrder } = useGamePick('viewBarOrder')
   const barRef = useRef<HTMLDivElement>(null)
@@ -276,7 +278,13 @@ export function ViewBar({ items, onCustomize }: { items: MenuItem[]; onCustomize
     // It's kept in the middle, so the wider of the two sides says how far it can
     // reach each way. A tool is 36px with 4 between; the bar adds 6 more in all.
     const fit = () => {
-      const side = Math.max(start?.getBoundingClientRect().right ?? 0, window.innerWidth - (end?.getBoundingClientRect().left ?? window.innerWidth))
+      // A side not shown (the template editor's, put away) takes no room: its
+      // box, all zeros, read as reaching across the whole screen.
+      const reach = (el: Element | null, edge: (r: DOMRect) => number) => {
+        const r = el?.getBoundingClientRect()
+        return r && r.width > 0 ? edge(r) : 0
+      }
+      const side = Math.max(reach(start, r => r.right), reach(end, r => window.innerWidth - r.left))
       setRows(Math.max(1, Math.floor((window.innerWidth - 2 * (side + 12) - 6) / 40)))
     }
     fit()
@@ -360,7 +368,7 @@ export function ViewBar({ items, onCustomize }: { items: MenuItem[]; onCustomize
       style={{ backgroundColor: 'rgb(var(--c-ground) / 0.92)' }}
     >
       {shown.map(({ id, apart }) => tool(byId.get(id)!, apart, false))}
-      <div className="group relative" onMouseEnter={keepMore} onMouseLeave={letMoreGo}>
+      {(onCustomize || hidden.length > 0) && <div className="group relative" onMouseEnter={keepMore} onMouseLeave={letMoreGo}>
         <button
           type="button"
           data-view-more=""
@@ -386,7 +394,7 @@ export function ViewBar({ items, onCustomize }: { items: MenuItem[]; onCustomize
                 {hidden.map(id => tool(byId.get(id)!, false, true))}
               </div>
             )}
-            <button
+            {onCustomize && <button
               type="button"
               data-view-customize=""
               onClick={() => { setMoreOpen(false); onCustomize() }}
@@ -394,10 +402,10 @@ export function ViewBar({ items, onCustomize }: { items: MenuItem[]; onCustomize
             >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="M4 6h9M4 12h5M4 18h9M17 4v6M14.5 7.5L17 10l2.5-2.5M17 20v-6M14.5 16.5L17 14l2.5 2.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
               {t('atrium.tools.customizeTop')}
-            </button>
+            </button>}
           </div>
         )}
-      </div>
+      </div>}
     </div>
   )
 }

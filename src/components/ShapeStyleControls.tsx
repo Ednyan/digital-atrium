@@ -19,6 +19,7 @@ import { Choices, Row, ToggleTrack } from './Customization'
 import { LinkButton } from './ValueLink'
 import { MenuIcon } from './AtriumMenu'
 import { dashProps, STROKE_STYLES, type StrokeStyle } from '../lib/strokeStyle'
+import { ColourPicker } from './ColourPicker'
 
 const PALETTE = [
   '#ef4444', '#f97316', '#f59e0b', '#eab308', '#84cc16', '#22c55e', '#10b981', '#14b8a6',
@@ -83,9 +84,9 @@ export function Check({ checked, onChange, label, hint, mixed = false, row = fal
 const EYEDROPPER = 'M11 7l6 6M4 16l11.7 -11.7a1 1 0 0 1 1.4 0l2.6 2.6a1 1 0 0 1 0 1.4l-11.7 11.7h-4v-4z'
 const RESET = 'M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4'
 
-/** A colour, in one row: its swatch -- which opens the palette, the system's
-    picker and, given `onReset`, the way back to the default -- its hex, and
-    the eyedropper. For fill, outline, text and light alike. */
+/** A colour, in one row: its swatch -- which opens the palette, the picker
+    (ColourPicker) and, given `onReset`, the way back to the default -- its hex,
+    and the eyedropper. For fill, outline, text and light alike. */
 export function ColourField({ label, value, onChange, onReset, field }: { label: string; value: string; onChange: (colour: string) => void; onReset?: () => void; field?: keyof Trace }) {
   const { t } = useTranslation()
   // The hex field keeps its own text while it is being typed, so a half-typed
@@ -156,13 +157,8 @@ export function ColourField({ label, value, onChange, onReset, field }: { label:
               />
             ))}
           </div>
-          <div className="flex items-center gap-1.5">
-            <input
-              type="color"
-              value={HEX.test(value) && value.length === 7 ? value : '#3b82f6'}
-              onChange={e => onChange(e.target.value)}
-              className="flex-1 min-w-0 h-8 cursor-pointer bg-nier-black border border-nier-border/30"
-            />
+          <div className="flex items-start gap-1.5">
+            <div className="flex-1 min-w-0"><ColourPicker bare value={HEX.test(value) ? value : '#3b82f6'} onChange={onChange} /></div>
             {onReset && (
               <button type="button" onClick={onReset} className={tool} title={t('atrium.customize.resetDefault')} aria-label={t('atrium.customize.resetDefault')}>
                 <MenuIcon d={RESET} size={14} />

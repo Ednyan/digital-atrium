@@ -13,6 +13,7 @@ import { useGamePick } from '../store/gameStore'
 import { asStrokeData, BUILTIN_BRUSHES, inkColour, strokesIn } from '../lib/brushes'
 import { changeStrokes, loadDrawingPicture, type StrokeChange } from '../lib/drawingFiles'
 import BrushGlyph, { BRUSH_LABELS } from './BrushGlyph'
+import { ColourInput } from './ColourPicker'
 
 const LABEL = 'text-nier-bg/75 text-[11px] tracking-[0.15em] uppercase whitespace-nowrap'
 
@@ -83,20 +84,19 @@ export default function StrokeStyleField({ traceIds, lobbyId, userId }: { traceI
     setBusy(true)
     void changeStrokes(traceIds, change, lobbyId, userId).finally(() => setBusy(false))
   }
-  const colourRef = useLetGo(picked => apply({ color: picked }))
   const brush = first?.brush ?? 'pen'
 
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2">
         <span className={LABEL}>{t('atrium.draw.strokeColour')}</span>
-        <input
-          ref={colourRef}
-          type="color"
+        <ColourInput
+          label={t('atrium.draw.strokeColour')}
           value={colour}
           disabled={busy}
-          onChange={e => setColour(e.target.value)}
-          className="atrium-swatch flex-1 h-7 cursor-pointer border border-nier-border/40 disabled:opacity-50"
+          onChange={setColour}
+          onCommit={color => apply({ color })}
+          className="flex-1 h-7 cursor-pointer border border-nier-border/40 disabled:opacity-50"
         />
       </div>
       {/* Only what's kept can be painted again another way. */}

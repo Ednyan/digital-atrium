@@ -13,6 +13,7 @@ import {
 } from '../lib/templateValues'
 import type { Layer, Trace } from '../types/database'
 import { Section, Switch } from './Customization'
+import { ColourInput } from './ColourPicker'
 
 export interface ValueLinking {
   // What the panel edits, the group keeping the values, and every trace sharing them.
@@ -26,6 +27,8 @@ export interface ValueLinking {
   // "Show links": the values' links drawn as threads, and that switched.
   threads: boolean
   showThreads: (on: boolean) => void
+  // In the template editor: values made here, at the top of a trace's panel.
+  making?: boolean
 }
 export const ValueLinkContext = createContext<ValueLinking | null>(null)
 
@@ -154,16 +157,32 @@ export function WordsLinkRow({ label }: { label: string }) {
 }
 
 /** The values of the group the panel's traces are in, each set for all it's linked to. */
+// The values, at the top of a trace's panel -- in the template editor with new
+// ones made there too (the user's, 2026-11-06: a panel of its own for them
+// only confused), each then given to a setting by the link button beside it.
 export function ValuesSection() {
   const linking = useContext(ValueLinkContext)
   const { t } = useTranslation()
-  if (!linking || linking.values.length === 0) return null
+  if (!linking || (linking.values.length === 0 && !linking.making)) return null
+  const add = (kind: ValueKind) => linking.change([], [...linking.values, { id: crypto.randomUUID(), name: freshName(linking.values, t(KIND_NAME[kind])), kind, value: NEW_VALUE[kind] }])
   return (
     <Section id="values" title={t('templates.values')} summary={String(linking.values.length)}>
-      <div className="space-y-1.5" data-values="">
-        {linking.values.map(value => <ValueRow key={value.id} linking={linking} value={value} />)}
-      </div>
-      <ThreadsSwitch linking={linking} />
+      {linking.making && (
+        <div className="flex flex-wrap gap-1" role="group" aria-label={t('templates.newValue')}>
+          {KINDS.map(kind => (
+            <button key={kind} type="button" data-value-add={kind} onClick={() => add(kind)} className="px-1.5 py-0.5 border border-nier-border/30 text-[10px] text-nier-bg/75 hover:text-nier-strong hover:border-nier-border/60 transition-colors">
+              + {t(KIND_NAME[kind])}
+            </button>
+          ))}
+        </div>
+      )}
+      {linking.values.length > 0 && (
+        <div className="space-y-1.5" data-values="">
+          {linking.values.map(value => <ValueRow key={value.id} linking={linking} value={value} />)}
+        </div>
+      )}
+      {linking.making && linking.values.length === 0 && <p className="text-[11px] leading-relaxed text-nier-bg/55">{t('templates.emptyValues')}</p>}
+      {linking.values.length > 0 && <ThreadsSwitch linking={linking} />}
     </Section>
   )
 }
@@ -241,7 +260,7 @@ function ValueEditor({ value, held, fonts, onSet, className }: { value: Template
   return (
     <div className="flex items-center gap-1 min-w-0">
       {value.kind === 'colour' && (
-        <input type="color" aria-label={value.name} value={String(held)} onChange={e => onSet(e.target.value)} className="w-7 h-7 shrink-0 p-0 border border-nier-border/40 bg-transparent cursor-pointer" />
+        <ColourInput label={value.name} value={String(held)} onChange={onSet} className="w-7 h-7 shrink-0 border border-nier-border/40 cursor-pointer" />
       )}
       <input
         value={draft}
@@ -260,54 +279,3 @@ function ValueEditor({ value, held, fonts, onSet, className }: { value: Template
 const NEW_VALUE: Record<ValueKind, Held> = { colour: '#e8c15a', font: 'sans', number: 16, text: '', toggle: true }
 const KINDS: ValueKind[] = ['colour', 'font', 'number', 'text', 'toggle']
 
-/** The template editor's column (TemplateWorkshop): every value the template has,
- *  set and named here, and new ones made -- linked from each setting's link button. */
-export function TemplateColumn({ slots, onSlot, onSelectSlot }: {
-  slots: { id: string; name: string; fit: 'fill' | 'fit' | 'stretch'; filled: boolean }[]
-  onSlot?: () => void
-  onSelectSlot: (id: string) => void
-}) {
-  const linking = useContext(ValueLinkContext)
-  const { t } = useTranslation()
-  if (!linking) return null
-  const FIT_NAME = { fill: 'templates.slotFill', fit: 'templates.slotFitWhole', stretch: 'templates.slotStretch' } as const
-  const add = (kind: ValueKind) => linking.change([], [...linking.values, { id: crypto.randomUUID(), name: freshName(linking.values, t(KIND_NAME[kind])), kind, value: NEW_VALUE[kind] }])
-  return (
-    <aside
-      data-template-column=""
-      data-ui-element="true"
-      className="fixed right-4 top-[4.25rem] bottom-16 w-[19rem] z-[9990] flex flex-col border border-nier-border/40 font-mono pointer-events-auto shadow-[0_10px_28px_rgba(0,0,0,0.45)] panel-in-right"
-      style={{ backgroundColor: 'rgb(var(--c-ground) / 0.97)' }}
-      onWheel={e => e.stopPropagation()}
-    >
-      <div className="shrink-0 px-3.5 pt-3 pb-2 border-b border-nier-border/25">
-        <h2 className="text-nier-strong text-[11px] tracking-[0.2em] uppercase">◇ {t('templates.values')}</h2>
-        <div className="mt-2 flex flex-wrap gap-1" aria-label={t('templates.newValue')}>
-          {KINDS.map(kind => (
-            <button key={kind} type="button" data-value-add={kind} onClick={() => add(kind)} className="px-1.5 py-0.5 border border-nier-border/30 text-[10px] text-nier-bg/75 hover:text-nier-strong hover:border-nier-border/60 transition-colors">
-              + {t(KIND_NAME[kind])}
-            </button>
-          ))}
-        </div>
-      </div>
-      <div className="flex-1 min-h-0 overflow-y-auto px-3.5 py-3 space-y-2" data-values="">
-        {linking.values.map(value => <ValueRow key={value.id} linking={linking} value={value} />)}
-        <p className="text-[11px] leading-relaxed text-nier-bg/55">{t('templates.columnHint')}</p>
-        <ThreadsSwitch linking={linking} />
-      </div>
-      <div className="shrink-0 px-3.5 py-3 border-t border-nier-border/25 space-y-2" data-template-slots="">
-        <div className="flex items-center justify-between gap-2">
-          <h2 className="text-nier-strong text-[11px] tracking-[0.2em] uppercase">◫ {t('templates.slots')}</h2>
-          {onSlot && <button type="button" data-slot-add="" onClick={onSlot} className="px-1.5 py-0.5 border border-nier-border/30 text-[10px] text-nier-bg/75 hover:text-nier-strong hover:border-nier-border/60 transition-colors">+ {t('templates.slot')}</button>}
-        </div>
-        {slots.map(slot => (
-          <button key={slot.id} type="button" data-slot={slot.id} onClick={() => onSelectSlot(slot.id)} className="w-full flex items-center justify-between gap-2 px-2 py-1.5 border border-dashed border-nier-border/40 hover:border-nier-border/70 text-left">
-            <span className="min-w-0 truncate text-[11px] text-nier-strong">{slot.name}</span>
-            <span className="shrink-0 text-[10px] text-nier-bg/55">{t(FIT_NAME[slot.fit])}{slot.filled ? '' : ` · ${t('templates.slotEmpty')}`}</span>
-          </button>
-        ))}
-        <p className="text-[11px] leading-relaxed text-nier-bg/55">{t('templates.slotsHint')}</p>
-      </div>
-    </aside>
-  )
-}

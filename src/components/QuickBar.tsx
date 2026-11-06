@@ -48,6 +48,10 @@
 // Connect joins traces with a thread: a drag from one to another, or a click on
 // each (TraceOverlay). It stays in hand for the next, and C takes it up and puts
 // it down. It has no number, so the numbers stay where hands know them.
+//
+// In the template editor (lib/workshop) the bar has neither the laser nor
+// Pinterest's pins, which a template can't keep. Its Slot tool is a button of
+// its own above the bar (TemplateWorkshop), S: a slot dragged out as a frame is.
 
 import { PAN_ICON } from './AtriumInfo'
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
@@ -60,8 +64,9 @@ import { useTranslation } from '../lib/i18n'
 import { LASER_EFFECTS, TRAIL_MAX_MS, TRAIL_MIN_MS, type LaserEffect, type LaserSettings } from '../lib/laser'
 import type { TranslationKey } from '../locales/en'
 import { barOrder as entriesOf, isSeparator, layOut, newSeparator } from '../lib/barOrder'
+import { ColourInput } from './ColourPicker'
 
-export type PlaceTool = 'text' | BoxShape | 'path' | 'frame' | 'embed'
+export type PlaceTool = 'text' | BoxShape | 'path' | 'frame' | 'slot' | 'embed'
 // The kinds of file the Other button offers.
 export type OtherTrace = 'sound' | 'video' | 'document' | 'sheet'
 const OTHER_TRACES: OtherTrace[] = ['sound', 'video', 'document', 'sheet']
@@ -70,6 +75,13 @@ export type QuickAction = 'select' | 'marquee' | 'pan' | 'connect' | PlaceTool |
 // What the bar shows: a button each. Shapes and Other each hold several.
 export type QuickButton = 'select' | 'marquee' | 'pan' | 'text' | 'shape' | 'connect' | 'path' | 'draw' | 'image' | 'embed' | 'frame' | 'other' | 'laser' | 'pinterest'
 
+// Slot: a dashed place, and what goes in it (TemplateWorkshop's tool).
+export const SLOT_ICON = (
+  <>
+    <rect x="3.5" y="4.5" width="17" height="15" strokeDasharray="2.5 2" />
+    <rect x="8" y="9" width="8" height="6" />
+  </>
+)
 // Drawn in a 24 box, stroked in the current colour.
 const ICONS: Record<QuickAction | 'other', ReactNode> = {
   select: <path d="M6 3.5 L18 12 L12.6 13.1 L15.4 19.2 L13.2 20.2 L10.4 14.2 L6 17.6 Z" strokeLinejoin="round" />,
@@ -86,6 +98,7 @@ const ICONS: Record<QuickAction | 'other', ReactNode> = {
     </>
   ),
   text: <path d="M5 6 V4.5 H19 V6 M12 4.5 V19.5 M9 19.5 H15" strokeLinecap="round" strokeLinejoin="round" />,
+  slot: SLOT_ICON,
   rectangle: <rect x="4.5" y="5.5" width="15" height="13" />,
   triangle: <path d="M12 4.5 L20 19 H4 Z" strokeLinejoin="round" />,
   circle: <circle cx="12" cy="12" r="7.5" />,
@@ -178,6 +191,8 @@ const ON_THE_BAR: QuickButton[] = ['select', 'marquee', 'pan', 'text', 'shape', 
 // The bar's entries as they come (lib/barOrder): Pinterest, from elsewhere, set apart.
 const BAR_ITEMS = ON_THE_BAR.map(id => ({ id, apart: id === 'pinterest' }))
 const barOrder = (chosen: string[] | null) => entriesOf(chosen, BAR_ITEMS)
+// The template editor's: neither the laser nor Pinterest.
+const forTemplates = (order: string[]) => order.filter(entry => entry !== 'laser' && entry !== 'pinterest')
 
 // A tool's key: its place in the order it comes in, not where it's been put.
 const keyOf = (action: QuickButton): string | null => {
@@ -247,7 +262,7 @@ export function HistoryButtons({ onStep }: { onStep: (direction: 'undo' | 'redo'
   )
 }
 
-export default function QuickBar({ armed, drawing, laser, panning, selecting, connecting, laserSettings, kinds, shapeKind, onAction, onKind, onShapeKind, onLaserSettings, onCustomize, horizontal = false }: {
+export default function QuickBar({ armed, drawing, laser, panning, selecting, connecting, laserSettings, kinds, shapeKind, onAction, onKind, onShapeKind, onLaserSettings, onCustomize, horizontal = false, template = false }: {
   armed: PlaceTool | null
   drawing: boolean
   laser: boolean
@@ -271,10 +286,12 @@ export default function QuickBar({ armed, drawing, laser, panning, selecting, co
   // tools across as it's wide, options opening above it -- on a press, as
   // there's no hovering there -- and no names sliding out.
   horizontal?: boolean
+  // In the template editor: its tools (forTemplates).
+  template?: boolean
 }) {
   const { t } = useTranslation()
   const { quickBarOrder } = useGamePick('quickBarOrder')
-  const order = barOrder(quickBarOrder)
+  const order = template ? forTemplates(barOrder(quickBarOrder)) : barOrder(quickBarOrder)
   const toolCount = order.filter(entry => !isSeparator(entry)).length
   // The open flyout: while the pointer is over it or its button, with a
   // moment's grace for the gap between them.
@@ -384,6 +401,7 @@ export default function QuickBar({ armed, drawing, laser, panning, selecting, co
     image: t('atrium.trace.type.image'),
     embed: t('atrium.trace.type.embed'),
     frame: t('atrium.trace.type.frame'),
+    slot: t('templates.slot'),
     laser: t('atrium.tools.laser'),
     pinterest: t('atrium.canvas.pinterestBoards'),
   }
@@ -625,11 +643,11 @@ export default function QuickBar({ armed, drawing, laser, panning, selecting, co
                 <ToolName name={label.laser} keyName="K" />
                 <label className="flex items-center justify-between gap-2 text-[10px] tracking-[0.12em] uppercase text-nier-bg/80">
                   {t('atrium.tools.laserColour')}
-                  <input
-                    type="color"
+                  <ColourInput
+                    label={t('atrium.tools.laserColour')}
                     value={laserSettings.color}
-                    onChange={e => onLaserSettings({ ...laserSettings, color: e.target.value })}
-                    className="atrium-swatch w-14 h-6 cursor-pointer border border-nier-border/40"
+                    onChange={color => onLaserSettings({ ...laserSettings, color })}
+                    className="w-14 h-6 cursor-pointer border border-nier-border/40"
                   />
                 </label>
                 <label className="flex flex-col gap-1 text-[10px] tracking-[0.12em] uppercase text-nier-bg/80">
@@ -922,6 +940,7 @@ export function ToolHint({ armed, laser, drawing, panning, selecting, connecting
     : armed === 'embed' ? t('atrium.tools.hintEmbed')
     : armed === 'text' ? t('atrium.tools.hintText')
     : armed === 'path' ? t('atrium.tools.hintPath')
+    : armed === 'slot' ? t('templates.slotHint')
     : armed ? t('atrium.tools.hintBox')
     : null
   if (!text) return null

@@ -162,6 +162,11 @@ export const ATRIUM_FILE_TYPE = 'application/vnd.digital-atrium+json'
 // to `onProgress`: each file saved and each trace written is one of `total`.
 // Its traces are put on the canvas together, once all are written, so it
 // arrives as the one action it is.
+// Said on window once an import's step is taken, with its traces' ids: the
+// canvas lets what landed on a slot or an arranged frame join it (TraceOverlay),
+// as it does for a trace dropped there -- after the step, so that's its own.
+export const TRACES_PLACED_EVENT = 'atrium:traces-placed'
+
 export function importIntoAtrium(file: AtriumFile, at: { x: number; y: number }, lobbyId: string, userId: string, onProgress?: (done: number, total: number) => void): Promise<ImportIntoResult> {
   const behind = mediaStaysBehind(file)
   // Room for it, on the web, where an atrium has a size.
@@ -310,5 +315,8 @@ export function importIntoAtrium(file: AtriumFile, at: { x: number; y: number },
     }
     window.dispatchEvent(new Event('atrium:layers-changed'))
     return { added, missing, failed: failed + (file.traces.length - known.length), standIns }
-  }, () => own))
+  }, () => own)).then(result => {
+    window.dispatchEvent(new CustomEvent(TRACES_PLACED_EVENT, { detail: [...own.traces] }))
+    return result
+  })
 }

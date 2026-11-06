@@ -19,8 +19,10 @@ export interface LayerSnapshot {
 }
 
 // The fields of a trace a layer change writes: where it is in the layers
-// (its group and place), its name there, and what the Layer panel toggles.
-export const TRACKED_TRACE_FIELDS = ['layerId', 'orderKey', 'layerName', 'content', 'isLocked', 'ignoreClicks', 'enableInteraction'] as const
+// (its group and place), its name there, and what the Layer panel toggles --
+// and the slot it's in, with the crop and stretch that slot gave it: put under its slot,
+// it's out of it (LayerPanel), and an undo puts it back in.
+export const TRACKED_TRACE_FIELDS = ['layerId', 'orderKey', 'layerName', 'content', 'isLocked', 'ignoreClicks', 'enableInteraction', 'frameId', 'cropX', 'cropY', 'cropWidth', 'cropHeight', 'scaleX', 'scaleY'] as const
 export type TrackedField = typeof TRACKED_TRACE_FIELDS[number]
 export type TrackedValues = Partial<Pick<Trace, TrackedField>>
 
@@ -126,6 +128,13 @@ const TRACE_COLUMNS: Record<TrackedField, string> = {
   isLocked: 'is_locked',
   ignoreClicks: 'ignore_clicks',
   enableInteraction: 'enable_interaction',
+  frameId: 'frame_id',
+  cropX: 'crop_x',
+  cropY: 'crop_y',
+  cropWidth: 'crop_width',
+  cropHeight: 'crop_height',
+  scaleX: 'scale_x',
+  scaleY: 'scale_y',
 }
 const LAYER_COLUMNS: Record<keyof LayerValues, string> = { name: 'name', orderKey: 'order_key', parentId: 'parent_id' }
 const columns = (values: object, names: Record<string, string>) =>

@@ -2,19 +2,22 @@
 // panel's. One definition, so a frame is copied the same way from all of them.
 //
 // A frame is its contents (lib/frames withHeld gives what to copy), so its
-// copy holds the copies of what it holds. A group it holds comes as a new
-// group, as the Layer panel's Duplicate Group makes, and the threads between
-// what's copied come too. Any other copy belongs to the frame it lands in;
-// one that stays in its original's group stays in that group's frame.
+// copy holds the copies of what it holds. A whole group copied -- every trace
+// of it, as Duplicate on a group or a placed template is -- comes as a new
+// group above it, with its values (a template's), not more of it inside it
+// (the user's, 2026-11-06); so does a group a copied frame holds. Then the
+// threads between what's copied come too. Any other copy stays in its
+// original's group, and belongs to the frame it lands in; one that stays in its
+// original's group stays in that group's frame.
 //
-// Copying a frame makes groups and threads as well as traces, so a caller
-// records it as one layer change (lib/layerUndo). Traces alone are picked up
-// as additions, as any new trace is (TraceOverlay).
+// Copying a frame or a whole group makes groups and threads as well as traces,
+// so a caller records it as one layer change (copyMakesGroups, lib/layerUndo).
+// Traces alone are picked up as additions, as any new trace is (TraceOverlay).
 
 import { supabase } from './supabase'
 import { useGameStore } from '../store/gameStore'
 import { createGroup } from '../hooks/useLayers'
-import { freshIds, frameOfCopy, isFrame, type FrameBox } from './frames'
+import { freshIds, frameOfCopy, groupsCopiedWhole, isArranged, isFrame, type FrameBox } from './frames'
 import { inOrder, keyAt, keysOnTop, topLevel, type Ordered } from './order'
 import { shiftPoints } from './pathGeometry'
 import { isPathTrace, pathWorldBounds } from './pathBounds'
@@ -40,6 +43,12 @@ function boxOf(trace: Trace): FrameBox {
 
 const BATCH = 50
 
+/** Whether copying `sources` makes groups or threads too: one layer change, then. */
+export function copyMakesGroups(sources: Trace[]): boolean {
+  const { traces, layers } = useGameStore.getState()
+  return sources.some(isFrame) || groupsCopiedWhole(sources, traces, new Set(layers.map(l => l.id))).size > 0
+}
+
 // `sources`, each moved by `offset`. The copies, as they now are in the store;
 // a write that's refused throws, with what was written before it on the canvas.
 export async function copyTraces(sources: Trace[], offset: { x: number; y: number }, who: CopyWho): Promise<Trace[]> {
@@ -50,10 +59,10 @@ export async function copyTraces(sources: Trace[], offset: { x: number; y: numbe
   const ids = freshIds(sources, () => crypto.randomUUID())
   const copiedFrames = new Set(sources.filter(isFrame).map(frame => frame.id))
   const framesAfter = [
-    ...store.traces.filter(isFrame).map(frame => ({ id: frame.id, box: boxOf(frame) })),
+    ...store.traces.filter(isFrame).map(frame => ({ id: frame.id, box: boxOf(frame), arranged: isArranged(frame) })),
     ...sources.filter(isFrame).map(frame => {
       const box = boxOf(frame)
-      return { id: ids.get(frame.id)!, box: { ...box, cx: box.cx + offset.x, cy: box.cy + offset.y } }
+      return { id: ids.get(frame.id)!, box: { ...box, cx: box.cx + offset.x, cy: box.cy + offset.y }, arranged: isArranged(frame) }
     }),
   ]
 
@@ -73,10 +82,9 @@ export async function copyTraces(sources: Trace[], offset: { x: number; y: numbe
   }
 
   const newGroups = new Map<string, string>()
-  for (const trace of sources) {
-    const group = trace.layerId ? groups.get(trace.layerId) : undefined
-    if (!group || newGroups.has(group.id) || !trace.frameId || !copiedFrames.has(trace.frameId)) continue
-    const made = await createGroup(who.lobbyId, `${group.name} copy`, who.userId, keyAbove(null, group.id))
+  for (const id of groupsCopiedWhole(sources, store.traces, new Set(groups.keys()))) {
+    const group = groups.get(id)!
+    const made = await createGroup(who.lobbyId, `${group.name} copy`, who.userId, keyAbove(null, group.id), group.template ?? null)
     newGroups.set(group.id, made.id)
   }
 
@@ -104,7 +112,7 @@ export async function copyTraces(sources: Trace[], offset: { x: number; y: numbe
       createdAt: now,
       isLocked: false,
       layerId: newGroup ?? keptGroup,
-      frameId: frameOfCopy(trace, ids, !!keptGroup, framesAfter, { x: box.cx + offset.x, y: box.cy + offset.y }),
+      frameId: frameOfCopy(trace, ids, !!keptGroup, framesAfter, { ...box, cx: box.cx + offset.x, cy: box.cy + offset.y }),
       orderKey,
       layerName,
     }
@@ -132,7 +140,7 @@ export async function copyTraces(sources: Trace[], offset: { x: number; y: numbe
   if (refused) throw new Error(refused)
 
   // Threads, once both their traces are in.
-  if (copiedFrames.size > 0) {
+  if (copiedFrames.size > 0 || newGroups.size > 0) {
     const linkRows = carryLinks(store.links.map(linkRow), ids).map(link => ({ ...link, lobby_id: who.lobbyId }))
     if (linkRows.length > 0) {
       const { data } = await (db.from('trace_links') as any).insert(linkRows).select()

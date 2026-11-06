@@ -24,6 +24,7 @@ import { usePinterestStatus } from '../lib/pinterest'
 import { forgetMyPicture } from '../lib/myPicture'
 import Hall from './Hall'
 import { useMenuGlide } from './MenuGlide'
+import { ColourInput } from './ColourPicker'
 
 // The same five the in-atrium panel offers, from the palette the rest of the
 // app is drawn in. The picker under them still takes anything.
@@ -173,8 +174,8 @@ export default function ProfileSettings({ onClose, onPinterest, pinterestOpen = 
 
   // Whether the colour in use came from the picker rather than the five
   // presets, which decides whether the picker cell shows that colour or the
-  // plus that invites you to choose one. Case-folded because an <input
-  // type="color"> always reports lowercase hex while the presets are written
+  // plus that invites you to choose one. Case-folded because the picker (ColourPicker)
+  // always reports lowercase hex while the presets are written
   // in upper -- comparing them raw would call every preset "custom".
   const isCustomColour = !PRESET_COLORS.some(
     c => c.toLowerCase() === selectedColor.toLowerCase(),
@@ -590,13 +591,12 @@ export default function ProfileSettings({ onClose, onPinterest, pinterestOpen = 
                     className={`group relative h-8 border border-dashed transition-colors cursor-pointer ${isCustomColour ? 'border-nier-bg' : 'border-nier-border/50 hover:border-nier-border/80'}`}
                     style={{ backgroundColor: isCustomColour ? selectedColor : 'transparent' }}
                   >
-                    <input
-                      type="color"
+                    <ColourInput
                       value={selectedColor}
-                      onChange={(e) => handleColorChange(e.target.value)}
-                      title={t('profile.anyOtherColour')}
-                      aria-label={t('profile.anyOtherColour')}
-                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                      onChange={handleColorChange}
+                      label={t('profile.anyOtherColour')}
+                      className="absolute inset-0 w-full h-full cursor-pointer"
+                      style={{ backgroundColor: 'transparent' }}
                     />
                     {!isCustomColour && <span className="pointer-events-none absolute inset-0 flex items-center justify-center text-sm leading-none text-nier-bg/70 group-hover:text-nier-bg transition-colors">+</span>}
                   </div>

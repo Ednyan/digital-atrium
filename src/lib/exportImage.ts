@@ -33,6 +33,7 @@ import { embedSourcesIn, youtubeId } from './embedUrl'
 import { customFontUrl } from './customFonts'
 import { isPathTrace, pathWorldBounds } from './pathBounds'
 import { cropOf } from './traceCrop'
+import { isSlot, slotLook } from './frames'
 import { chartSvg, sheetFile, sheetRows, sheetSvg, atriumChartLook } from './sheetDraw'
 import { deckFile, deckSvg, isDeckFile, slidePictures } from './deckDraw'
 import { currentLanguage } from './i18n'
@@ -44,9 +45,13 @@ import { previewFrameColour } from './shapeStyle'
 export type ExportScale = 1 | 2 | 3
 export interface ImageExportOptions {
   format: 'png' | 'svg'
-  scale: ExportScale
+  // Pixels a unit: the dialog's ExportScale, or another picture's (TemplateReveal).
+  scale: number
   // The atrium's background behind the traces, or none (transparent).
   background: string | null
+  // Not painted, though words are still read against it: a trace alone, to lie
+  // over the rest (TemplateReveal's pieces).
+  clear?: boolean
   // A picture this many pixels on its longest side, whatever `scale` says (a
   // preview: lib/atriumPreview), and in this format, at this quality -- PNG
   // unless asked.
@@ -694,8 +699,8 @@ function drawBoxed(p: Painter, item: Prepared, measure: CanvasRenderingContext2D
     p.pop()
   }
   p.pop()
-  // A frame's title, over its top-left corner.
-  if (trace.type === 'frame' && trace.content) {
+  // A frame's title, over its top-left corner. A slot has none.
+  if (trace.type === 'frame' && trace.content && !isSlot(trace)) {
     p.text(trace.content, -bw / 2 - border, -bh / 2 - border - 4, { family: 'sans-serif', size: 12, bold: true }, borderColour, 'left')
   }
   p.pop()
@@ -802,7 +807,7 @@ export async function exportImage(traces: Trace[], links: TraceLink[], layers: L
       take(box.minX, box.minY)
       take(box.maxX, box.maxY)
       // A frame's title above it.
-      if (trace.type === 'frame' && trace.content) take(box.minX, box.minY - 18)
+      if (trace.type === 'frame' && trace.content && !isSlot(trace)) take(box.minX, box.minY - 18)
     }
     const box = traceBox(trace, size)
     ends.set(trace.id, { x: box.cx, y: box.cy, hw: box.halfW, hh: box.halfH, turn: box.turn, colour: trace.borderColor || borderColourOf(trace.type) })
@@ -832,8 +837,10 @@ export async function exportImage(traces: Trace[], links: TraceLink[], layers: L
   }
 
   const measure = document.createElement('canvas').getContext('2d')!
+  // Slots holding something are drawn as nothing of their own (slotLook).
+  const filled = new Set(traces.flatMap(t => (t.frameId ? [t.frameId] : [])))
   const paint = (p: Painter) => {
-    if (options.background && !options.underlay) p.rect(minX, minY, width, height, 0, { fill: options.background })
+    if (options.background && !options.underlay && !options.clear) p.rect(minX, minY, width, height, 0, { fill: options.background })
     for (const trace of ordered) {
       for (const link of linksUnder.get(trace.id) ?? []) drawLink(p, link, ends.get(link.from)!, ends.get(link.to)!, measure)
       // Its light, just under it.
@@ -851,7 +858,10 @@ export async function exportImage(traces: Trace[], links: TraceLink[], layers: L
       }
       if (isPathTrace(trace)) drawPath(p, trace)
       else if (trace.type === 'shape') drawShape(p, trace)
-      else drawBoxed(p, prepared.get(trace.id)!, measure, options.background)
+      else {
+        const item = prepared.get(trace.id)!
+        drawBoxed(p, { ...item, trace: slotLook(item.trace, filled.has(trace.id)) }, measure, options.background)
+      }
     }
   }
 

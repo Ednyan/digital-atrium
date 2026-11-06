@@ -13,6 +13,7 @@ import { hasNativePicker, pickColour, takeColour } from '../lib/eyedropper'
 import { count } from '../lib/stats'
 import { showToast } from '../lib/toast'
 import { MenuIcon } from './AtriumMenu'
+import { ColourPopover } from './ColourPicker'
 
 const DROPPER = 'M11 7l6 6M4 16l11.7 -11.7a1 1 0 0 1 1.4 0l2.6 2.6a1 1 0 0 1 0 1.4l-11.7 11.7h-4v-4z'
 const MORE = 'M6 9l6 6l6 -6'
@@ -22,8 +23,8 @@ export default function PalettePanel({ open }: { open: boolean }) {
   const slots = usePalette()
   const [more, setMore] = useState(false)
   const [picking, setPicking] = useState(false)
-  const chooser = useRef<HTMLInputElement>(null)
-  const choosing = useRef<number | null>(null)
+  // The place a colour is being chosen for, and the swatch the picker hangs from.
+  const [choosing, setChoosing] = useState<{ index: number; anchor: HTMLElement } | null>(null)
   const root = useRef<HTMLDivElement>(null)
 
   // Closed, it's still there for its slide: out of reach of Tab and readers.
@@ -39,11 +40,8 @@ export default function PalettePanel({ open }: { open: boolean }) {
     )
   }
   const choose = (index: number) => {
-    choosing.current = index
-    if (chooser.current) {
-      chooser.current.value = slots[index] ?? '#ffffff'
-      chooser.current.click()
-    }
+    const anchor = root.current?.querySelector<HTMLElement>(`[data-palette-slot="${index}"]`)
+    if (anchor) setChoosing({ index, anchor })
   }
   // The browser's picker, or a press on the atrium (lib/eyedropper): lit till it's done.
   const drop = async () => {
@@ -151,16 +149,16 @@ export default function PalettePanel({ open }: { open: boolean }) {
           <span className={`transition-transform duration-300 ${more ? 'rotate-180' : ''}`}><MenuIcon d={MORE} size={18} /></span>
         </button>
       </div>
-      {/* The browser's own colour chooser, for an empty place, or a colour
+      {/* The picker (ColourPicker), for an empty place, or a colour
           right-clicked to change it. */}
-      <input
-        ref={chooser}
-        type="color"
-        tabIndex={-1}
-        aria-hidden="true"
-        className="sr-only"
-        onChange={e => { if (choosing.current !== null) setColour(choosing.current, e.target.value) }}
-      />
+      {choosing && (
+        <ColourPopover
+          anchor={choosing.anchor}
+          value={slots[choosing.index] ?? '#ffffff'}
+          onChange={colour => setColour(choosing.index, colour)}
+          onClose={() => setChoosing(null)}
+        />
+      )}
     </div>
   )
 }

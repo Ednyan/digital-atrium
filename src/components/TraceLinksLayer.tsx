@@ -259,7 +259,8 @@ function TraceLinksLayer({
 
   // After every render: traces may have moved, threads come or gone.
   useLayoutEffect(() => { if (frame.current) layout(0); else wake() })
-  useEffect(() => () => cancelAnimationFrame(frame.current), [])
+  // Forgotten as well as cancelled, or a remount (StrictMode's) never asks for one again.
+  useEffect(() => () => { cancelAnimationFrame(frame.current); frame.current = 0 }, [])
 
   const screenOf = (end: LinkEnd) => ({ x: end.x * zoom + worldOffset.x, y: end.y * zoom + worldOffset.y })
 

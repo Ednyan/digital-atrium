@@ -44,6 +44,11 @@ export function estimateTraceSize(trace: Trace): number {
   return size
 }
 
+// The minimap's ways (MinimapPanel). By default: shown while the view moves, not by
+// pointing at its corner (the user's, 2026-11-06), and a click on it goes there.
+export interface MinimapPrefs { always: boolean; peek: boolean; interactive: boolean }
+export const MINIMAP_PREFS: MinimapPrefs = { always: false, peek: false, interactive: true }
+
 interface GameState {
   username: string
   userId: string
@@ -71,6 +76,9 @@ interface GameState {
   spatialSound: boolean
   // The atrium in miniature in a corner while the view moves (Minimap); on unless turned off.
   showMinimap: boolean
+  // How it shows and answers (MinimapPanel): always, or while the view moves;
+  // brought up by pointing at its corner; a click on it taking the view there.
+  minimapPrefs: MinimapPrefs
   // Changes saved as they're made (lib/traceSave startAutosave); off, Save is pressed.
   autoSave: boolean
   // How long after a change auto-save writes it, in minutes (AUTO_SAVE_MINUTES).
@@ -121,6 +129,7 @@ interface GameState {
   setPanelActions: (actions: string[] | null) => void
   setSpatialSound: (on: boolean) => void
   setShowMinimap: (on: boolean) => void
+  setMinimapPrefs: (change: Partial<MinimapPrefs>) => void
   setAutoSave: (on: boolean) => void
   setAutoSaveMinutes: (minutes: number) => void
   setHideOtherNameTags: (hide: boolean) => void
@@ -249,6 +258,9 @@ export const useGameStore = create<GameState>((set, get) => ({
   confirmDelete: localStorage.getItem('dontAskDeleteTrace') !== 'true',
   spatialSound: localStorage.getItem('spatialSound') === 'true',
   showMinimap: localStorage.getItem('atrium.minimap') !== 'off',
+  minimapPrefs: (() => {
+    try { return { ...MINIMAP_PREFS, ...JSON.parse(localStorage.getItem('atrium.minimapPrefs') ?? '{}') } } catch { return MINIMAP_PREFS }
+  })(),
   autoSave: localStorage.getItem('autoSave') === 'true',
   autoSaveMinutes: (() => {
     // Read as set, 0 included: 0 is a choice (constantly), not "unset".
@@ -370,6 +382,11 @@ export const useGameStore = create<GameState>((set, get) => ({
   setShowMinimap: (on) => {
     localStorage.setItem('atrium.minimap', on ? 'on' : 'off')
     set({ showMinimap: on })
+  },
+  setMinimapPrefs: (change) => {
+    const next = { ...get().minimapPrefs, ...change }
+    try { localStorage.setItem('atrium.minimapPrefs', JSON.stringify(next)) } catch { /* for this visit */ }
+    set({ minimapPrefs: next })
   },
   setQuickBarOrder: (order) => {
     localStorage.removeItem('atrium.quickBar.order')

@@ -1,10 +1,11 @@
 import { useEffect } from 'react'
 import { supabase } from '../lib/supabase'
-import { liveTable } from '../lib/liveChanges'
+import { liveTable, TRACES_RECEIVED_EVENT } from '../lib/liveChanges'
 import { useGameStore } from '../store/gameStore'
 import type { Layer } from '../types/database'
 import type { TemplateValues } from '../lib/templateValues'
-import { keysOnTop, topLevel } from '../lib/order'
+import { drawRanks, keysOnTop, topLevel } from '../lib/order'
+import { outOfSlot, underTheirSlots } from '../lib/frames'
 
 export function mapRowToLayer(row: any): Layer {
   return {
@@ -43,6 +44,27 @@ export async function writeGroupKey(layer: Layer, orderKey: string, lobbyId: str
   if (error || !Array.isArray(data) || data.length === 0) {
     console.error('Error moving group:', error ?? 'no row updated -- gone, or write access denied')
     await reloadLayers(lobbyId)
+  }
+}
+
+// What a change of order left under its slot, out of it (lib/frames
+// underTheirSlots) -- written now, as a group's place is: inside the same
+// withLayerUndo as that change (layerDelta tracks frameId and the crop), so an
+// undo puts it back in.
+const SLOT_COLUMNS = { cropX: 'crop_x', cropY: 'crop_y', cropWidth: 'crop_width', cropHeight: 'crop_height', scaleX: 'scale_x', scaleY: 'scale_y' } as const
+export async function letGoUnderSlots() {
+  if (!supabase) return
+  const { traces, layers } = useGameStore.getState()
+  for (const trace of underTheirSlots(traces, drawRanks(traces, layers))) {
+    const out = outOfSlot(trace, traces.find(t => t.id === trace.frameId))
+    const { error } = await (supabase.from('traces') as any)
+      .update({ frame_id: null, ...Object.fromEntries(Object.entries(out).map(([key, value]) => [SLOT_COLUMNS[key as keyof typeof out], value])) })
+      .eq('id', trace.id)
+    if (error) continue
+    const now = useGameStore.getState().traces.find(t => t.id === trace.id) ?? trace
+    useGameStore.getState().addTrace({ ...now, frameId: null, ...out })
+    // What the canvas still draws for it from a drag gives way to this.
+    window.dispatchEvent(new CustomEvent(TRACES_RECEIVED_EVENT, { detail: [trace.id] }))
   }
 }
 

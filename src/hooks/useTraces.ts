@@ -169,15 +169,17 @@ export function useTraces(lobbyId: string | null) {
   // pre-resolution) for this lobby is in flight. Callers (App.tsx) use this
   // to hold the atrium-entry loading screen open until data is actually
   // ready, instead of it being a purely cosmetic fixed-length animation.
-  const [isLoading, setIsLoading] = useState(!!lobbyId)
+  // Kept as the atrium last read, so it's loading from the first render with
+  // another atrium's id -- not one render later, once an effect has said so.
+  const [loadedFor, setLoadedFor] = useState<string | null>(null)
+  const isLoading = !!lobbyId && loadedFor !== lobbyId
 
   useEffect(() => {
     if (!supabase || !lobbyId) {
-      setIsLoading(false)
+      setLoadedFor(lobbyId)
       return
     }
 
-    setIsLoading(true)
     let cancelled = false
 
     // Fetch actual lobby size from Supabase RPC
@@ -287,7 +289,7 @@ export function useTraces(lobbyId: string | null) {
       } catch (error) {
         // Silent error handling
       } finally {
-        if (!cancelled) setIsLoading(false)
+        if (!cancelled) setLoadedFor(lobbyId)
       }
     }
 

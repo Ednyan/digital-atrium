@@ -15,6 +15,7 @@ import LandingPage from './components/LandingPage'
 import AboutPage from './components/AboutPage'
 import NotFoundPage from './components/NotFoundPage'
 import PageLoading from './components/PageLoading'
+import { quietEntry } from './lib/workshop'
 import type { TranslationKey } from './locales/en'
 import RichText from './components/RichText'
 import { maybeSendWelcome } from './lib/welcome'
@@ -1207,13 +1208,18 @@ function AppInner() {
   }), [])
 
   // Reset and track transition state for each atrium entry.
+  // Into the template editor and out of it (lib/workshop): no crossing at all.
+  const [quietLobbyId, setQuietLobbyId] = useState<string | null>(null)
   useEffect(() => {
     if (route.page === 'atrium' && route.lobbyId) {
+      const quiet = quietEntry(route.lobbyId)
+      setQuietLobbyId(quiet ? route.lobbyId : null)
       setTransitionLobbyId(route.lobbyId)
-      setAtriumTransitionPhase('loading')
+      setAtriumTransitionPhase(quiet ? 'ready' : 'loading')
       return
     }
 
+    setQuietLobbyId(null)
     setTransitionLobbyId(null)
     setAtriumTransitionPhase('loading')
   }, [route.page, route.lobbyId])
@@ -2414,6 +2420,9 @@ function AppInner() {
         )
       }
 
+      // Going quietly (lib/workshop): a moment, until its traces are read.
+      if (quietLobbyId === route.lobbyId && tracesLoading) return <PageLoading />
+
       // The atrium page's own half of the transition: the scene mounts under
       // solid white, which then clears. Only after arriving through the
       // cinematic -- opening an atrium any other way has nothing to fade from.
@@ -2423,12 +2432,14 @@ function AppInner() {
             <LobbyScene lobbyId={route.lobbyId} onLeaveLobby={handleLeaveLobby} onKicked={(blacklisted, drive) => setKickedNotice({ blacklisted, drive })} />
             <DriveStatus onLeave={handleLeaveLobby} />
           </Suspense>
-          {transitionLobbyId === route.lobbyId && <AtriumRevealOverlay />}
+          {transitionLobbyId === route.lobbyId && quietLobbyId !== route.lobbyId && <AtriumRevealOverlay />}
         </>
       )
     }
     
-    // Still waiting for verification
+    // Still waiting for verification -- a moment, going quietly.
+    // (Asked here too: on the first render after the move, before the effect above has run.)
+    if (quietLobbyId === route.lobbyId || (route.lobbyId && quietEntry(route.lobbyId))) return <PageLoading />
     return (
       <AtriumTransitionOverlay
         title={t('entering.title')}
