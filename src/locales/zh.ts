@@ -2425,7 +2425,7 @@ const zh: Catalogue = {
   'templates.saved': "模板已保存：{name}",
   'templates.saveAs': "另存为模板",
   'templates.saveAsTitle': "另存为模板",
-  'templates.limitReached': "你的免费模板已经做好了：可以修改它，或删除后再做一个新的。",
+  'templates.limitReached': "你的 {most} 个免费模板已经做好了：可以修改其中一个，或删除一个后再做新的。",
   'templates.tooBig': "这个模板占用 {size}：每个模板最多 {most}。请少用图片，或用更小的图片。",
   'templates.newFolder': "新建文件夹",
   'templates.renameFolder': "重命名 {name}",

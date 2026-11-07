@@ -2422,7 +2422,7 @@ const ja: Catalogue = {
   'templates.saved': "テンプレートを保存しました: {name}",
   'templates.saveAs': "テンプレートとして保存",
   'templates.saveAsTitle': "テンプレートとして保存",
-  'templates.limitReached': "無料のテンプレートはもう作成済みです。変更するか、削除してから別のものを作ってください。",
+  'templates.limitReached': "無料のテンプレート{most}個はもう作成済みです。どれかを変更するか、削除してから別のものを作ってください。",
   'templates.tooBig': "このテンプレートは {size} です。1つあたり最大 {most} までです。画像を減らすか、小さくしてください。",
   'templates.newFolder': "新しいフォルダー",
   'templates.renameFolder': "{name} の名前を変更",

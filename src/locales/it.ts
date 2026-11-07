@@ -2344,7 +2344,7 @@ const it: Catalogue = {
   'templates.saved': "Modello salvato: {name}",
   'templates.saveAs': "Salva come modello",
   'templates.saveAsTitle': "Salva come modello",
-  'templates.limitReached': "Il tuo modello gratuito è già fatto: modificalo, o eliminalo per farne un altro.",
+  'templates.limitReached': "I tuoi {most} modelli gratuiti sono già fatti: modificane uno, o eliminane uno per farne un altro.",
   'templates.tooBig': "Questo modello occupa {size}: un modello può occupare al massimo {most}. Usa meno immagini, o più piccole.",
   'templates.newFolder': "Nuova cartella",
   'templates.renameFolder': "Rinomina {name}",

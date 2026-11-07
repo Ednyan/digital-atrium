@@ -76,7 +76,7 @@ by a rule is greyed in the panel: change the value it follows instead.
 
 ## Make your own
 
-Everyone can keep **one** template of their own, free.
+Everyone can keep **three** templates of their own, free.
 
 | You want | Do this |
 |---|---|

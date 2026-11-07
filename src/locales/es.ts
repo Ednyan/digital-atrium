@@ -2340,7 +2340,7 @@ const es: Catalogue = {
   'templates.saved': "Plantilla guardada: {name}",
   'templates.saveAs': "Guardar como plantilla",
   'templates.saveAsTitle': "Guardar como plantilla",
-  'templates.limitReached': "Tu plantilla gratuita ya está hecha: cámbiala, o bórrala para hacer otra.",
+  'templates.limitReached': "Tus {most} plantillas gratuitas ya están hechas: cambia una, o borra una para hacer otra.",
   'templates.tooBig': "Esta plantilla ocupa {size}: una puede ocupar {most} como máximo. Usa menos imágenes o más pequeñas.",
   'templates.newFolder': "Carpeta nueva",
   'templates.renameFolder': "Renombrar {name}",

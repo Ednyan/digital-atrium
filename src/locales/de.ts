@@ -2343,7 +2343,7 @@ const de: Catalogue = {
   'templates.saved': "Vorlage gespeichert: {name}",
   'templates.saveAs': "Als Vorlage speichern",
   'templates.saveAsTitle': "Als Vorlage speichern",
-  'templates.limitReached': "Deine kostenlose Vorlage ist schon erstellt: Ändere sie oder lösche sie, um eine andere zu machen.",
+  'templates.limitReached': "Deine {most} kostenlosen Vorlagen sind schon erstellt: Ändere eine oder lösche eine, um eine andere zu machen.",
   'templates.tooBig': "Diese Vorlage braucht {size}: Eine darf höchstens {most} groß sein. Nimm weniger oder kleinere Bilder.",
   'templates.newFolder': "Neuer Ordner",
   'templates.renameFolder': "{name} umbenennen",

@@ -2426,7 +2426,7 @@ const ko: Catalogue = {
   'templates.saved': "템플릿 저장됨: {name}",
   'templates.saveAs': "템플릿으로 저장",
   'templates.saveAsTitle': "템플릿으로 저장",
-  'templates.limitReached': "무료 템플릿을 이미 만들었습니다. 그 템플릿을 고치거나, 지운 뒤 다른 템플릿을 만드세요.",
+  'templates.limitReached': "무료 템플릿 {most}개를 이미 만들었습니다. 그중 하나를 고치거나, 지운 뒤 다른 템플릿을 만드세요.",
   'templates.tooBig': "이 템플릿은 {size}입니다. 템플릿 하나는 최대 {most}까지입니다. 사진을 줄이거나 더 작은 사진을 쓰세요.",
   'templates.newFolder': "새 폴더",
   'templates.renameFolder': "{name} 이름 바꾸기",

@@ -2346,7 +2346,7 @@ const ru: Catalogue = {
   'templates.saved': "Шаблон сохранён: {name}",
   'templates.saveAs': "Сохранить как шаблон",
   'templates.saveAsTitle': "Сохранить как шаблон",
-  'templates.limitReached': "Ваш бесплатный шаблон уже создан: измените его или удалите, чтобы сделать другой.",
+  'templates.limitReached': "Ваши бесплатные шаблоны ({most}) уже созданы: измените один из них или удалите один, чтобы сделать другой.",
   'templates.tooBig': "Этот шаблон занимает {size}: один шаблон может занимать не больше {most}. Используйте меньше изображений или изображения поменьше.",
   'templates.newFolder': "Новая папка",
   'templates.renameFolder': "Переименовать {name}",

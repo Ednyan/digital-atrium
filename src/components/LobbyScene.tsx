@@ -5016,7 +5016,7 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
       return false
     }
     if (!made.editing && !mayMakeTemplate()) {
-      say(t('templates.limitReached'))
+      say(t('templates.limitReached', { most: FREE_PLAN.ownTemplates }))
       return false
     }
     try {
@@ -5081,7 +5081,7 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
   // the Templates panel (`folder`: onto one of one's folders) -- named first.
   const [naming, setNaming] = useState<{ ids: string[]; folder: string | null; name: string; busy: boolean; problem: string | null } | null>(null)
   const askTemplateName = (ids: string[], folder: string | null = null) => {
-    if (!mayMakeTemplate()) { showToast(t('templates.limitReached')); return }
+    if (!mayMakeTemplate()) { showToast(t('templates.limitReached', { most: FREE_PLAN.ownTemplates })); return }
     const { traces, layers } = useGameStore.getState()
     const chosen = traces.filter(trace => ids.includes(trace.id))
     if (chosen.length && chosen.every(isPin)) { showToast(t('templates.onlyPins')); return }
@@ -6541,7 +6541,7 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
           <TemplatesPanel
             context={templateContext}
             onClose={() => setShowTemplates(false)}
-            onNew={!workshop ? () => (mayMakeTemplate() ? void openWorkshop() : showToast(t('templates.limitReached'))) : undefined}
+            onNew={!workshop ? () => (mayMakeTemplate() ? void openWorkshop() : showToast(t('templates.limitReached', { most: FREE_PLAN.ownTemplates }))) : undefined}
             onEdit={!workshop ? template => void openWorkshop(template) : undefined}
             onSaveSelection={!workshop ? askTemplateName : undefined}
             onPlace={(file, screen) => {

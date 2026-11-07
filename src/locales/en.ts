@@ -2370,7 +2370,7 @@ export const en = {
   'templates.saved': "Template saved: {name}",
   'templates.saveAs': "Save as Template",
   'templates.saveAsTitle': "Save as a template",
-  'templates.limitReached': "Your free template is already made: change it, or delete it to make another.",
+  'templates.limitReached': "Your {most} free templates are already made: change one, or delete one to make another.",
   'templates.tooBig': "This template takes {size}: one can take {most} at most. Use fewer or smaller pictures.",
   'templates.newFolder': "New folder",
   'templates.renameFolder': "Rename {name}",

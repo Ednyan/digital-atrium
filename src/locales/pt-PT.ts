@@ -2347,7 +2347,7 @@ const ptPT: Catalogue = {
   'templates.saved': "Modelo guardado: {name}",
   'templates.saveAs': "Guardar como modelo",
   'templates.saveAsTitle': "Guardar como modelo",
-  'templates.limitReached': "O teu modelo gratuito já está feito: altera-o, ou apaga-o para fazeres outro.",
+  'templates.limitReached': "Os teus {most} modelos gratuitos já estão feitos: altera um, ou apaga um para fazeres outro.",
   'templates.tooBig': "Este modelo ocupa {size}: um modelo pode ocupar no máximo {most}. Usa menos imagens, ou mais pequenas.",
   'templates.newFolder': "Nova pasta",
   'templates.renameFolder': "Mudar o nome de {name}",

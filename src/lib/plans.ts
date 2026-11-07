@@ -13,7 +13,7 @@ export interface Plan {
   ownTemplates: number
 }
 
-export const FREE_PLAN: Plan = { cloudAtriums: 1, cloudMb: 50, fileMb: 25, mirrorMb: 100, ownTemplates: 1 }
+export const FREE_PLAN: Plan = { cloudAtriums: 1, cloudMb: 50, fileMb: 25, mirrorMb: 100, ownTemplates: 3 }
 export const PAID_PLAN: Plan = { cloudAtriums: 10, cloudMb: 20000, fileMb: 200, mirrorMb: 1000, ownTemplates: 50 }
 
 const size = (mb: number) => (mb >= 1000 ? `${mb / 1000} GB` : `${mb} MB`)

@@ -2342,7 +2342,7 @@ const fr: Catalogue = {
   'templates.saved': "Modèle enregistré : {name}",
   'templates.saveAs': "Enregistrer comme modèle",
   'templates.saveAsTitle': "Enregistrer comme modèle",
-  'templates.limitReached': "Ton modèle gratuit est déjà fait : modifie-le, ou supprime-le pour en faire un autre.",
+  'templates.limitReached': "Tes {most} modèles gratuits sont déjà faits : modifie-en un, ou supprimes-en un pour en faire un autre.",
   'templates.tooBig': "Ce modèle pèse {size} : un modèle peut peser {most} au plus. Utilise moins d’images, ou plus petites.",
   'templates.newFolder': "Nouveau dossier",
   'templates.renameFolder': "Renommer {name}",

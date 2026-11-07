@@ -2344,7 +2344,7 @@ const ptBR: Catalogue = {
   'templates.saved': "Modelo salvo: {name}",
   'templates.saveAs': "Salvar como modelo",
   'templates.saveAsTitle': "Salvar como modelo",
-  'templates.limitReached': "Seu modelo gratuito já foi criado: altere-o, ou apague-o para criar outro.",
+  'templates.limitReached': "Seus {most} modelos gratuitos já foram criados: altere um, ou apague um para criar outro.",
   'templates.tooBig': "Este modelo ocupa {size}: um modelo pode ocupar no máximo {most}. Use menos imagens, ou menores.",
   'templates.newFolder': "Nova pasta",
   'templates.renameFolder': "Renomear {name}",
