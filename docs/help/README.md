@@ -129,7 +129,7 @@ first. Web and Desktop mean only there; no mark means both.
 | Article | Covers | Order | Video |
 |---|---|---|---|
 | [`frames`](arranging/frames.md) | **Written.** | 1 | Yes |
-| `groups-and-layers` | The Layers panel, groups, Move to Group, lock, go to | 1 | Yes |
+| [`groups-and-layers`](arranging/groups-and-layers.md) | **Written.** The Layers panel, groups, Move to Group, lock, go to | 1 | Yes |
 | `stacking-order` | What's on top and how to change it | 2 | |
 | `tidying-up` | Reorganize Selected, rectangular or rounded | 3 | |
 
