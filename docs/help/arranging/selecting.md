@@ -23,6 +23,7 @@ screen: **3 traces selected**.
 | Add a trace, or take one out | **Shift**+click it |
 | A trace inside a group or a frame | **Ctrl**+click it, or click it again after the group is selected |
 | Everything in an area | **Selection** (**M**) > **Area selection**, then drag a box |
+| Everything in an area, without changing tools | **Shift**+drag on empty canvas |
 | Traces of any shape of area | **Selection** (**M**) > **Lasso selection**, then draw round them |
 | Every trace in this group | Right-click a trace > **Select** > **Select Group** |
 | Every trace in the atrium | Right-click a trace > **Select** > **Select All** |
