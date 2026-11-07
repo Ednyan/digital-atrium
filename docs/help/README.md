@@ -144,7 +144,7 @@ first. Web and Desktop mean only there; no mark means both.
 
 | Article | Covers | Order | Video |
 |---|---|---|---|
-| `customization-panel` | Sections and switches, presets, your own footer buttons | 1 | Yes |
+| [`customization-panel`](making-it-look-right/customization-panel.md) | **Written.** Sections and switches, your own footer buttons, Batch Edit (presets still to add) | 1 | Yes |
 | `batch-edit` | Changing many at once, mixed values | 2 | |
 | `colours-and-palette` | Your palette, I to take a colour, copy and paste style | 2 | |
 | `light-glow-effects` | Light, emit from, pulse, soft shadow, Colour (look) | 3 | Yes |
