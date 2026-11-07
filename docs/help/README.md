@@ -122,7 +122,7 @@ first. Web and Desktop mean only there; no mark means both.
 | `selecting` | Select, direct select, area, lasso, Shift and Ctrl, Select submenu | 1 | Yes |
 | `move-resize-rotate` | Handles, grid snap, snap angles, Reset Rotation and Aspect | 1 | |
 | `copy-duplicate-delete` | Copy, paste, duplicate, between atriums, ask before deleting | 2 | |
-| `undo-and-saving` | Undo depth, Save, Don't Save, Auto-save, leaving with changes | 1 | |
+| [`undo-and-saving`](arranging/undo-and-saving.md) | **Written.** Undo depth, Save, Don't Save, Auto-save, leaving with changes | 1 | |
 
 **4.2 Organizing**
 
