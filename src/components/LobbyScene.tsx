@@ -780,6 +780,13 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
   const mapContextMenuPos = useClampedMenuPosition(mapContextMenuRef, mapContextMenu?.x ?? 0, mapContextMenu?.y ?? 0)
   // The light gliding between its rows (MenuGlide).
   const mapMenuGlide = useMenuGlide('.ctx-item', mapContextMenuRef)
+  // Escape puts it away, as it does a trace's menu (it only closed on a press elsewhere).
+  useEffect(() => {
+    if (!mapContextMenu) return
+    const escape = (e: KeyboardEvent) => { if (e.key === 'Escape') setMapContextMenu(null) }
+    window.addEventListener('keydown', escape)
+    return () => window.removeEventListener('keydown', escape)
+  }, [!!mapContextMenu])
   const [showLayerPanel, setShowLayerPanel] = useState(false)
   const [showLocationsPanel, setShowLocationsPanel] = useState(false)
 
