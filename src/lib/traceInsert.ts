@@ -84,6 +84,7 @@ export function buildTraceInsertRow(
   if (trace.frameId) newTrace.frame_id = trace.frameId
   // Left out when none, so a database without the column still takes it.
   if (trace.frameArrange) newTrace.frame_arrange = trace.frameArrange
+  if (trace.type === 'frame' && trace.frameHeight) newTrace.frame_height = trace.frameHeight
   if (lobbyId) newTrace.lobby_id = lobbyId
   // Applies to every resizable type (text, image, embed, video, shape) --
   // this used to be gated to shape only, so duplicating a text/image/embed/
@@ -196,6 +197,8 @@ export function traceColumns(trace: Trace): Record<string, any> {
   // reach the database -- so a database without the column (add_frame_arrange
   // not yet run) refuses nothing but an arranged frame's save.
   if (trace.type === 'frame' && trace.frameArrange !== undefined) columns.frame_arrange = trace.frameArrange ?? null
+  // The same for the height it was given (add_frame_height.sql).
+  if (trace.type === 'frame' && trace.frameHeight !== undefined) columns.frame_height = trace.frameHeight ?? null
 
   // Add optional fields. A pin's picture never: written over as none, so one
   // kept the old way is let go of the first time it's saved (lib/pins).

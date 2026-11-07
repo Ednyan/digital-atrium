@@ -76,7 +76,10 @@ import QuickBar, { EmptyCanvasHint, HistoryButtons, QUICK_ORDER, ToolHint, type 
 import { inTutorial, tutorialFinished } from '../lib/tutorial'
 import { count, noteToday } from '../lib/stats'
 import { beginWorkshop, endWorkshop, enterQuietly, keepWorkshop, TEMPLATE_TRACES, templateParts, useWorkshop, workshopOf } from '../lib/workshop'
-import { keepTemplate, templateFile, type MyTemplate } from '../lib/myTemplates'
+import { keepTemplate, myTemplates, templateFile, TEMPLATE_MOST_BYTES, type MyTemplate } from '../lib/myTemplates'
+import { FREE_PLAN } from '../lib/plans'
+import type { TraceLink } from '../lib/traceLinks'
+import TemplateNameDialog from './TemplateNameDialog'
 import { checkTemplateMaker, knownTemplateMaker } from '../lib/platformAdmin'
 import { WorkshopActions, WorkshopEmptyHint, WorkshopFrame, WorkshopSlotTool, WorkshopTitle } from './TemplateWorkshop'
 import type { TemplateValue } from '../lib/templateValues'
@@ -4982,31 +4985,35 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
     leaveToRef.current = from ? `/atrium/${from}` : undefined
     leaveWithTransition()
   }
-  const madeTemplate = () => {
+  // A template made: counted (It's a Boy!), and, made in the editor, back to the
+  // atrium the editor came from. Made from the canvas, it stays.
+  const madeTemplate = (inEditor: boolean) => {
     count('templatesMade')
-    backFromWorkshop()
+    if (inEditor) backFromWorkshop()
   }
-  // Kept as a template (lib/myTemplates): all its traces one group, keeping its values,
-  // so it's placed as that (lib/atriumFile importIntoAtrium) -- with a picture of it.
-  const saveTemplate = async () => {
-    const kept = workshopRef.current
-    const { traces: every, links: allThreads, layers: groups } = useGameStore.getState()
-    // Pins from Pinterest stay out: its rules don't let what's read from it be
-    // kept and used again (docs/PINTEREST.md, "No storing").
-    const all = every.filter(trace => !isPin(trace))
-    const threads = allThreads.filter(thread => all.some(trace => trace.id === thread.from) && all.some(trace => trace.id === thread.to))
-    const pinsLeft = every.length - all.length
-    if (pinsLeft && all.length === 0) setWorkshopProblem(t('templates.onlyPins'))
-    if (!kept || workshopBusy || all.length === 0) return
+  const revealInEditor = useRef(false)
+  // Whether one more may be made: one each, as many as they like for developers
+  // (the user, 2026-11-06; about 50 on the paid plan once it exists).
+  const mayMakeTemplate = () => templateMaker || myTemplates().length < FREE_PLAN.ownTemplates
+  // Kept as a template (lib/myTemplates): `all` its traces one group, keeping
+  // `values`, so it's placed as that (lib/atriumFile importIntoAtrium) -- with a
+  // picture of it. From the editor (`editing`: the one it changes), or from the
+  // canvas (`folder`: where it goes). `say` shows what stops it. True once kept.
+  const keepAsTemplate = async (made: {
+    all: Trace[]; threads: TraceLink[]; groups: Layer[]; name: string; values: TemplateValue[]; pinsLeft: number
+    editing?: string | null; folder?: string | null; inEditor: boolean
+  }, say: (problem: string) => void): Promise<boolean> => {
+    const { all, threads, groups, name, values } = made
     if (all.length > TEMPLATE_TRACES) {
-      setWorkshopProblem(t('templates.tooMany', { most: TEMPLATE_TRACES, n: all.length - TEMPLATE_TRACES }))
-      return
+      say(t('templates.tooMany', { most: TEMPLATE_TRACES, n: all.length - TEMPLATE_TRACES }))
+      return false
     }
-    setWorkshopBusy(true)
-    setWorkshopProblem(null)
+    if (!made.editing && !mayMakeTemplate()) {
+      say(t('templates.limitReached'))
+      return false
+    }
     try {
-      const name = kept.name.trim() || t('templates.untitled')
-      const root: Layer = { id: 'template', name, isGroup: true, parentId: null, userId: userId ?? '', createdAt: '', template: { values: kept.values } }
+      const root: Layer = { id: 'template', name, isGroup: true, parentId: null, userId: userId ?? '', createdAt: '', template: { values } }
       // All of it in that one group, keyed afresh in the order it's drawn here: a
       // trace's own key only orders it among what shares its group -- the stack's,
       // or a group's -- so, kept, the template came out of order (a group's traces
@@ -5020,23 +5027,77 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
       const background = viewTheme?.backgroundColor || '#0a0a0f'
       const shot = await exportImage(all, threads, groups, { format: 'png', scale: 1, background, maxSide: 900, type: 'image/webp', quality: 0.85 }).catch(() => null)
       const picture = shot?.blob ?? null
-      await keepTemplate(name, file, picture, { traces: all.length, values: kept.values.length }, kept.editing)
-      if (pinsLeft) showToast(t('templates.pinsLeftOut'))
+      // At most 10 MB, its file and picture together (the user, 2026-11-06).
+      const bytes = file.size + (picture?.size ?? 0)
+      if (bytes > TEMPLATE_MOST_BYTES) {
+        say(t('templates.tooBig', { size: formatSize(bytes, language), most: formatSize(TEMPLATE_MOST_BYTES, language) }))
+        return false
+      }
+      await keepTemplate(name, file, picture, { traces: all.length, values: values.length }, made.editing, made.folder)
+      if (made.pinsLeft) showToast(t('templates.pinsLeftOut'))
       if (useGameStore.getState().templateReveal) {
         // Its traces, each alone, for the reveal to pull together.
         const assembly = shot ? await assemblyOf(all, groups, shot, background).catch(() => null) : null
-        setReveal({ name, picture, assembly, traces: all.length, values: kept.values.length })
-      }
-      else {
+        revealInEditor.current = made.inEditor
+        setReveal({ name, picture, assembly, traces: all.length, values: values.length })
+      } else {
         showToast(t('templates.saved', { name }))
-        madeTemplate()
+        madeTemplate(made.inEditor)
       }
+      return true
     } catch (error) {
       console.error('The template was not kept:', error)
-      setWorkshopProblem(t('templates.saveFailed'))
+      say(t('templates.saveFailed'))
+      return false
+    }
+  }
+  // The editor's Save template: everything in it.
+  const saveTemplate = async () => {
+    const kept = workshopRef.current
+    const { traces: every, links: allThreads, layers: groups } = useGameStore.getState()
+    // Pins from Pinterest stay out: its rules don't let what's read from it be
+    // kept and used again (docs/PINTEREST.md).
+    const all = every.filter(trace => !isPin(trace))
+    const threads = allThreads.filter(thread => all.some(trace => trace.id === thread.from) && all.some(trace => trace.id === thread.to))
+    const pinsLeft = every.length - all.length
+    if (pinsLeft && all.length === 0) setWorkshopProblem(t('templates.onlyPins'))
+    if (!kept || workshopBusy || all.length === 0) return
+    setWorkshopBusy(true)
+    setWorkshopProblem(null)
+    try {
+      await keepAsTemplate({ all, threads, groups, name: kept.name.trim() || t('templates.untitled'), values: kept.values, pinsLeft, editing: kept.editing, inEditor: true }, setWorkshopProblem)
     } finally {
       setWorkshopBusy(false)
     }
+  }
+  // Traces on the canvas kept as a template -- Save as Template, or carried into
+  // the Templates panel (`folder`: onto one of one's folders) -- named first.
+  const [naming, setNaming] = useState<{ ids: string[]; folder: string | null; name: string; busy: boolean; problem: string | null } | null>(null)
+  const askTemplateName = (ids: string[], folder: string | null = null) => {
+    if (!mayMakeTemplate()) { showToast(t('templates.limitReached')); return }
+    const { traces, layers } = useGameStore.getState()
+    const chosen = traces.filter(trace => ids.includes(trace.id))
+    if (chosen.length && chosen.every(isPin)) { showToast(t('templates.onlyPins')); return }
+    if (!chosen.length) return
+    // One group's (a template placed, say): its name to begin with.
+    const groupIds = new Set(chosen.map(trace => trace.layerId ?? ''))
+    const group = groupIds.size === 1 ? layers.find(layer => layer.id === [...groupIds][0]) : undefined
+    setNaming({ ids, folder, name: group?.name || t('templates.untitled'), busy: false, problem: null })
+  }
+  const saveNamed = async (name: string) => {
+    if (!naming || naming.busy) return
+    const { traces, links, layers } = useGameStore.getState()
+    const wanted = new Set(naming.ids)
+    const every = traces.filter(trace => wanted.has(trace.id))
+    const all = every.filter(trace => !isPin(trace))
+    const ids = new Set(all.map(trace => trace.id))
+    const threads = links.filter(thread => ids.has(thread.from) && ids.has(thread.to))
+    // The values of the groups they're in, whose links they keep.
+    const inGroups = new Set(all.flatMap(trace => (trace.layerId ? [trace.layerId] : [])))
+    const values = [...new Map(layers.filter(layer => inGroups.has(layer.id)).flatMap(layer => layer.template?.values ?? []).map(value => [value.id, value] as const)).values()]
+    setNaming(now => now && { ...now, busy: true, problem: null })
+    const kept = await keepAsTemplate({ all, threads, groups: layers, name, values, pinsLeft: every.length - all.length, folder: naming.folder, inEditor: false }, problem => setNaming(now => now && { ...now, problem }))
+    setNaming(now => (kept ? null : now && { ...now, busy: false }))
   }
   // Begun from the Templates panel: to its own atrium, with this one's look.
   // Who may make templates: known at once where it was found before, asked
@@ -5225,6 +5286,7 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
             toolSwitch={toolSwitch}
             onMultiSelectionChange={setMultiSelectedTraceIds}
             onExport={ids => setExportOf({ ids })}
+            onSaveTemplate={!workshop ? ids => askTemplateName(ids) : undefined}
             onCustomizeOpen={closeSidePanels}
             canEdit={canEdit}
           />
@@ -5338,7 +5400,8 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
           <WorkshopActions traces={traces.length} busy={workshopBusy} problem={workshopProblem} onCancel={backFromWorkshop} onSave={() => void saveTemplate()} />
         </>
       )}
-      {reveal && <TemplateReveal {...reveal} onDone={() => { setReveal(null); madeTemplate() }} />}
+      {reveal && <TemplateReveal {...reveal} onDone={() => { setReveal(null); madeTemplate(revealInEditor.current) }} />}
+      {naming && <TemplateNameDialog name={naming.name} busy={naming.busy} problem={naming.problem} onSave={name => void saveNamed(name)} onClose={() => setNaming(null)} />}
       <div ref={sessionBarRef} data-hud-end="" className={`hud-in-right fixed top-4 right-4 z-[var(--layer-hud-menu)] flex items-center gap-2 font-mono pointer-events-auto ${workshop && !uiHidden ? 'hidden' : ''}`} style={{ '--base': '180ms', '--i': 1 } as CSSProperties}>
         {!uiHidden && (
           <>
@@ -6471,8 +6534,9 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
           <TemplatesPanel
             context={templateContext}
             onClose={() => setShowTemplates(false)}
-            onNew={templateMaker && !workshop ? () => void openWorkshop() : undefined}
-            onEdit={templateMaker && !workshop ? template => void openWorkshop(template) : undefined}
+            onNew={!workshop ? () => (mayMakeTemplate() ? void openWorkshop() : showToast(t('templates.limitReached'))) : undefined}
+            onEdit={!workshop ? template => void openWorkshop(template) : undefined}
+            onSaveSelection={!workshop ? askTemplateName : undefined}
             onPlace={(file, screen) => {
               count('templates')
               void placeAtriumFile(file, screen ? screenToWorld(screen.x, screen.y) : screenToWorld(window.innerWidth / 2, window.innerHeight / 2), true)

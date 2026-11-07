@@ -133,6 +133,7 @@ export function mapRowToTrace(row: any): Trace {
     frameId: row.frame_id ?? null,
     // Laid out as masonry, or a template's slot (lib/frames isSlot); anything else, as it's put.
     frameArrange: row.frame_arrange === 'masonry' || isSlot({ frameArrange: row.frame_arrange }) ? row.frame_arrange : null,
+    frameHeight: Number(row.frame_height) > 0 ? Number(row.frame_height) : null,
     lobbyId: row.lobby_id,
     // Shape properties
     shapeType: row.shape_type,

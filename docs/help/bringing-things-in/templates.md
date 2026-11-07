@@ -2,8 +2,8 @@
 id: templates
 title: Templates
 section: 3.1 Bringing things in > The tools
-summary: Ready-made sets of traces in a sidebar. Drag one onto the canvas or click it, then change it as you like. Some keep values that change several traces at once, and slots that take a picture.
-keywords: template, templates, inventory, library, ready-made, preset, starter, board, kanban, task board, storyboard, mind map, flowchart, moodboard, palette, note, retrospective, weekly planner, swot, timeline, reference sheet, study grid, colour study, type specimen, photo card, book, film, value, values, rule, rules, slot, slots, pin, quick, folder, sidebar
+summary: Ready-made sets of traces in a sidebar. Drag one onto the canvas or click it, then change it as you like. Some keep values that change several traces at once, and slots that take a picture. Make your own from the canvas or in the template editor, and keep them in folders.
+keywords: template, templates, my templates, save as template, template editor, custom, own, folder, folders, inventory, library, ready-made, preset, starter, board, kanban, task board, storyboard, mind map, flowchart, moodboard, palette, note, retrospective, weekly planner, swot, timeline, reference sheet, study grid, colour study, type specimen, photo card, book, film, value, values, rule, rules, slot, slots, pin, quick, folder, sidebar
 where: The top bar > Templates
 works_on: web, desktop, phone
 related: quick-bar, frames, connections, groups-and-layers, import, undo-and-saving
@@ -74,6 +74,37 @@ Under a value, a rule shows as **↳ rule, value it follows, amount**. Change an
 them there; **×** stops following, and the value keeps what it holds. A setting set
 by a rule is greyed in the panel: change the value it follows instead.
 
+## Make your own
+
+Everyone can keep **one** template of their own, free.
+
+| You want | Do this |
+|---|---|
+| One from what's on the canvas | Right-click a trace, or a selection, > **Save as Template**, and name it. Or drag it onto **My templates** in the sidebar, or onto one of your folders |
+| One made from scratch | **+ New template** at the top of the sidebar: the template editor opens |
+| To change one of yours | Point at it and press its **pencil**: it opens in the editor |
+| To delete one of yours | Point at it, press **×**, then **Delete** |
+
+In the template editor:
+- **Values**: at the top of a trace's Customization panel, **+ Colour**, **+ Font**, **+ Number**, **+ Text** or **+ On/off**. The **link** button beside a setting gives it a value; settings linked to one value change together.
+- **Rules**: under a value, **Follow another value** ([Rules](#rules)).
+- **Slots**: the gold **Slot** button above the quick bar, then drag where the slot goes.
+- **Save template**, top right.
+
+A template holds at most 50 traces and 10 MB, its pictures included. Pins from
+Pinterest are left out. Each of yours shows its size: its pictures count again in
+each atrium you place it in.
+
+### Folders
+
+In **My templates**, point at a folder and press its **folder +** button to make a
+folder inside it. Its **pencil** renames it; **×** then **Delete** removes it, and
+what was in it moves up a level. Drag a template or a folder onto a folder to put
+it there.
+
+Signed in, your templates and folders are kept with your account, the same on
+every device. Signed out, they're kept on this device.
+
 ## Keep your favourites to hand
 
 Point at a template and press its **pin**. It moves to **Quick** at the foot of the
@@ -110,9 +141,8 @@ Their words come in your language, and their colours follow the atrium's look.
 
 ## Good to know
 
-- You can't make your own templates yet.
-- A template dropped on an arranged frame or a slot joins it. Dropped on a plain
-  frame, it sits on top; move it a little to put it in.
+- A template dropped in a frame joins it: a plain frame when all of it lands
+  inside, an arranged frame or a slot when its middle does.
 - You need permission to edit the atrium: **Templates** doesn't show in view-only
   atriums.
 

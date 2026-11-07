@@ -206,3 +206,13 @@ test('a followed value deleted: its followers keep what they hold, following not
   const out = removeValue([], [base, light, label], 'b')
   assert.deepEqual(out.values.map(v => [v.id, v.rule?.op ?? null, v.value]), [['l', null, '#99b3cc'], ['r', 'readable', '#000000']])
 })
+
+test('a font shown by its name, read back by its name or its value, any case', () => {
+  assert.equal(format('font', 'serif'), 'Serif')
+  assert.equal(format('font', 'system-ui'), 'System UI')
+  assert.equal(parse('font', 'serif'), 'serif')
+  assert.equal(parse('font', 'SERIF'), 'serif')
+  assert.equal(parse('font', 'Times New Roman'), 'times')
+  // A bundled font's name is its value.
+  assert.equal(parse('font', 'Datatype'), 'Datatype')
+})

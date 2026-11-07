@@ -207,6 +207,10 @@ export interface Trace {
   // A frame's: lays out what it holds by itself (lib/frames masonry); null
   // or missing, as it's put.
   frameArrange?: 'masonry' | SlotFit | null
+  // An arranged frame's height as it was given -- made, switched to arranged,
+  // resized by hand: the least it's laid out to. It grows past it for what it
+  // holds, and comes back to it, never under.
+  frameHeight?: number | null
   // Lobby association
   lobbyId?: string
 }

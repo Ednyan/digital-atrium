@@ -76,3 +76,13 @@ test('the weekly planner names the days in the language, Monday first', () => {
   assert.deepEqual((planner.build({ ...context, language: 'fr' }) as any).traces.map((row: any) => row.content).slice(0, 2), ['Lundi', 'Mardi'])
   assert.equal((planner.build(context) as any).traces[6].content, 'Sunday')
 })
+
+test("a font value's words name it as people know it, and read back as it", () => {
+  const specimen = allTemplates(DIGITAL_ATRIUM_FOLDER).find(template => template.id === 'type-specimen')!.build(context) as any
+  assert.ok(specimen.traces.some((row: any) => row.content === 'Serif'))
+  const card = allTemplates(DIGITAL_ATRIUM_FOLDER).find(template => template.id === 'photo-card')!.build(context) as any
+  const slot = card.traces.find((row: any) => row.frame_arrange === 'fill')
+  const caption = card.traces.find((row: any) => row.type === 'text')
+  // The slot's edge (and so its hint) in the caption's colour, readable on the card.
+  assert.equal(slot.value_links.borderColor, caption.value_links.textColor)
+})

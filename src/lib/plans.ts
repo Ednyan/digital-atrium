@@ -9,11 +9,12 @@ export interface Plan {
   cloudMb: number
   fileMb: number
   mirrorMb: number
-  ownTemplates: boolean
+  // How many of one's own templates (the user, 2026-11-06: one for everyone now, about 50 paid).
+  ownTemplates: number
 }
 
-export const FREE_PLAN: Plan = { cloudAtriums: 1, cloudMb: 50, fileMb: 25, mirrorMb: 100, ownTemplates: false }
-export const PAID_PLAN: Plan = { cloudAtriums: 10, cloudMb: 20000, fileMb: 200, mirrorMb: 1000, ownTemplates: true }
+export const FREE_PLAN: Plan = { cloudAtriums: 1, cloudMb: 50, fileMb: 25, mirrorMb: 100, ownTemplates: 1 }
+export const PAID_PLAN: Plan = { cloudAtriums: 10, cloudMb: 20000, fileMb: 200, mirrorMb: 1000, ownTemplates: 50 }
 
 const size = (mb: number) => (mb >= 1000 ? `${mb / 1000} GB` : `${mb} MB`)
 
@@ -34,7 +35,7 @@ export function planFeatures(): [TranslationKey, string, string][] {
     ['plans.row.rooms', 'yes', 'yes'],
     // Never for sale: Pinterest's terms don't let access to its content be charged for (docs/PINTEREST.md).
     ['plans.row.pinterest', 'yes', 'yes'],
-    ['plans.row.own', 'no', 'yes'],
+    ['plans.row.own', String(FREE_PLAN.ownTemplates), String(PAID_PLAN.ownTemplates)],
   ]
 }
 

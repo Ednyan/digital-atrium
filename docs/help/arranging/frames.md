@@ -72,7 +72,9 @@ itself out in columns, and again whenever you add, move or resize something.
 
 - Traces are **resized to the column's width**, keeping their shape. A group
   counts as one.
-- The frame keeps its width and top, and grows or shrinks downward.
+- The frame keeps its width and top. It grows downward when what it holds needs
+  more room, and comes back up as things leave, but never shorter than the height
+  it had when you switched this on, or the height you last gave it by hand.
 - Change the frame's width to change the number of columns (each about 240 wide).
 - Drag a trace to change its place in the order.
 - Traces you drop or paste inside join at once.

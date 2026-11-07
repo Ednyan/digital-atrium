@@ -16,6 +16,7 @@
 import type { Layer, Trace } from '../types/database'
 import { shownValue } from './traceStyle.ts'
 import { mixHex } from './colourSpace.ts'
+import { fontLabel, fontValue } from './fontNames.ts'
 import { readableOn } from './shapeStyle.ts'
 
 export type ValueKind = 'colour' | 'font' | 'number' | 'text' | 'toggle'
@@ -107,6 +108,7 @@ export function format(kind: ValueKind, value: Held): string {
   if (kind === 'colour') return String(value).toUpperCase()
   if (kind === 'number') return String(Math.round(Number(value) * 100) / 100)
   if (kind === 'toggle') return value ? 'On' : 'Off'
+  if (kind === 'font') return fontLabel(String(value))
   return String(value)
 }
 
@@ -129,7 +131,7 @@ export function parse(kind: ValueKind, words: string): Held | null {
     if (['off', 'no', 'false', '0'].includes(word)) return false
     return null
   }
-  if (kind === 'font') return text || null
+  if (kind === 'font') return text ? fontValue(text) : null
   return words
 }
 

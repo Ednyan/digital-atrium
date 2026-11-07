@@ -82,7 +82,7 @@ function builder(c: TemplateContext) {
       return traceId
     },
     frame: (title: string, x: number, y: number, width: number, height: number, arranged = false) =>
-      add(x, y, width, height, { type: 'frame', content: title, showBorder: true, showBackground: false, ...(arranged ? { frameArrange: 'masonry' as const } : {}) }),
+      add(x, y, width, height, { type: 'frame', content: title, showBorder: true, showBackground: false, ...(arranged ? { frameArrange: 'masonry' as const, frameHeight: height } : {}) }),
     // Where a picture or a group dropped (with Ctrl) takes its place and size (lib/frames). Named, untitled.
     slot: (name: string, x: number, y: number, width: number, height: number, fit: SlotFit = 'fill') =>
       add(x, y, width, height, { type: 'frame', content: name, frameArrange: fit, strokeStyle: 'dashed', showBorder: true, showBackground: false }),
@@ -291,7 +291,8 @@ export const DIGITAL_ATRIUM_FOLDER: TemplateFolder = {
           const card = b.value(t('templates.text.cardColour'), 'colour', '#f4f1ea')
           const ink = b.value(t('templates.text.captionColour'), 'colour', '', { from: card, op: 'readable' })
           b.link(b.swatch('', 0, 0, 300, undefined, { height: 370, cornerRadius: 4 }), 'shapeColor', card)
-          b.slot(t('templates.photoCard'), 0, -35, 260, 260)
+          // Its edge and hint in the caption's colour: readable on the card, whatever colour it's made.
+          b.link(b.slot(t('templates.photoCard'), 0, -35, 260, 260), 'borderColor', ink)
           b.link(b.words(t('templates.text.memory'), 0, 140, 260, 40, undefined, { fontSize: 18 }), 'textColor', ink)
         }),
         item('book-card', 'templates.bookCard', (b, t) => {

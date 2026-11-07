@@ -1194,6 +1194,7 @@ export async function initLocalDb(): Promise<void> {
       layer_name TEXT,
       frame_id TEXT,
       frame_arrange TEXT,
+      frame_height REAL,
       lobby_id TEXT,
       shape_type TEXT,
       shape_color TEXT,
@@ -1521,6 +1522,8 @@ export async function initLocalDb(): Promise<void> {
   } catch {
     // Column already exists — ignore
   }
+  // The height an arranged frame was given: the least it's laid out to (add_frame_height.sql).
+  try { await db.execute('ALTER TABLE traces ADD COLUMN frame_height REAL') } catch { /* already there */ }
   // Where a light comes from (add_light_emit.sql).
   try {
     await db.execute('ALTER TABLE traces ADD COLUMN light_emit TEXT')

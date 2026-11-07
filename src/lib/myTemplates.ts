@@ -9,7 +9,8 @@
 // The account's are copied here as they're read, to be had offline.
 // The list shown is kept in localStorage either way, so the panel has it at once.
 //
-// The panel's quick slots go with them: on the account signed in, on the device signed out.
+// The panel's quick slots and one's folders go with them: on the account signed in,
+// on the device signed out.
 
 import { useEffect, useState } from 'react'
 import { parseAtriumFile, type AtriumFile } from './atriumFormat'
@@ -18,15 +19,21 @@ import { whoIsSignedIn } from './signedIn'
 
 // `account`: kept on that account -- its files' ids in the hosted store.
 // `bytes`: what it takes in the account's space, its file and picture (from 2026-11-06).
+// `folder`: which of one's folders it's in; none, at the top of My templates.
 export interface MyTemplate {
-  id: string; name: string; madeAt: number; traces: number; values: number; bytes?: number
+  id: string; name: string; madeAt: number; traces: number; values: number; bytes?: number; folder?: string | null
   account?: { owner: string; file: string; picture: string | null }
 }
 // The account's list (its app data): where its folder is, what's in it, and the
 // quick slots (none yet: the device's become the account's).
 // ponytail: one small file of at most 16 KB (workers/rooms MOST_APPDATA_BYTES),
 // about 60 templates; a file in the folder once there are more.
-interface Index { folder: string | null; list: MyTemplate[]; quick?: string[] }
+interface Index { folder: string | null; list: MyTemplate[]; quick?: string[]; folders?: MyFolder[] }
+/** One's own folder in My templates, inside another (`parent`) or at the top. */
+export interface MyFolder { id: string; name: string; parent: string | null }
+
+/** The most one template may take, its file and picture together (the user, 2026-11-06). */
+export const TEMPLATE_MOST_BYTES = 10 * 1024 * 1024
 
 const LIST = 'atrium.myTemplates'
 const CHANGED = 'atrium:my-templates'
@@ -99,6 +106,7 @@ async function readIndex(): Promise<Index> {
     folder: typeof kept?.folder === 'string' ? kept.folder : null,
     list: Array.isArray(kept?.list) ? kept.list : [],
     ...(Array.isArray(kept?.quick) ? { quick: asQuick(kept.quick) } : {}),
+    ...(Array.isArray(kept?.folders) ? { folders: asFolders(kept.folders) } : {}),
   }
 }
 const writeIndex = async (index: Index) => (await store()).writeAppData(APP_DATA, new TextEncoder().encode(JSON.stringify(index)))
@@ -131,6 +139,10 @@ function lookAtAccount(): Promise<void> {
     const quickHere = !index.quick && keptQuick().length > 0
     if (index.quick) writeQuick(index.quick)
     else if (quickHere) index.quick = keptQuick()
+    // And the folders: the account's, or this device's made its.
+    const foldersHere = !index.folders && keptFolders().length > 0
+    if (index.folders) writeFolders(index.folders)
+    else if (foldersHere) index.folders = keptFolders()
     const theirs = index.list.map(t => ({ ...t, account: t.account && { ...t.account, owner } }))
     const here = keptList()
     const devices = here.filter(t => !t.account)
@@ -144,7 +156,7 @@ function lookAtAccount(): Promise<void> {
       if (file) moved.push(await upload(index, owner, template, file, (await onDevice(template.id, 'picture')) ?? null))
     }
     if (!moved.length) {
-      if (quickHere) await writeIndex(index)
+      if (quickHere || foldersHere) await writeIndex(index)
       return
     }
     // One of the account's changed here out of its reach: this one, now.
@@ -168,9 +180,9 @@ const find = (id: string) => keptList().find(t => t.id === id)
 
 /** A template made -- or, `replacing` one of one's own, changed: kept on the account
  *  signed in, else on this device; listed first. */
-export async function keepTemplate(name: string, file: Blob, picture: Blob | null, counts: { traces: number; values: number }, replacing?: string | null): Promise<MyTemplate> {
+export async function keepTemplate(name: string, file: Blob, picture: Blob | null, counts: { traces: number; values: number }, replacing?: string | null, folder?: string | null): Promise<MyTemplate> {
   const old = replacing ? find(replacing) : undefined
-  const made: MyTemplate = { id: old?.id ?? crypto.randomUUID(), name, madeAt: Date.now(), ...counts, bytes: file.size + (picture?.size ?? 0) }
+  const made: MyTemplate = { id: old?.id ?? crypto.randomUUID(), name, madeAt: Date.now(), ...counts, bytes: file.size + (picture?.size ?? 0), folder: old ? old.folder ?? null : folder ?? null }
   const others = () => keptList().filter(t => t.id !== made.id)
   // Its files on this device: the template, or the copy of the account's (partOf).
   const onHere = () => inStore('readwrite', files => {
@@ -252,6 +264,82 @@ export async function forgetTemplate(id: string) {
   writeList(keptList().filter(t => t.id !== id))
   if (keptQuick().includes(MINE + id)) await setQuickSlots(keptQuick().filter(slot => slot !== MINE + id))
 }
+
+// ---------------------------------------------------------------- folders
+
+const FOLDERS = 'atrium.myTemplates.folders'
+const asFolders = (rows: unknown[]): MyFolder[] => rows.flatMap(row => {
+  const { id, name, parent } = (row ?? {}) as Record<string, unknown>
+  return typeof id === 'string' && typeof name === 'string' ? [{ id, name: name.slice(0, 80), parent: typeof parent === 'string' ? parent : null }] : []
+})
+function keptFolders(): MyFolder[] {
+  try {
+    const kept = JSON.parse(localStorage.getItem(FOLDERS) ?? '[]')
+    return Array.isArray(kept) ? asFolders(kept) : []
+  } catch { return [] }
+}
+function writeFolders(folders: MyFolder[]) {
+  try { localStorage.setItem(FOLDERS, JSON.stringify(folders)) } catch { /* this visit's, then */ }
+  window.dispatchEvent(new Event(CHANGED))
+}
+
+/** One's folders, kept up to date with the templates (useMyTemplates looks at the account). */
+export function useMyFolders(): MyFolder[] {
+  const [folders, setFolders] = useState(keptFolders)
+  useEffect(() => {
+    const changed = () => setFolders(keptFolders())
+    window.addEventListener(CHANGED, changed)
+    return () => window.removeEventListener(CHANGED, changed)
+  }, [])
+  return folders
+}
+
+// One change to one's list and folders: here at once, and on the account signed in.
+type Kept = { list: MyTemplate[]; folders: MyFolder[] }
+async function changeKept(change: (kept: Kept) => Kept): Promise<void> {
+  const here = change({ list: keptList(), folders: keptFolders() })
+  writeList(here.list)
+  writeFolders(here.folders)
+  const owner = accountHere()
+  if (!owner || (await account()) !== owner) return
+  try {
+    const index = await readIndex()
+    const there = change({ list: index.list, folders: index.folders ?? keptFolders() })
+    await writeIndex({ ...index, list: there.list, folders: there.folders })
+  } catch (error) {
+    console.warn('My templates: changed on this device, the account out of reach', error)
+  }
+}
+
+/** Whether `inside` is `folder` or anywhere within it. */
+export function isWithin(folders: MyFolder[], inside: string | null, folder: string): boolean {
+  for (let at = inside, n = 0; at && n <= folders.length; n++, at = folders.find(f => f.id === at)?.parent ?? null) if (at === folder) return true
+  return false
+}
+
+/** A new folder, in `parent` (or at the top): its id. */
+export async function makeFolder(name: string, parent: string | null): Promise<string> {
+  const id = crypto.randomUUID()
+  await changeKept(kept => ({ ...kept, folders: [...kept.folders, { id, name, parent }] }))
+  return id
+}
+export const renameFolder = (id: string, name: string) =>
+  changeKept(kept => ({ ...kept, folders: kept.folders.map(f => (f.id === id ? { ...f, name } : f)) }))
+/** A folder put inside another (or at the top) -- never inside itself. */
+export const moveFolder = (id: string, parent: string | null) =>
+  changeKept(kept => (parent && isWithin(kept.folders, parent, id) ? kept : { ...kept, folders: kept.folders.map(f => (f.id === id ? { ...f, parent } : f)) }))
+/** A folder gone: what was in it -- templates and folders -- moved up to where it was. */
+export const deleteFolder = (id: string) => changeKept(kept => {
+  const parent = kept.folders.find(f => f.id === id)?.parent ?? null
+  return {
+    list: kept.list.map(t => (t.folder === id ? { ...t, folder: parent } : t)),
+    folders: kept.folders.filter(f => f.id !== id).map(f => (f.parent === id ? { ...f, parent } : f)),
+  }
+})
+export const moveTemplate = (id: string, folder: string | null) =>
+  changeKept(kept => ({ ...kept, list: kept.list.map(t => (t.id === id ? { ...t, folder } : t)) }))
+export const renameTemplate = (id: string, name: string) =>
+  changeKept(kept => ({ ...kept, list: kept.list.map(t => (t.id === id ? { ...t, name } : t)) }))
 
 // ---------------------------------------------------------------- quick slots
 
