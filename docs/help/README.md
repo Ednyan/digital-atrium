@@ -77,7 +77,7 @@ first. Web and Desktop mean only there; no mark means both.
 | Article | Covers | Order | Video |
 |---|---|---|---|
 | [`quick-bar`](bringing-things-in/quick-bar.md) | **Written.** The tools, armed or instant, reorder it, More | 1 | Yes |
-| `drop-and-paste` | Files, folders, links, the clipboard; several at once; square or circle layout | 1 | Yes |
+| [`drop-and-paste`](bringing-things-in/drop-and-paste.md) | **Written.** Files, links, the clipboard; several at once; square or circle layout | 1 | Yes |
 | [`templates`](bringing-things-in/templates.md) | **Written.** The sidebar, placing one, slots, values and rules, making your own (Save as Template, the editor, folders, limits), quick slots | 1 | |
 
 **3.2 Words, shapes and drawing**
