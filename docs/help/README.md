@@ -84,7 +84,7 @@ first. Web and Desktop mean only there; no mark means both.
 
 | Article | Covers | Order | Video |
 |---|---|---|---|
-| `text` | Box or plain, sizing, fonts, your own fonts, alignment, inline editing | 1 | |
+| [`text`](bringing-things-in/text.md) | **Written.** Box or plain, sizing, fonts, alignment, inline editing | 1 | |
 | `shapes` | The five shapes, fill, outline, corners, a label | 2 | |
 | `paths-and-arrows` | Drawing, points, elbows, arrowheads, Shift to snap to a border | 2 | Yes |
 | `drawing` | Brushes, eraser, your own brushes, Edit Drawing, Split into Strokes, Rasterize | 2 | Yes |
