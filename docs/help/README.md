@@ -93,7 +93,7 @@ first. Web and Desktop mean only there; no mark means both.
 
 | Article | Covers | Order | Video |
 |---|---|---|---|
-| `pictures` | Formats, GIFs, crop, flip, reset | 1 | |
+| [`pictures`](bringing-things-in/pictures.md) | **Written.** Formats, GIFs, crop, flip, reset | 1 | |
 | `exr-grading` | View transform, colour space, exposure, presets, LUTs | 3 | Yes |
 | `video-and-sound` | Files and YouTube/Vimeo; controls; spatial sound; sound bars | 2 | |
 | `embeds-and-links` | Pasting links, several at once, interaction on and off, iframes, what can't be framed, Convert to Image | 1 | |
