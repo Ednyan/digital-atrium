@@ -119,7 +119,7 @@ first. Web and Desktop mean only there; no mark means both.
 
 | Article | Covers | Order | Video |
 |---|---|---|---|
-| `selecting` | Select, direct select, area, lasso, Shift and Ctrl, Select submenu | 1 | Yes |
+| [`selecting`](arranging/selecting.md) | **Written.** Select, direct select, area, lasso, Shift and Ctrl, Select submenu | 1 | Yes |
 | `move-resize-rotate` | Handles, grid snap, snap angles, Reset Rotation and Aspect | 1 | |
 | `copy-duplicate-delete` | Copy, paste, duplicate, between atriums, ask before deleting | 2 | |
 | [`undo-and-saving`](arranging/undo-and-saving.md) | **Written.** Undo depth, Save, Don't Save, Auto-save, leaving with changes | 1 | |
