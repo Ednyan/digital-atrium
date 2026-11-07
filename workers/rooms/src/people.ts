@@ -196,7 +196,12 @@ const SETTINGS: Record<string, (value: unknown) => boolean> = {
   custom_themes: value => Array.isArray(value) && value.length <= 12 && JSON.stringify(value).length <= 32_000,
   // What's counted for one's achievements (src/lib/achievements): one small object, whatever's counted.
   stats: value => !!value && typeof value === 'object' && !Array.isArray(value) && JSON.stringify(value).length <= 2_000,
+  // Whether others may find one's profile (searched by username): asked of each
+  // once, none till then -- never public by default (GDPR Art. 25; the user, 2026-11-07).
+  findable: value => typeof value === 'boolean',
 }
+// Searches one account may make an hour: typing pauses, mostly.
+const SEARCHES_AN_HOUR = 300
 // The atriums whose last visit is kept for an account, as the browser keeps them.
 const MOST_VISITS = 200
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -548,6 +553,32 @@ export async function people(request: Request, env: Env, what: string): Promise<
       if (!ids.length) return answer(200, [])
       const { results } = await db.prepare(`${columns} where id in (${ids.map(() => '?').join(',')})`).bind(...ids).all()
       return answer(200, results.map(shown))
+    }
+
+    // Others who let themselves be found (settings.findable), by the start of
+    // their username or any part of their name: a few, their name and picture.
+    case 'search': {
+      const q = (text('q', 40) ?? '').trim().replace(/^@/, '')
+      if (q.length < 2) return answer(200, [])
+      if (!(await allowedNow(db, `search:${who.id}`, SEARCHES_AN_HOUR, undefined, 10))) return answer(429, { error: 'wait' })
+      const like = q.replace(/[\\%_]/g, c => `\\${c}`)
+      const { results } = await db.prepare(`select username, display_name, json_extract(settings, '$.picture') as picture from accounts
+        where json_extract(settings, '$.findable') = 1 and username is not null and id <> ? and id not in (select account from bans)
+        and (username like ? escape '\\' or display_name like ? escape '\\') order by username collate nocase limit 20`)
+        .bind(who.id, `${like}%`, `%${like}%`).all()
+      return answer(200, results)
+    }
+
+    // One of them, as their profile page shows them: name, picture, colour,
+    // achievements, since when. None for one who hasn't let themselves be found.
+    case 'profile': {
+      const username = (text('username', 40) ?? '').trim().replace(/^@/, '')
+      const row = await db.prepare(`select username, display_name, created_at, json_extract(settings, '$.picture') as picture,
+        json_extract(settings, '$.player_color') as colour, json_extract(settings, '$.stats') as stats from accounts
+        where username = ? collate nocase and json_extract(settings, '$.findable') = 1 and id not in (select account from bans)`)
+        .bind(username).first<{ stats: string | null } & Record<string, unknown>>()
+      if (!row) return answer(404, { error: 'not found' })
+      return answer(200, { ...row, stats: row.stats ? JSON.parse(row.stats) : null })
     }
 
     // An invitation from oneself: one per person and atrium, the latest -- and

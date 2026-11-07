@@ -3,7 +3,7 @@
 
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { useTranslation, type LanguageCode } from '../lib/i18n'
-import ProfilePicture from './ProfilePicture'
+import ProfilePicture, { TheirPicture } from './ProfilePicture'
 import AchievementIcon from './AchievementIcon'
 import { earnedAchievements, isEarned, MOST_PINNED, ACHIEVEMENTS, FAMILY_COLOUR, progressOf, type Achievement, type Stats } from '../lib/achievements'
 import type { TranslationKey } from '../locales/en'
@@ -121,7 +121,8 @@ function NameAtTop({ name, canEdit, locked, every, under, onSave }: {
   )
 }
 
-export function ProfileTop({ name, username, colour, joined, stats, canEdit, locked, every, onSaveName }: {
+// `their`: someone else's (their picture), shown as one's own is, nothing to change.
+export function ProfileTop({ name, username, colour, joined, stats, canEdit, locked, every, onSaveName, their }: {
   name: string
   username: string
   colour: string
@@ -131,6 +132,7 @@ export function ProfileTop({ name, username, colour, joined, stats, canEdit, loc
   locked: string | null
   every: string | null
   onSaveName: (next: string) => Promise<string | null>
+  their?: { picture: string | null }
 }) {
   const { t, language } = useTranslation()
   const pinned = stats.pinned.flatMap(id => ACHIEVEMENTS.find(one => one.id === id && isEarned(one, stats)) ?? [])
@@ -144,7 +146,7 @@ export function ProfileTop({ name, username, colour, joined, stats, canEdit, loc
   return (
     <section data-profile-top="" className="relative flex flex-wrap items-center gap-x-7 gap-y-5">
       <span aria-hidden="true" data-profile-light="" className="profile-glow" style={{ backgroundColor: colour }} />
-      <ProfilePicture colour={colour} initial={(name || username || '?').slice(0, 1)} />
+      {their ? <TheirPicture colour={colour} initial={(name || username || '?').slice(0, 1)} picture={their.picture} /> : <ProfilePicture colour={colour} initial={(name || username || '?').slice(0, 1)} />}
       <div className="enter-up flex-1 min-w-[14rem]" style={{ '--i': 1 } as CSSProperties}>
         <NameAtTop
           name={name || username}
@@ -183,7 +185,8 @@ export function ProfileTop({ name, username, colour, joined, stats, canEdit, loc
   )
 }
 
-export function AchievementsGrid({ stats, onToggle }: { stats: Stats; onToggle: (id: string) => void }) {
+// Without `onToggle`, someone else's: seen, not chosen from.
+export function AchievementsGrid({ stats, onToggle }: { stats: Stats; onToggle?: (id: string) => void }) {
   const { t, language } = useTranslation()
   const earned = earnedAchievements(stats).length
   return (
@@ -211,7 +214,8 @@ export function AchievementsGrid({ stats, onToggle }: { stats: Stats; onToggle: 
                 <button
                   type="button"
                   aria-pressed={chosen}
-                  onClick={() => onToggle(one.id)}
+                  disabled={!onToggle}
+                  onClick={() => onToggle?.(one.id)}
                   className={`achievement-card hall-ground w-full h-full min-h-[9.25rem] flex flex-col items-start text-left p-3.5 pt-4 border ${chosen ? 'border-nier-bg bg-[linear-gradient(rgb(var(--c-fg)/0.1),rgb(var(--c-fg)/0.1))]' : 'border-nier-border/45 bg-[linear-gradient(rgb(var(--c-fg)/0.05),rgb(var(--c-fg)/0.05))] hover:border-nier-border/80'}`}
                   style={{ '--achievement': FAMILY_COLOUR[one.family] } as CSSProperties}
                 >

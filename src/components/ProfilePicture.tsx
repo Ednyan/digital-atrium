@@ -16,6 +16,15 @@ export function PictureOrInitial({ picture, initial, className = '' }: { picture
   return <>{initial}</>
 }
 
+/** Someone else's, as one's own is shown -- not to be changed. */
+export function TheirPicture({ colour, initial, picture }: { colour: string; initial: string; picture: string | null }) {
+  return (
+    <div data-profile-picture="" className="profile-picture enter-zoom relative shrink-0 grid place-items-center w-28 h-28 overflow-hidden text-[2.9rem] font-bold uppercase" style={{ background: colour, color: '#191919', clipPath: CUT }}>
+      <PictureOrInitial picture={picture} initial={initial} />
+    </div>
+  )
+}
+
 export default function ProfilePicture({ colour, initial }: { colour: string; initial: string }) {
   const { t } = useTranslation()
   const picture = useMyPicture()

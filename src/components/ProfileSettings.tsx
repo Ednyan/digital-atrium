@@ -13,7 +13,8 @@ import {
   writePackingShape,
 } from '../lib/atriumPreferences'
 import { goTo } from '../lib/route'
-import { daysUntilNameChange, loadMyProfile, saveMyProfile } from '../lib/profile'
+import { daysUntilNameChange, findPeople, loadMyProfile, saveMyProfile, setFindable, theirProfile, type Found, type TheirProfile } from '../lib/profile'
+import { PictureOrInitial } from './ProfilePicture'
 import { googleAccount, workerAccount, useWorkerAccount } from '../lib/signedIn'
 import { accountJoined, noteToday, readStats, syncStats, togglePinned } from '../lib/stats'
 import { AchievementsGrid, ProfileTop } from './ProfileAchievements'
@@ -114,6 +115,32 @@ export default function ProfileSettings({ onClose, onPinterest, pinterestOpen = 
   // account says, what the sign-in says, or the first day seen here. Nothing new
   // is asked for: one's entry is already read.
   const [stats, setStats] = useState(readStats)
+  // Others (lib/profile): found by their username, one of them seen -- for an
+  // account's profile (a desktop's own has nobody to find). Whether others may
+  // find this one: asked once (none till then), a setting after (GDPR Art. 25).
+  const [findable, setFindableNow] = useState<boolean | null | undefined>(undefined)
+  const [query, setQuery] = useState('')
+  const [found, setFound] = useState<Found[] | null>(null)
+  const [viewing, setViewing] = useState<TheirProfile | null>(null)
+  useEffect(() => {
+    const q = query.trim()
+    if (q.length < 2) { setFound(null); return }
+    let live = true
+    const timer = window.setTimeout(() => void findPeople(q).then(people => { if (live) setFound(people) }), 300)
+    return () => { live = false; window.clearTimeout(timer) }
+  }, [query])
+  const see = async (username: string) => {
+    const them = await theirProfile(username)
+    if (!them) return
+    setViewing(them)
+    setQuery('')
+    setFound(null)
+  }
+  const chooseFindable = (on: boolean) => {
+    const was = findable
+    setFindableNow(on)
+    void setFindable(on).catch(() => setFindableNow(was))
+  }
   const pinsChanged = useRef(false)
   useEffect(() => () => { if (pinsChanged.current) void syncStats() }, [])
   const [signedUp, setSignedUp] = useState<number | null>(null)
@@ -201,6 +228,7 @@ export default function ProfileSettings({ onClose, onPinterest, pinterestOpen = 
     if (!profile) return
     setActualUsername(profile.username)
     setSavedName(profile.displayName)
+    setFindableNow(profile.findable ?? null)
     if (profile.color) {
       keptColour.current = profile.color
       // Not over one just chosen, still on its way.
@@ -559,8 +587,75 @@ export default function ProfileSettings({ onClose, onPinterest, pinterestOpen = 
           >
             <span aria-hidden="true" className="inline-block transition-transform">◁</span> {t('common.back')}
           </button>
-          <span className="text-[11px] tracking-wide text-nier-bg/70">{t('achievements.private')}</span>
+          <div className="flex items-center gap-4 min-w-0">
+            {/* Someone else, by their username: their profile in place of one's own. */}
+            {!onDevice && (
+              <div className="relative">
+                <input
+                  type="search"
+                  data-profile-search=""
+                  value={query}
+                  maxLength={40}
+                  onChange={e => setQuery(e.target.value)}
+                  placeholder={t('profile.searchPeople')}
+                  aria-label={t('profile.searchPeople')}
+                  className="w-48 sm:w-64 bg-nier-black border border-nier-border/40 text-nier-bg px-3 py-1.5 text-xs focus:outline-none focus:border-nier-border/70"
+                />
+                {found && (
+                  <ul data-profile-results="" className="absolute right-0 top-[calc(100%+4px)] z-20 w-72 max-h-80 overflow-y-auto bg-nier-blackLight border border-nier-border/50">
+                    {found.length === 0 ? <li className="px-3 py-2.5 text-[11px] text-nier-bg/70">{t('profile.noneFound')}</li> : found.map(person => (
+                      <li key={person.username}>
+                        <button type="button" data-profile-result={person.username} onClick={() => void see(person.username)} className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-nier-bg/10">
+                          <span className="w-7 h-7 shrink-0 grid place-items-center overflow-hidden bg-nier-border/30 text-[11px] font-bold uppercase text-nier-strong"><PictureOrInitial picture={person.picture} initial={person.name.slice(0, 1)} /></span>
+                          <span className="min-w-0">
+                            <span className="block truncate text-xs text-nier-strong">{person.name}</span>
+                            <span className="block truncate text-[10px] text-nier-bg/65">@{person.username}</span>
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+            {!viewing && <span className="text-[11px] tracking-wide text-nier-bg/70">{findable ? t('profile.findableNote') : t('achievements.private')}</span>}
+          </div>
         </div>
+        {viewing && (
+          <section data-profile-other={viewing.username} aria-label={viewing.name}>
+            <div className="flex items-center justify-between gap-4 mb-6">
+              <button type="button" data-profile-mine="" onClick={() => setViewing(null)} className="profile-back text-[11px] tracking-[0.2em] uppercase text-nier-bg/80 hover:text-nier-strong transition-colors">
+                <span aria-hidden="true" className="inline-block transition-transform">◁</span> {t('profile.backToMine')}
+              </button>
+              <button type="button" data-profile-close="" aria-label={t('common.close')} title={t('common.close')} onClick={() => setViewing(null)} className="w-8 h-8 grid place-items-center text-lg text-nier-bg/80 hover:text-nier-strong transition-colors">×</button>
+            </div>
+            <ProfileTop
+              their={{ picture: viewing.picture }}
+              name={viewing.name}
+              username={viewing.username}
+              colour={viewing.colour ?? '#8f8f8f'}
+              joined={viewing.joined}
+              stats={viewing.stats}
+              canEdit={false}
+              locked={null}
+              every={null}
+              onSaveName={async () => null}
+            />
+            <div className="mt-9"><AchievementsGrid stats={viewing.stats} /></div>
+          </section>
+        )}
+        <div hidden={!!viewing} data-profile-own="">
+        {/* Asked once: may others find this profile? Nothing public till it's answered. */}
+        {!onDevice && findable === null && (
+          <div data-profile-ask="" className="enter-up mb-7 border border-nier-border/40 p-4 hall-ground">
+            <p className="text-sm text-nier-strong">{t('profile.findAsk')}</p>
+            <p className="mt-1.5 text-[11px] leading-relaxed text-nier-bg/75">{t('profile.findAskHint')}</p>
+            <div className="mt-3.5 flex gap-2.5">
+              <button type="button" data-profile-ask-yes="" onClick={() => chooseFindable(true)} className="px-4 py-2 text-[10px] font-medium tracking-[0.15em] uppercase" style={{ background: 'rgb(var(--c-accent))', color: 'rgb(var(--c-ground))' }}>{t('profile.findYes')}</button>
+              <button type="button" data-profile-ask-no="" onClick={() => chooseFindable(false)} className="px-4 py-2 border border-nier-border/40 text-[10px] tracking-[0.15em] uppercase text-nier-strong hover:border-nier-border/80 transition-colors">{t('profile.findNo')}</button>
+            </div>
+          </div>
+        )}
         <ProfileTop
           name={savedName}
           username={onDevice ? '' : actualUsername}
@@ -615,6 +710,9 @@ export default function ProfileSettings({ onClose, onPinterest, pinterestOpen = 
                 {error && <p className="profile-note danger-word mt-2 text-xs">{error}</p>}
               </div>
 
+              {!onDevice && findable !== undefined && (
+                <SettingRow id="findable" label={t('profile.findable')} value={findable ? t('plans.yes') : t('plans.no')} onToggle={() => chooseFindable(!findable)} />
+              )}
               <SettingRow id="undo" label={t('profile.undoLabel')} value={String(undoDepth)} open={openRow === 'undo'} onToggle={toggleRow}>
                 <input
                   type="range"
@@ -857,6 +955,7 @@ export default function ProfileSettings({ onClose, onPinterest, pinterestOpen = 
               </p>
             )}
           </aside>
+        </div>
         </div>
       </div>
     </div>

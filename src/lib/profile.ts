@@ -9,6 +9,9 @@
 import { cloudClient, isDesktop, supabase } from './supabase'
 import { workerAccount } from './signedIn'
 import { myEntry } from './people'
+import { toWorker } from './worker'
+import { pictureAddress } from './myPicture'
+import { NO_STATS, type Stats } from './achievements'
 
 /** Whether one's profile is this device's own: the desktop's, with no account signed in. */
 export const profileOnDevice = () => isDesktop && !workerAccount()
@@ -16,7 +19,8 @@ export const profileOnDevice = () => isDesktop && !workerAccount()
 // (its data client, set once the vault's open), or an existing account's Supabase.
 const keptIn = () => (isDesktop ? supabase : cloudClient)
 
-export interface MyProfile { username: string; displayName: string; color: string | null; nameChangedAt: number | null }
+// `findable`: whether others may find it (asked once: none till then); the directory's accounts only.
+export interface MyProfile { username: string; displayName: string; color: string | null; nameChangedAt: number | null; findable?: boolean | null }
 
 // A display name changes once in this long on the web (the directory holds
 // Google accounts to it too); the desktop's, freely.
@@ -28,7 +32,10 @@ export async function loadMyProfile(userId: string): Promise<MyProfile | null> {
     const entry = await myEntry().catch(() => null)
     if (entry?.username || workerAccount()) {
       if (!entry) return null
-      return { username: entry.username ?? '', displayName: entry.display_name || entry.username || '', color: entry.settings?.player_color ?? null, nameChangedAt: entry.name_changed_at ?? null }
+      return {
+        username: entry.username ?? '', displayName: entry.display_name || entry.username || '', color: entry.settings?.player_color ?? null,
+        nameChangedAt: entry.name_changed_at ?? null, findable: typeof entry.settings?.findable === 'boolean' ? entry.settings.findable : null,
+      }
     }
   }
   if (!keptIn()) return null
@@ -95,4 +102,30 @@ export async function saveMyThemes(userId: string, themes: unknown[], onDevice =
   if (!kept) throw new Error('Not signed in')
   const { error } = await (kept.from('profiles') as any).update({ custom_themes: themes }).eq('id', userId)
   if (error) throw error
+}
+
+// ---------------------------------------------------------------- others
+
+/** Whether others may find one's profile, searching one's username: one's choice. */
+export const setFindable = (on: boolean) => myEntry({ settings: { findable: on } })
+
+export interface Found { username: string; name: string; picture: string | null }
+export interface TheirProfile extends Found { colour: string | null; stats: Stats; joined: number | null }
+
+/** Those who let themselves be found, by the start of their username or part of their name. */
+export async function findPeople(q: string): Promise<Found[]> {
+  const { ok, answer } = await toWorker<{ username: string; display_name: string | null; picture: string | null }[]>('/people/search', { q }, true)
+  if (!ok || !Array.isArray(answer)) return []
+  return answer.map(row => ({ username: row.username, name: row.display_name || row.username, picture: row.picture ? pictureAddress(row.picture) : null }))
+}
+
+/** One of them, as their profile page shows them: none if they can't be found. */
+export async function theirProfile(username: string): Promise<TheirProfile | null> {
+  const { ok, answer } = await toWorker<any>('/people/profile', { username }, true)
+  if (!ok || !answer?.username) return null
+  return {
+    username: answer.username, name: answer.display_name || answer.username, picture: answer.picture ? pictureAddress(answer.picture) : null,
+    colour: typeof answer.colour === 'string' ? answer.colour : null, joined: typeof answer.created_at === 'number' ? answer.created_at : null,
+    stats: { ...NO_STATS, ...(answer.stats && typeof answer.stats === 'object' ? answer.stats : {}), pinned: Array.isArray(answer.stats?.pinned) ? answer.stats.pinned : [] },
+  }
 }

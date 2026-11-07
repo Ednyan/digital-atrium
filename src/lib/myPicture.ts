@@ -29,7 +29,8 @@ function keep(picture: string | null) {
 }
 
 // A file's address, from its key -- by the worker, where there's a local one.
-const addressOf = (picture: string) => /^(data|blob):/.test(picture) ? picture : `${filesUrl() || workerUrl()}/${picture}`
+export const pictureAddress = (picture: string) => /^(data|blob):/.test(picture) ? picture : `${filesUrl() || workerUrl()}/${picture}`
+const addressOf = pictureAddress
 
 /** One's picture to show, or null: from this device, kept up to date. */
 export function useMyPicture(): string | null {
