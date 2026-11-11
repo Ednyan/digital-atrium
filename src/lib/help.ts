@@ -11,9 +11,11 @@ export type HelpInline =
 
 export type HelpBlock =
   | { kind: 'h2' | 'h3' | 'p'; text: string }
-  | { kind: 'list'; items: string[] }
+  // `ordered`: steps, numbered (`1. `) -- they once ran together as one paragraph.
+  | { kind: 'list'; items: string[]; ordered?: boolean }
   | { kind: 'table'; head: string[]; rows: string[][] }
-  | { kind: 'image'; alt: string; src: string }
+  // `beside`: titled "beside" in the article -- set at the side of its section, not above it.
+  | { kind: 'image'; alt: string; src: string; beside?: boolean }
 
 export interface HelpArticle {
   id: string
@@ -28,7 +30,7 @@ export interface HelpArticle {
   blocks: HelpBlock[]
 }
 
-const IMAGE = /^!\[([^\]]*)\]\(([^)]+)\)$/
+const IMAGE = /^!\[([^\]]*)\]\(([^)\s]+)(?:\s+"([^"]*)")?\)$/
 
 function blocksOf(body: string): HelpBlock[] {
   const blocks: HelpBlock[] = []
@@ -52,11 +54,15 @@ function blocksOf(body: string): HelpBlock[] {
     if (line.startsWith('## ')) { endParagraph(); blocks.push({ kind: 'h2', text: line.slice(3).trim() }); continue }
     if (line.startsWith('### ')) { endParagraph(); blocks.push({ kind: 'h3', text: line.slice(4).trim() }); continue }
     const image = IMAGE.exec(line.trim())
-    if (image) { endParagraph(); blocks.push({ kind: 'image', alt: image[1], src: image[2] }); continue }
-    if (line.startsWith('- ')) {
+    if (image) { endParagraph(); blocks.push({ kind: 'image', alt: image[1], src: image[2], ...(image[3] === 'beside' ? { beside: true } : {}) }); continue }
+    const item = /^(?:(- )|\d+\. )(.*)$/.exec(line)
+    if (item) {
       endParagraph()
-      if (last?.kind === 'list') last.items.push(line.slice(2).trim())
-      else blocks.push({ kind: 'list', items: [line.slice(2).trim()] })
+      const ordered = !item[1]
+      // After the paragraph just ended, if any: a list only goes on from a list.
+      const before = blocks[blocks.length - 1]
+      if (before?.kind === 'list' && !!before.ordered === ordered) before.items.push(item[2].trim())
+      else blocks.push({ kind: 'list', items: [item[2].trim()], ...(ordered ? { ordered } : {}) })
       continue
     }
     if (line.startsWith('|')) {
@@ -73,6 +79,31 @@ function blocksOf(body: string): HelpBlock[] {
   }
   endParagraph()
   return blocks
+}
+
+/** An article's blocks laid out: a picture marked `beside` together with what
+ *  follows it -- its section: up to the next heading after some text -- to be
+ *  set side by side (HelpPanel); everything else as it comes. A tall, narrow
+ *  picture above its table left a column of empty page beside it (the user,
+ *  2026-11-11: the quick bar's). */
+export type HelpLayout = { block: HelpBlock } | { picture: HelpBlock & { kind: 'image' }; beside: HelpBlock[] }
+export function layoutOf(blocks: HelpBlock[]): HelpLayout[] {
+  const out: HelpLayout[] = []
+  for (let i = 0; i < blocks.length; i++) {
+    const block = blocks[i]
+    if (block.kind !== 'image' || !block.beside) { out.push({ block }); continue }
+    const beside: HelpBlock[] = []
+    let text = false
+    for (; i + 1 < blocks.length; i++) {
+      const next = blocks[i + 1]
+      if (next.kind === 'h2' && text) break
+      if (next.kind === 'image' && next.beside) break
+      if (next.kind !== 'h2' && next.kind !== 'h3') text = true
+      beside.push(next)
+    }
+    out.push({ picture: block, beside })
+  }
+  return out
 }
 
 /** An article from its file's text. Null without a title and an id: a file

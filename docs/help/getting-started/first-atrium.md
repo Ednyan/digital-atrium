@@ -24,6 +24,8 @@ To be shown around the app instead, press **Tutorial**.
    in your Google Drive. On desktop, it can also be kept on this computer.
 3. Press **Create Atrium**.
 
+![New Atrium: its name, and where it's kept](../images/create-atrium.png)
+
 Where it's kept decides how you can share it and how much it can hold. See
 [Where atriums live](where-atriums-live.md).
 
@@ -56,8 +58,8 @@ takes them all back. See [Undo and saving](../arranging/undo-and-saving.md).
 
 ## 5. Share
 
-**Menu** > **Share**. An online atrium shares by link; one in your Google Drive,
-with the people you add. See [Sharing an atrium](../working-together/sharing.md).
+**Menu** > **Share**. An online or Google Drive atrium is shared with the people
+you add; a browser or desktop one, as an .atrium file. See [Sharing an atrium](../working-together/sharing.md).
 
 ## Good to know
 

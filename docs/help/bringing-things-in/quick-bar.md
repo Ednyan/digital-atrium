@@ -15,7 +15,7 @@ video: planned
 The quick bar is the column of tools on the left edge of an atrium. Pick a tool,
 then click or drag on the canvas.
 
-![The quick bar: Select, Selection, Move the view, Text, Shapes, Connect, Path, Draw, Image, Embed, Frame, Other Traces, Laser pointer, Your Pinterest Boards, and More tools](../images/quick-bar.png)
+![The quick bar: Select, Selection, Move the view, Text, Shapes, Connect, Path, Draw, Image, Embed, Frame, Other Traces, Laser pointer, Your Pinterest Boards, and More tools](../images/quick-bar.png "beside")
 
 ## The tools
 

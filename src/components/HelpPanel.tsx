@@ -5,7 +5,7 @@
 
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from '../lib/i18n'
-import { articleOfLink, helpTree, parseArticle, parseInline, searchHelp, type HelpArticle, type HelpBlock } from '../lib/help'
+import { articleOfLink, helpTree, parseArticle, parseInline, searchHelp, type HelpArticle, type HelpBlock, layoutOf } from '../lib/help'
 import { ReportFeedbackModal } from './ReportFeedbackModal'
 
 const FILES = import.meta.glob('../../docs/help/*/*.md', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
@@ -40,8 +40,12 @@ function Block({ block, onOpen }: { block: HelpBlock; onOpen: (id: string) => vo
     case 'h2': return <h3 className="mt-8 mb-3 text-nier-strong text-sm font-semibold">{inline(block.text)}</h3>
     case 'h3': return <h4 className="mt-5 mb-2 text-nier-strong text-xs font-semibold">{inline(block.text)}</h4>
     case 'p': return <p className="my-3">{inline(block.text)}</p>
-    case 'list':
-      return <ul className="my-3 ml-4 list-disc space-y-1.5">{block.items.map((item, i) => <li key={i}>{inline(item)}</li>)}</ul>
+    case 'list': {
+      const items = block.items.map((item, i) => <li key={i}>{inline(item)}</li>)
+      return block.ordered
+        ? <ol className="my-3 ml-5 list-decimal space-y-1.5">{items}</ol>
+        : <ul className="my-3 ml-4 list-disc space-y-1.5">{items}</ul>
+    }
     case 'table':
       return (
         <div className="my-4 overflow-x-auto">
@@ -60,6 +64,19 @@ function Block({ block, onOpen }: { block: HelpBlock; onOpen: (id: string) => vo
       return src ? <img src={src} alt={block.alt} loading="lazy" className="my-4 max-w-full border border-nier-border/30" /> : null
     }
   }
+}
+
+// A picture with its section beside it (lib/help layoutOf); stacked where there's no room.
+function Beside({ picture, beside, onOpen }: { picture: HelpBlock & { kind: 'image' }; beside: HelpBlock[]; onOpen: (id: string) => void }) {
+  const src = pictureOf(picture.src)
+  return (
+    <div data-help-beside="" className="my-4 flex flex-col sm:flex-row gap-5 sm:gap-6 items-start">
+      {src && <img src={src} alt={picture.alt} loading="lazy" className="shrink-0 max-w-full border border-nier-border/30" />}
+      <div className="min-w-0 flex-1 [&>h3:first-child]:mt-0 [&>div:first-child]:mt-0">
+        {beside.map((block, i) => <Block key={i} block={block} onOpen={onOpen} />)}
+      </div>
+    </div>
+  )
 }
 
 export default function HelpPanel({ onClose, username, atriumName }: { onClose: () => void; username?: string; atriumName?: string }) {
@@ -156,7 +173,9 @@ export default function HelpPanel({ onClose, username, atriumName }: { onClose: 
               <article data-help-reading={reading.id} className="max-w-2xl">
                 <button type="button" data-help-back="" onClick={() => setReading(null)} className="mb-5 sm:hidden text-[11px] tracking-[0.15em] uppercase text-nier-bg/70">← {t('help.title')}</button>
                 <h1 className="text-nier-strong text-xl font-light tracking-[0.04em] mb-3">{reading.title}</h1>
-                {reading.blocks.map((block, i) => <Block key={i} block={block} onOpen={open} />)}
+                {layoutOf(reading.blocks).map((item, i) => ('picture' in item
+                  ? <Beside key={i} picture={item.picture} beside={item.beside} onOpen={open} />
+                  : <Block key={i} block={item.block} onOpen={open} />))}
               </article>
             ) : searching ? (
               <ul data-help-results="" className="max-w-2xl space-y-1">

@@ -28,10 +28,17 @@ atrium of its own, or added to the one you're in.
 3. Give it a name. On the web, choose **Where it's kept**: **Online** or **In this browser**.
 4. Press **Import**.
 
+![The canvas's right-click menu, Import .atrium here… at its foot](../images/canvas-menu.png "beside")
+
 ## Into the atrium you're in
 
-What the file holds comes in centred where you dropped it, or in the middle of
-your view. It arrives as one step: **Ctrl+Z** takes all of it back.
+1. Right-click the canvas where you want it.
+2. Choose **Import .atrium here…**, and the file.
+
+Or drop the .atrium file there instead.
+
+What the file holds comes in centred there. It arrives as one step: **Ctrl+Z**
+takes all of it back.
 
 The app says what came in: **12 traces added**.
 

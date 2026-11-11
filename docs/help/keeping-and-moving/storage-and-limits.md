@@ -4,7 +4,7 @@ title: Storage and limits
 section: 7 Keeping and moving
 summary: How much an atrium can hold depends on where it lives; the Usage meter shows its size and how much room is left.
 keywords: storage, space, limit, full, quota, size, MB, upload failed, not enough room, cloud space, google drive full, too big, file too large, usage, make room, free space
-where: The Usage meter, bottom right of an atrium
+where: The Usage meter, bottom right of an atrium; point at it for the space
 works_on: web, desktop, phone
 related: where-atriums-live, moving-atriums, drop-and-paste, export, desktop-vault
 video:
@@ -13,8 +13,9 @@ video:
 # Storage and limits
 
 How much an atrium can hold depends on where it lives. The **Usage** meter at
-the bottom right of an atrium shows its size. Point at it to see how much room
-is left.
+the bottom right of an atrium shows its size.
+
+![The Usage meter at the bottom right of an atrium](../images/usage-meter.png)
 
 | The atrium lives | Its room | When it's full |
 |---|---|---|
@@ -28,7 +29,9 @@ You can own up to **3** online atriums.
 ## Read the Usage meter
 
 - The number is the atrium's size.
-- Point at it to see the space: **Your cloud space: … of … used, … free**, or
+- In an online or Drive atrium, beside it: how much room is free, **… free in
+  your cloud space** or **… free in Drive**.
+- Point at it for the whole space: **Your cloud space: … of … used, … free**, or
   **Google Drive: … of … used, … free**.
 - The thin line along its foot shows how near the limit you are. It turns yellow
   at 80% and red when full.

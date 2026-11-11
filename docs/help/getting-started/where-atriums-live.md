@@ -14,6 +14,8 @@ video: none
 
 You choose where an atrium is kept when you make it.
 
+![New Atrium: Where it's kept, Online, In this browser or In Google Drive](../images/create-atrium.png)
+
 | | In this browser | Online (the Atrium's cloud) | In Google Drive | Desktop app |
 |---|---|---|---|---|
 | **Needs** | Nothing | An account | A Google sign-in | The app |
@@ -45,6 +47,6 @@ You choose where an atrium is kept when you make it.
 ## Related
 
 - [Storage and limits](../keeping-and-moving/storage-and-limits.md): what counts, and how to make room.
-- [Sharing](../working-together/sharing.md): links, IDs and invitations.
+- [Sharing](../working-together/sharing.md): invitations, invite links and .atrium files.
 - [Google Drive atriums](../working-together/drive-atriums.md): members and encryption.
 - [The desktop vault](../keeping-and-moving/desktop-vault.md): where the app keeps its files.

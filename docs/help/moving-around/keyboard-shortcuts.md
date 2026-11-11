@@ -15,6 +15,8 @@ video: none
 Keys don't act while you're typing in a box. On a Mac, use **Cmd** for **Ctrl**.
 The short list is also under **Atrium menu** > **Controls**.
 
+![The Controls panel: each action and its key](../images/controls-panel.png)
+
 ## Moving around
 
 | Key | What it does |

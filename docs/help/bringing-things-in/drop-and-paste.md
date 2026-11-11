@@ -16,6 +16,8 @@ Drag files or links onto the canvas, or paste them, and each one becomes a trace
 While you drag, the canvas says **DROP FILE TO CREATE TRACE** or **DROP LINK TO
 CREATE TRACE**.
 
+![A picture dragged from the computer and dropped on the canvas](../images/drop-file.webp)
+
 ## What each becomes
 
 | You bring in | It becomes |

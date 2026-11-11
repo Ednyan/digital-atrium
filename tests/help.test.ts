@@ -50,6 +50,16 @@ test('the body becomes headings, paragraphs, lists, tables and pictures', () => 
   ])
 })
 
+test('numbered steps are a numbered list, apart from the points after them', () => {
+  const a = article('x', 'X', '', ['Do this:', '1. Open it.', '2. Name it,', '   and choose.', '- A point', '', '1. Again'].join('\n'))
+  assert.deepEqual(a.blocks, [
+    { kind: 'p', text: 'Do this:' },
+    { kind: 'list', items: ['Open it.', 'Name it, and choose.'], ordered: true },
+    { kind: 'list', items: ['A point'] },
+    { kind: 'list', items: ['Again'], ordered: true },
+  ])
+})
+
 test('inline marks: bold, code, links', () => {
   assert.deepEqual(parseInline('Press **8**, see `x` or [Groups](groups.md): done'), [
     { kind: 'text', text: 'Press ' }, { kind: 'bold', text: '8' }, { kind: 'text', text: ', see ' },
@@ -100,4 +110,25 @@ test('every article is sound: id, summary, keywords, section, its pictures', () 
       if (block.kind === 'image') assert.ok(existsSync(resolve(dirname(file), block.src)), `${a.id}: no picture ${block.src}`)
     }
   }
+})
+
+import { layoutOf } from '../src/lib/help.ts'
+
+test('a picture marked beside takes its section beside it, up to the next heading after text', () => {
+  const blocks = [
+    { kind: 'image', alt: 'Bar', src: 'b.png', beside: true },
+    { kind: 'h2', text: 'The tools' },
+    { kind: 'table', head: ['a'], rows: [['1']] },
+    { kind: 'h2', text: 'Next' },
+    { kind: 'p', text: 'after' },
+  ] as any
+  const out = layoutOf(blocks)
+  assert.equal(out.length, 3)
+  assert.ok('picture' in out[0] && out[0].beside.map(b => b.kind).join() === 'h2,table')
+  assert.deepEqual(out.slice(1).map(item => 'block' in item && item.block.kind), ['h2', 'p'])
+})
+
+test('a picture not marked stays above, as it was', () => {
+  const out = layoutOf([{ kind: 'image', alt: 'x', src: 'x.png' }, { kind: 'p', text: 'y' }] as any)
+  assert.deepEqual(out.map(item => 'block' in item), [true, true])
 })
