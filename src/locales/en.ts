@@ -1109,6 +1109,8 @@ export const en = {
   'atrium.profile.confirmDelete': "Ask before deleting",
   'atrium.profile.confirmDeleteHint': "Deleting a trace asks first. Turned off from that dialog, it can be turned back on here.",
   'atrium.profile.sound': "Sound",
+  'atrium.profile.uiSounds': "Interface sounds",
+  'atrium.profile.uiSoundsHint': "A short, soft sound as you place, delete, connect, undo, save or pick a colour.",
   'atrium.profile.spatialSound': "Spatial sound",
   'atrium.profile.spatialSoundHint': "A playing video or sound is heard from where it is: as it is while in view, then quieter and from its side as it leaves the screen.",
   'atrium.minimap': "Minimap of the atrium",

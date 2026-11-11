@@ -4,6 +4,7 @@
 // history is the one timeline -- an undo is a change like any other, saved
 // the same way -- and it outlasts a save.
 
+import { play } from './sounds'
 import { supabase, isLocalData } from './supabase'
 import { useGameStore } from '../store/gameStore'
 import { showToast } from './toast'
@@ -159,6 +160,9 @@ async function write(): Promise<boolean> {
 let inFlight: Promise<boolean> | null = null
 /** Once the save under way, if any, is over -- written or not. */
 export const whenSaveDone = (): Promise<unknown> => inFlight ?? Promise.resolve()
+/** Saved because it was asked for (Save, Ctrl+S): heard, when it went through (lib/sounds). */
+export const saveByHand = (): Promise<boolean> => saveAllChanges().then(ok => { if (ok) play('save'); return ok })
+
 export function saveAllChanges(): Promise<boolean> {
   if (inFlight) return inFlight.then(() => saveAllChanges())
   const saving = write().finally(() => { inFlight = null })

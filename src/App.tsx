@@ -55,7 +55,9 @@ import { PINTEREST_CONNECTED_EVENT, handlePinterestCallback, hasPendingDesktopPi
 import { isGhostEntry } from './lib/operatorGhost'
 import { noteAppStarted, noteVersionSeen, recordAppealResponse } from './lib/supportAppeal'
 import { useLandingTheme } from './lib/useLandingTheme'
-import { markAtriumVisited } from './lib/recentAtriums'
+import { atriumVisitedAt, markAtriumVisited } from './lib/recentAtriums'
+import { warmLastPicture } from './lib/atriumCards'
+import { unfinishedTutorial } from './lib/tutorial'
 import { adoptLegacyHashRoute, currentRoutePath, goTo, onRouteChange } from './lib/route'
 import {
   hasCompletedContribution,
@@ -1141,15 +1143,20 @@ function AppInner() {
     let cancelled = false
     const video = document.createElement('video')
     video.muted = true
-    video.preload = 'auto'
+    video.preload = 'none'
     video.src = ENTERING_ANIMATION_VIDEO_SRC
     const markReady = () => { if (!cancelled) setEnteringVideoReady(true) }
     video.addEventListener('canplaythrough', markReady)
     video.addEventListener('error', markReady) // don't block entry forever if the video fails to load
-    video.load()
+    // Once the page itself has loaded: half a megabyte asked for at once shared the
+    // line with what shows first. Entering before it's here waits in the loading loop.
+    const begin = () => { if (cancelled) return; video.preload = 'auto'; video.load() }
+    if (document.readyState === 'complete') begin()
+    else window.addEventListener('load', begin, { once: true })
 
     return () => {
       cancelled = true
+      window.removeEventListener('load', begin)
       video.removeEventListener('canplaythrough', markReady)
       video.removeEventListener('error', markReady)
     }
@@ -1561,6 +1568,7 @@ function AppInner() {
     const loadWorkerAccount = async (signingIn: boolean) => {
       const account = workerAccount()
       if (!account) return
+      if (parseRoute().page !== 'atrium') warmLastPicture(account.id, atriumVisitedAt, unfinishedTutorial())
       try {
         // With it, what the first page will ask the directory (lib/worker
         // askAhead): one request, where the sign-in's went alone.

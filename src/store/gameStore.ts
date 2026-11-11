@@ -75,6 +75,8 @@ interface GameState {
   panelActions: string[] | null
   // A playing trace heard from where it is (lib/spatialSound); off by default.
   spatialSound: boolean
+  // The interface's own sounds (lib/sounds): off at first on the web, on in the desktop app.
+  uiSounds: boolean
   // The atrium in miniature in a corner while the view moves (Minimap); on unless turned off.
   showMinimap: boolean
   // How it shows and answers (MinimapPanel): always, or while the view moves;
@@ -129,6 +131,7 @@ interface GameState {
   setViewBarOrder: (order: string[] | null) => void
   setPanelActions: (actions: string[] | null) => void
   setSpatialSound: (on: boolean) => void
+  setUiSounds: (on: boolean) => void
   setShowMinimap: (on: boolean) => void
   setMinimapPrefs: (change: Partial<MinimapPrefs>) => void
   setAutoSave: (on: boolean) => void
@@ -258,6 +261,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   })(),
   confirmDelete: localStorage.getItem('dontAskDeleteTrace') !== 'true',
   spatialSound: localStorage.getItem('spatialSound') === 'true',
+  uiSounds: (localStorage.getItem('uiSounds') ?? String(isDesktop)) === 'true',
   showMinimap: localStorage.getItem('atrium.minimap') !== 'off',
   minimapPrefs: (() => {
     try { return { ...MINIMAP_PREFS, ...JSON.parse(localStorage.getItem('atrium.minimapPrefs') ?? '{}') } } catch { return MINIMAP_PREFS }
@@ -379,6 +383,10 @@ export const useGameStore = create<GameState>((set, get) => ({
   setSpatialSound: (on) => {
     localStorage.setItem('spatialSound', String(on))
     set({ spatialSound: on })
+  },
+  setUiSounds: (on) => {
+    localStorage.setItem('uiSounds', String(on))
+    set({ uiSounds: on })
   },
   setShowMinimap: (on) => {
     localStorage.setItem('atrium.minimap', on ? 'on' : 'off')

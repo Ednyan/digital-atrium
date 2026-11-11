@@ -1162,6 +1162,8 @@ const ptPT: Catalogue = {
   'atrium.profile.confirmDelete': "Perguntar antes de eliminar",
   'atrium.profile.confirmDeleteHint': "Eliminar um trace pergunta antes. Desligado nessa caixa de diálogo, pode voltar a ser ligado aqui.",
   'atrium.profile.sound': "Som",
+  'atrium.profile.uiSounds': "Sons da interface",
+  'atrium.profile.uiSoundsHint': "Um som curto e suave ao colocares, apagares, ligares, anulares, guardares ou recolheres uma cor.",
   'atrium.profile.spatialSound': "Som espacial",
   'atrium.profile.spatialSoundHint': "Um vídeo ou som a tocar ouve-se de onde está: normal enquanto está à vista, e mais baixo e do seu lado quando sai do ecrã.",
   'atrium.minimap': "Minimapa do átrio",

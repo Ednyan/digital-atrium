@@ -1134,6 +1134,8 @@ const zh: Catalogue = {
   'atrium.profile.confirmDelete': "删除前询问",
   'atrium.profile.confirmDeleteHint': "删除 trace 前会先询问。在该对话框中关闭后，可在此重新开启。",
   'atrium.profile.sound': "声音",
+  'atrium.profile.uiSounds': "界面音效",
+  'atrium.profile.uiSoundsHint': "放置、删除、连接、撤销、保存或取色时，会有一声短而轻的提示音。",
   'atrium.profile.spatialSound': "空间音效",
   'atrium.profile.spatialSoundHint': "正在播放的视频或声音会从其所在位置传来：在视野内时保持原样，离开屏幕后会变小，并从它所在的一侧传来。",
   'atrium.minimap': "中庭小地图",

@@ -10,7 +10,9 @@ import type { PreviewDetail } from '../lib/atriumPreview'
 
 const inVault = (url?: string | null) => !!url && url.startsWith('local://')
 
-export default function AtriumPicture({ url, className = '' }: { url?: string | null; className?: string }) {
+// `first`: the page's largest picture (Home's last atrium) -- asked for at once and ahead
+// of the rest, not when the browser gets round to it: it was the last thing to show.
+export default function AtriumPicture({ url, className = '', first = false }: { url?: string | null; className?: string; first?: boolean }) {
   // Undefined while it's being read: not yet known to be without one.
   const [src, setSrc] = useState<string | null | undefined>(() => (inVault(url) ? undefined : url ?? null))
   // Made anew (lib/atriumPreview), at the same address: read again.
@@ -46,7 +48,7 @@ export default function AtriumPicture({ url, className = '' }: { url?: string | 
     }
   }, [url, made])
   if (src === undefined) return null
-  if (src) return <img src={src} alt="" loading="lazy" decoding="async" className={`atrium-picture absolute inset-0 w-full h-full object-cover ${className}`} />
+  if (src) return <img src={src} alt="" loading={first ? 'eager' : 'lazy'} decoding="async" {...(first ? { fetchpriority: 'high' } : {})} className={`atrium-picture absolute inset-0 w-full h-full object-cover ${className}`} />
   return (
     <div
       aria-hidden="true"

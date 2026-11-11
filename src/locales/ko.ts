@@ -1135,6 +1135,8 @@ const ko: Catalogue = {
   'atrium.profile.confirmDelete': "삭제 전에 묻기",
   'atrium.profile.confirmDeleteHint': "trace를 삭제하기 전에 먼저 물어요. 그 대화상자에서 껐다면 여기서 다시 켤 수 있어요.",
   'atrium.profile.sound': "소리",
+  'atrium.profile.uiSounds': "인터페이스 소리",
+  'atrium.profile.uiSoundsHint': "배치, 삭제, 연결, 실행 취소, 저장, 색 추출을 할 때 짧고 부드러운 소리가 납니다.",
   'atrium.profile.spatialSound': "공간 음향",
   'atrium.profile.spatialSoundHint': "재생 중인 동영상이나 소리가 있는 자리에서 들려요. 화면 안에서는 그대로, 화면 밖으로 나가면 작아지고 그쪽에서 들려요.",
   'atrium.minimap': "아트리움 미니맵",

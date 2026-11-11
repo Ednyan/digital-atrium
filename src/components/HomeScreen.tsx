@@ -325,7 +325,7 @@ export default function HomeScreen({ view, onGo, onOpenAtrium, guest = false, on
                   className="welcome-hero enter-up group relative min-h-[18rem] lg:min-h-[24rem] overflow-hidden border border-nier-border/40 bg-nier-blackLight cursor-pointer"
                   style={{ '--i': 4 } as CSSProperties}
                 >
-                  <AtriumPicture url={last.preview} className="welcome-hero-picture" />
+                  <AtriumPicture url={last.preview} className="welcome-hero-picture" first />
                   <div className="welcome-hero-words absolute inset-x-0 bottom-0 flex flex-wrap items-end justify-between gap-5 p-5 sm:p-7 !pt-44">
                     <div className="min-w-0">
                       <h2 data-welcome-last="" className="text-[1.75rem] font-normal text-nier-strong break-words">{last.name}</h2>

@@ -1155,6 +1155,8 @@ const es: Catalogue = {
   'atrium.profile.confirmDelete': "Preguntar antes de eliminar",
   'atrium.profile.confirmDeleteHint': "Eliminar un trace pregunta antes. Si se desactiva desde ese diálogo, se puede volver a activar aquí.",
   'atrium.profile.sound': "Sonido",
+  'atrium.profile.uiSounds': "Sonidos de la interfaz",
+  'atrium.profile.uiSoundsHint': "Un sonido breve y suave al colocar, borrar, conectar, deshacer, guardar o tomar un color.",
   'atrium.profile.spatialSound': "Sonido espacial",
   'atrium.profile.spatialSoundHint': "Un vídeo o sonido en reproducción se oye desde donde está: igual mientras está a la vista, y más bajo y desde su lado al salir de la pantalla.",
   'atrium.minimap': "Minimapa del atrio",

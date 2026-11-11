@@ -1158,6 +1158,8 @@ const de: Catalogue = {
   'atrium.profile.confirmDelete': "Vor dem Löschen fragen",
   'atrium.profile.confirmDeleteHint': "Vor dem Löschen eines Trace wird gefragt. Im Dialog ausgeschaltet, lässt es sich hier wieder einschalten.",
   'atrium.profile.sound': "Ton",
+  'atrium.profile.uiSounds': "Töne der Oberfläche",
+  'atrium.profile.uiSoundsHint': "Ein kurzer, leiser Ton beim Platzieren, Löschen, Verbinden, Rückgängigmachen, Speichern oder Aufnehmen einer Farbe.",
   'atrium.profile.spatialSound': "Räumlicher Ton",
   'atrium.profile.spatialSoundHint': "Ein laufendes Video oder ein Ton ist von dort zu hören, wo er ist: unverändert, solange er sichtbar ist, dann leiser und von seiner Seite, wenn er den Bildschirm verlässt.",
   'atrium.minimap': "Übersichtskarte des Atriums",

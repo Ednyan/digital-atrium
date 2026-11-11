@@ -76,6 +76,15 @@ export function recentCards(cards: Record<string, AtriumCard>, visitedAt: (id: s
     .sort((a, b) => visitedAt(b.id) - visitedAt(a.id))
 }
 
+/** The picture Home shows largest -- its last atrium's -- asked for now, while who's
+ *  signed in is still being confirmed, so it's there as Home arrives: it came last of
+ *  all, some three seconds in (Cloudflare's Web Analytics, 2026-11-10). The same request
+ *  Home's own picture makes, so no more of them. A vault's picture is read where it is. */
+export function warmLastPicture(userId: string, visitedAt: (id: string) => number, skip: string | null = null) {
+  const url = recentCards(readCards(userId), visitedAt, skip)[0]?.preview
+  if (url && /^https?:/.test(url)) new Image().src = url
+}
+
 // How long ago, as Intl.RelativeTimeFormat takes it.
 export function agoOf(at: number, now: number): [number, 'minute' | 'hour' | 'day' | 'week' | 'month'] {
   const minutes = Math.max(0, Math.round((now - at) / 60_000))

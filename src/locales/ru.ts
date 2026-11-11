@@ -1161,6 +1161,8 @@ const ru: Catalogue = {
   'atrium.profile.confirmDelete': "Спрашивать перед удалением",
   'atrium.profile.confirmDeleteHint': "Перед удалением trace появляется вопрос. Если отключить его в этом окне, включить снова можно здесь.",
   'atrium.profile.sound': "Звук",
+  'atrium.profile.uiSounds': "Звуки интерфейса",
+  'atrium.profile.uiSoundsHint': "Короткий мягкий звук, когда вы размещаете, удаляете, соединяете, отменяете, сохраняете или берёте цвет.",
   'atrium.profile.spatialSound': "Объёмный звук",
   'atrium.profile.spatialSoundHint': "Играющее видео или звук слышно оттуда, где оно находится: как есть, пока оно на экране, а затем тише и со своей стороны, когда оно уходит за край.",
   'atrium.minimap': "Миникарта атриума",

@@ -1157,6 +1157,8 @@ const fr: Catalogue = {
   'atrium.profile.confirmDelete': "Demander avant de supprimer",
   'atrium.profile.confirmDeleteHint': "Supprimer un trace demande d’abord. Désactivé depuis cette boîte de dialogue, il se réactive ici.",
   'atrium.profile.sound': "Son",
+  'atrium.profile.uiSounds': "Sons de l'interface",
+  'atrium.profile.uiSoundsHint': "Un son bref et doux quand tu places, supprimes, relies, annules, enregistres ou prélèves une couleur.",
   'atrium.profile.spatialSound': "Son spatial",
   'atrium.profile.spatialSoundHint': "Une vidéo ou un son en lecture s’entend d’où il se trouve : tel quel tant qu’il est visible, puis plus bas et de son côté quand il quitte l’écran.",
   'atrium.minimap': "Mini-carte de l'atrium",

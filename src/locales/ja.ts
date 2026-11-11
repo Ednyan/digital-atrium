@@ -1131,6 +1131,8 @@ const ja: Catalogue = {
   'atrium.profile.confirmDelete': "削除前に確認",
   'atrium.profile.confirmDeleteHint': "trace を削除する前に確認します。確認ダイアログでオフにした場合も、ここで再びオンにできます。",
   'atrium.profile.sound': "サウンド",
+  'atrium.profile.uiSounds': "操作音",
+  'atrium.profile.uiSoundsHint': "配置、削除、接続、元に戻す、保存、色の取得のときに、短く控えめな音が鳴ります。",
   'atrium.profile.spatialSound': "空間サウンド",
   'atrium.profile.spatialSoundHint': "再生中の動画や音は、その位置から聞こえます。画面内ではそのまま、画面の外に出ると小さくなり、その方向から聞こえます。",
   'atrium.minimap': "アトリウムのミニマップ",

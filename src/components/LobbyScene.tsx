@@ -41,13 +41,14 @@ import { endedFor, isDriveAtrium, isDriveOwner, isDriveViewer, isHostedAtrium, s
 import ReportAtriumModal from './ReportAtriumModal'
 import DriveSettings from './DriveSettings'
 import { takeColourAt } from '../lib/eyedropper'
+import { sceneRender } from '../lib/colourAt'
 import { tCount, useTranslation } from '../lib/i18n'
 import { isCanvasTarget, isEditableTarget } from '../lib/editableTarget'
 import { recordAction } from '../lib/actionHistory'
 import { adoptTraces } from '../lib/layerUndo'
 import { cachedPicture, dropStrokes, holdDrawingFiles, loadDrawingPicture, paintedDrawing, pictureFieldsOf, pictureRow, pieceFields, placementOf, releaseDrawingFiles, restoreStrokes, saveDrawingPicture, writeDrawing, writePicture, type PictureFields } from '../lib/drawingFiles'
 import { useClampedMenuPosition } from '../hooks/useClampedMenuPosition'
-import { discardAllChanges, saveAllChanges, startAutosave } from '../lib/traceSave'
+import { discardAllChanges, saveAllChanges, saveByHand, startAutosave } from '../lib/traceSave'
 import { changeLocations, mapLocationRow, receiveLocations } from '../lib/locations'
 import { convertEmbedToInternalImage } from '../lib/traceConvert'
 import { drawRanks, groupIdOf, inOrder, keyAt, keysBetween, keysOnTopOfGroup, newTraceOrderFields, topLevel } from '../lib/order'
@@ -2295,7 +2296,7 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
         const at = lastMouseScreenPositionRef.current
         if (at) {
           e.preventDefault()
-          void takeColourAt(at.x, at.y, useGameStore.getState().traces)
+          void takeColourAt(at.x, at.y)
         }
         return
       }
@@ -3494,6 +3495,8 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
       canvas.ondragstart = () => false
       canvasRef.current.appendChild(canvas)
       appRef.current = app
+      // The eyedropper reads this canvas as it's drawn (lib/colourAt).
+      sceneRender.now = () => app.render()
       app.renderer.background.alpha = 1
       // Drawn by the frame below, when something on it has changed -- not by
       // Pixi on every frame, the same picture again and again while the view
@@ -4366,6 +4369,7 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
       if (appRef.current) {
         appRef.current.destroy(true, { children: true })
         appRef.current = null
+        sceneRender.now = null
       }
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -5706,7 +5710,7 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
               label={shownSave.label}
               hint={canSave ? 'Ctrl+S' : undefined}
               data-save=""
-              onClick={() => { void saveAllChanges() }}
+              onClick={() => { void saveByHand() }}
               disabled={!canSave}
               active={canSave && !saveFailed}
               iconClassName={isSavingChanges ? 'animate-pulse' : undefined}

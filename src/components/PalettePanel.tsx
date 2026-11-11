@@ -79,6 +79,7 @@ export default function PalettePanel({ open }: { open: boolean }) {
         <button
           type="button"
           data-palette-colour={colour}
+          data-palette-slot={index}
           onClick={() => use(colour)}
           onContextMenu={e => { e.preventDefault(); choose(index) }}
           title={t('atrium.palette.swatch', { hex: colour })}

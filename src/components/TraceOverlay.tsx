@@ -25,7 +25,8 @@ import { isCanvasTarget, isEditableTarget } from '../lib/editableTarget'
 import { resolveLocalStreamUrl } from '../lib/localMedia'
 
 import ProfileCustomization from './ProfileCustomization'
-import { saveAllChanges, TRACE_DISCARD_COMPLETED_EVENT, TRACE_SAVE_COMPLETED_EVENT } from '../lib/traceSave'
+import { saveByHand, TRACE_DISCARD_COMPLETED_EVENT, TRACE_SAVE_COMPLETED_EVENT } from '../lib/traceSave'
+import { play } from '../lib/sounds'
 import { TRACES_RECEIVED_EVENT } from '../lib/liveChanges'
 import { convertEmbedToInternalImage } from '../lib/traceConvert'
 import { computeAutoFitTextSize, fittedTextBox, fontPxOf, resolveFontFamilyCss, fitFontSize, watchFonts, fontsLoadedVersion } from '../lib/textFit'
@@ -2171,6 +2172,7 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
   // deleting a selected group of twelve took twelve Ctrl+Z to bring back.
   const pushDeleteOp = useCallback((items: { trace: Trace; links: TraceLink[] }[]) => {
     if (items.length === 0) return
+    play('remove')
     pushUndo(items.length === 1
       ? { kind: 'delete', trace: cloneTraceSnapshot(items[0].trace), links: items[0].links }
       : { kind: 'batchDelete', items: items.map(item => ({ trace: cloneTraceSnapshot(item.trace), links: item.links })) })
@@ -2215,6 +2217,8 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
     }
     if (newlyDiscovered.length > 0) {
       count('placed', made.length)
+      // One's own, just made (lib/sounds): not what a reload or someone else brings.
+      if (made.length > 0) play('place')
       count('drawings', made.filter(isDrawingTrace).length)
       pushBatchAddOp(newlyDiscovered)
       joinFramesRef.current?.(newlyDiscovered)
@@ -2368,6 +2372,7 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
     const op = undoStackRef.current.pop()
     if (!op) return
     redoStackRef.current.push(op)
+    play('undo')
     showReach()
     applyUndoOp(op, 'undo')
   }, [applyUndoOp])
@@ -2376,6 +2381,7 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
     const op = redoStackRef.current.pop()
     if (!op) return
     undoStackRef.current.push(op)
+    play('redo')
     showReach()
     applyUndoOp(op, 'redo')
   }, [applyUndoOp])
@@ -2939,6 +2945,7 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
     clearLinkSelection()
     if (gone.length === 0) return
     for (const link of gone) dropLink(link.id)
+    play('remove')
     pushLinksOp(gone, [])
   }
 
@@ -3013,6 +3020,7 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
     if (made.length === 0) return
     count('threads', made.length)
     for (const link of made) putLink(link)
+    play('connect')
     pushLinksOp([], made)
   }
 
@@ -3059,11 +3067,19 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
   useEffect(() => {
     if (selectedLinks.size === 0) return
     const press = (e: PointerEvent) => {
-      if (!(e.target as HTMLElement)?.closest?.('[data-link]')) clearLinkSelection()
+      const on = e.target as HTMLElement
+      if (on?.closest?.('[data-link]')) return
+      // The press that starts another area or lasso (Shift, or the Selection
+      // tool, on the bare canvas -- LobbyScene's own test): what it takes is
+      // added, to the threads as to the traces, so they're kept for it.
+      if ((e.shiftKey || selectingRef.current) && e.button === 0 && !on?.closest?.('[data-trace-element], [data-ui-element], button, input, textarea, select, label, [role="dialog"], .customize-menu, .pointer-events-auto')) return
+      clearLinkSelection()
     }
     window.addEventListener('pointerdown', press, true)
     return () => window.removeEventListener('pointerdown', press, true)
   }, [selectedLinks])
+  const selectingRef = useRef(selecting)
+  selectingRef.current = selecting
 
   const traceById = React.useMemo(() => new Map(traces.map(t => [t.id, t])), [traces])
   // Where a thread's end is: the trace's centre and box in world units, as it
@@ -3107,7 +3123,7 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
     const handleSaveShortcut = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault()
-        void saveAllChanges()
+        void saveByHand()
       }
     }
     window.addEventListener('keydown', handleSaveShortcut)
@@ -3468,6 +3484,60 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
     bottom: inGroup ? t('atrium.menu.moveBottomOfGroup') : t('atrium.menu.moveToBottom'),
   })
 
+  // Flip Horizontal / Vertical: `ids` mirrored as one picture, across the
+  // middle of the box round them all, along the WORLD's axes -- the user's,
+  // 2026-11-10. Each used to flip along its own turned axes, in place: a
+  // turned trace mirrored askew, and a selection's traces each on its own
+  // middle. A mirror of a turned box is the box turned the other way with
+  // its content flipped (M.R(a) = R(-a).M), at the mirrored place; a crop
+  // shows the same part of the picture, mirrored; a path's points are
+  // mirrored themselves. What a selected frame holds goes with it (not an
+  // arranged frame's, which are laid out again). Sound, film and pins move
+  // and turn, their content left as it is (a pin as Pinterest delivers it).
+  // One change a trace, one step of undo.
+  const mirrorTraces = (ids: string[], across: 'horizontal' | 'vertical') => {
+    const frames = new Set(traces.filter(t => ids.includes(t.id) && isFrame(t) && !isArranged(t)).map(t => t.id))
+    const chosen = traces.filter(t => ids.includes(t.id) || (!!t.frameId && frames.has(t.frameId)))
+    if (chosen.length === 0) return
+    const h = across === 'horizontal'
+    let low = Infinity, high = -Infinity
+    for (const t of chosen) {
+      const b = traceBoxFor(t)
+      const turn = isPathTrace(t) ? 0 : ((getTraceTransform(t).rotation ?? 0) * Math.PI) / 180
+      const reach = h ? Math.abs(b.halfW * Math.cos(turn)) + Math.abs(b.halfH * Math.sin(turn)) : Math.abs(b.halfW * Math.sin(turn)) + Math.abs(b.halfH * Math.cos(turn))
+      const middle = h ? b.cx : b.cy
+      low = Math.min(low, middle - reach)
+      high = Math.max(high, middle + reach)
+    }
+    const over = (v: number) => low + high - v
+    const moved: Record<string, ReturnType<typeof getTraceTransform>> = {}
+    inOneStep(() => {
+      for (const t of chosen) {
+        if (isPathTrace(t)) {
+          const points = ((t.shapePoints ?? []) as PathPoint[]).map(pt => (h
+            ? { ...pt, x: over(pt.x), ...(pt.cp1x !== undefined ? { cp1x: over(pt.cp1x) } : {}), ...(pt.cp2x !== undefined ? { cp2x: over(pt.cp2x) } : {}) }
+            : { ...pt, y: over(pt.y), ...(pt.cp1y !== undefined ? { cp1y: over(pt.cp1y) } : {}), ...(pt.cp2y !== undefined ? { cp2y: over(pt.cp2y) } : {}) }))
+          updateTraceCustomization(t.id, { shapePoints: points })
+          continue
+        }
+        const at = getTraceTransform(t)
+        const now = { ...at, x: h ? over(at.x) : at.x, y: h ? at.y : over(at.y), rotation: normalizeAngle(-(at.rotation ?? 0)) }
+        moved[t.id] = now
+        const flips = !isFrame(t) && t.type !== 'audio' && t.type !== 'video' && !isPin(t)
+        const cropped = (t.cropWidth ?? 1) < 1 || (t.cropHeight ?? 1) < 1
+        updateTraceCustomization(t.id, {
+          x: now.x, y: now.y, rotation: now.rotation,
+          ...(flips ? (h ? { flipHorizontal: !t.flipHorizontal } : { flipVertical: !t.flipVertical }) : {}),
+          ...(flips && cropped ? (h ? { cropX: 1 - (t.cropX ?? 0) - (t.cropWidth ?? 1) } : { cropY: 1 - (t.cropY ?? 0) - (t.cropHeight ?? 1) }) : {}),
+        }, { alone: true })
+      }
+    })
+    // Drawn from where they are now (a transform kept from a drag would show the old place).
+    setLocalTraceTransforms(prev => ({ ...prev, ...moved }))
+    // Several: each is somewhere else now, in or out of a frame.
+    if (chosen.length > 1) settleInFrames(chosen.map(t => t.id))
+  }
+
   // Everything the Customization panel's footer can hold, for `ids` -- one
   // trace, or a selection (Batch Edit) -- each saying whether it applies
   // there; the footer shows those chosen for it (Customization, PanelFooter).
@@ -3493,8 +3563,8 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
       { id: 'lock', icon: ACTION_ICONS.lock, label: allLocked ? t('atrium.menu.unlock') : t('atrium.menu.lock'), active: allLocked, onClick: () => each(() => (allLocked ? UNLOCKED : { isLocked: true })) },
       { id: 'delete', icon: ACTION_ICONS.delete, label: t('common.delete'), danger: true, onClick: () => { close(); deleteTraces(ids, []) } },
       { id: 'crop', icon: ACTION_ICONS.crop, label: t('atrium.customize.actionCrop'), active: isCropMode, applies: !!one && !isPathTrace(one) && !isFrame(one) && !isPin(one), onClick: () => setIsCropMode(was => !was) },
-      { id: 'flipH', icon: ACTION_ICONS.flipH, label: t('atrium.menu.flipHorizontal'), applies: flippable.length > 0, onClick: () => each(tr => ({ flipHorizontal: !tr.flipHorizontal }), flippable) },
-      { id: 'flipV', icon: ACTION_ICONS.flipV, label: t('atrium.menu.flipVertical'), applies: flippable.length > 0, onClick: () => each(tr => ({ flipVertical: !tr.flipVertical }), flippable) },
+      { id: 'flipH', icon: ACTION_ICONS.flipH, label: t('atrium.menu.flipHorizontal'), applies: flippable.length > 0, onClick: () => mirrorTraces(ids, 'horizontal') },
+      { id: 'flipV', icon: ACTION_ICONS.flipV, label: t('atrium.menu.flipVertical'), applies: flippable.length > 0, onClick: () => mirrorTraces(ids, 'vertical') },
       { id: 'resetRotation', icon: ACTION_ICONS.resetRotation, label: t('atrium.menu.resetRotation'), onClick: () => inOneStep(() => { for (const id of ids) updateTraceTransform(id, { rotation: 0 }) }) },
       { id: 'connect', icon: ACTION_ICONS.connect, label: t('atrium.menu.connectTo'), onClick: () => setConnectFrom(ids) },
       { id: 'frame', icon: ACTION_ICONS.frame, label: t('atrium.menu.wrapInFrame'), applies: chosen.some(tr => !isFrame(tr)), onClick: () => wrapInFrame(ids) },
@@ -4435,7 +4505,34 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
       const local = turn(deltaX / currentZoom, deltaY / currentZoom, -start.rotation)
       const startCrop = startCropRef.current
       const from: Crop = { x: startCrop.cropX, y: startCrop.cropY, w: startCrop.cropWidth, h: startCrop.cropHeight }
-      const next = dragCrop(from, startPosRef.current.corner, local.x / boxW, local.y / boxH)
+      const handle = startPosRef.current.corner
+      let next = dragCrop(from, handle, local.x / boxW, local.y / boxH)
+      // Shift lands the edge being dragged on a neighbour's edge or middle,
+      // else on the grid (edgeTargets), as moving and resizing do -- each
+      // axis by itself: a crop has no shape to keep. The whole box stays put
+      // while its window is cropped, so a share of it is a place in the
+      // world. Not a turned trace's (its edges aren't axis-aligned lines),
+      // nor the whole window slid about ('m').
+      let cropGuides: { x?: { at: number; from: number; to: number }; y?: { at: number; from: number; to: number } } | null = null
+      if (e.shiftKey && handle !== 'm' && (start.rotation ?? 0) % 360 === 0) {
+        const frame = trace.type !== 'shape' && (trace.showBorder ?? true) ? (trace.borderWidth ?? 2) : 0
+        const middleU = trace.type === 'shape' ? 0.5 : from.x + from.w / 2
+        const middleV = trace.type === 'shape' ? 0.5 : from.y + from.h / 2
+        const worldX = (u: number) => start.x + (u - middleU) * boxW
+        const worldY = (v: number) => start.y + (v - middleV) * boxH
+        const span = (c: Crop) => ({ left: worldX(c.x) - frame, right: worldX(c.x + c.w) + frame, top: worldY(c.y) - frame, bottom: worldY(c.y + c.h) + frame })
+        const now = span(next)
+        const edgeX = handle.includes('l') ? now.left : handle.includes('r') ? now.right : null
+        const edgeY = handle.includes('t') ? now.top : handle.includes('b') ? now.bottom : null
+        const { x: bestX, y: bestY } = edgeTargets(edgeX, edgeY, start, currentZoom, activeSelectedTraceId)
+        const du = bestX && edgeX !== null ? (bestX.at - edgeX) / boxW : 0
+        const dv = bestY && edgeY !== null ? (bestY.at - edgeY) / boxH : 0
+        if (du || dv) next = dragCrop(from, handle, local.x / boxW + du, local.y / boxH + dv)
+        const own = span(next)
+        if (bestX?.guide) cropGuides = { x: { at: bestX.at, from: Math.min(bestX.from, own.top), to: Math.max(bestX.to, own.bottom) } }
+        if (bestY?.guide) cropGuides = { ...(cropGuides ?? {}), y: { at: bestY.at, from: Math.min(bestY.from, own.left), to: Math.max(bestY.to, own.right) } }
+      }
+      setAlignGuides(cropGuides)
       const crop = { cropX: next.x, cropY: next.y, cropWidth: next.w, cropHeight: next.h }
       const shift = trace.type === 'shape' ? { x: 0, y: 0 } : (() => {
         const d = cropShift(from, next)
@@ -4505,17 +4602,11 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
       let resizeGuides: { x?: { at: number; from: number; to: number }; y?: { at: number; from: number; to: number } } | null = null
 
       if (e.shiftKey && !rotatedForSnap) {
-        const held = multiSelectedIdsRef.current
-        const candidates = visibleTracesRef.current.filter((t: Trace) =>
-          t.id !== activeSelectedTraceId && !held.has(t.id))
-
         // The frame is drawn outside the box, so it offsets every edge by a
         // constant number of world units -- see traceBoxFor.
         const hasFrame = currentTrace.type !== 'shape' && (currentTrace.showBorder ?? true)
         const frame = hasFrame ? (currentTrace.borderWidth ?? 2) : 0
 
-        const tolerance = ALIGN_SNAP_PX / currentZoom
-        const reach = ALIGN_NEIGHBOURHOOD_PX / currentZoom
         const startHalfW = (spanW * startScaleX) / 2 + frame
         const startHalfH = (spanH * startScaleY) / 2 + frame
 
@@ -4539,57 +4630,7 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
           ? anchorY - (spanH * newScaleY + 2 * frame)
           : anchorY + (spanH * newScaleY + 2 * frame)
 
-        // `guide` is false for a grid match: the grid already draws itself, so
-        // a line on top of one of its own would be noise. `from`/`to` is the
-        // CANDIDATE's extent only -- the moving trace's half is added after the
-        // snap, since resizing is what changes it.
-        let bestX: { at: number; distance: number; from: number; to: number; guide: boolean } | null = null
-        let bestY: { at: number; distance: number; from: number; to: number; guide: boolean } | null = null
-
-        for (const other of candidates) {
-          const box = traceBoxFor(other, undefined, currentZoom)
-          if (Math.abs(box.cx - startTransformRef.current.x) > reach
-            && Math.abs(box.cy - startTransformRef.current.y) > reach) continue
-
-          // A rotated neighbour offers its centre and nothing else, exactly as
-          // it does when dragging -- its edges are not axis-aligned lines.
-          const otherX = box.rotated ? [box.cx] : [box.cx - box.halfW, box.cx, box.cx + box.halfW]
-          const otherY = box.rotated ? [box.cy] : [box.cy - box.halfH, box.cy, box.cy + box.halfH]
-
-          if (movesX) {
-            for (const at of otherX) {
-              const distance = Math.abs(at - edgeX)
-              if (distance > tolerance) continue
-              if (!bestX || distance < bestX.distance) {
-                bestX = { at, distance, guide: true, from: box.cy - box.halfH, to: box.cy + box.halfH }
-              }
-            }
-          }
-
-          if (movesY) {
-            for (const at of otherY) {
-              const distance = Math.abs(at - edgeY)
-              if (distance > tolerance) continue
-              if (!bestY || distance < bestY.distance) {
-                bestY = { at, distance, guide: true, from: box.cx - box.halfW, to: box.cx + box.halfW }
-              }
-            }
-          }
-        }
-
-        // Nothing to align to on an axis: fall back to the grid, the same way
-        // Shift-dragging does. Without this, holding Shift while resizing in an
-        // empty part of the atrium would do nothing at all -- and the modifier
-        // means the same thing in both gestures.
-        const grid = gridLineSpacing && gridLineSpacing > 0 ? gridLineSpacing : GRID_SNAP_FALLBACK
-        if (movesX && !bestX) {
-          const at = Math.round(edgeX / grid) * grid
-          bestX = { at, distance: Math.abs(at - edgeX), guide: false, from: 0, to: 0 }
-        }
-        if (movesY && !bestY) {
-          const at = Math.round(edgeY / grid) * grid
-          bestY = { at, distance: Math.abs(at - edgeY), guide: false, from: 0, to: 0 }
-        }
+        const { x: bestX, y: bestY } = edgeTargets(movesX ? edgeX : null, movesY ? edgeY : null, startTransformRef.current, currentZoom, activeSelectedTraceId)
 
         // A corner drags both axes at once and has to stay uniform, so only
         // the closer of the two matches is taken and the other axis follows
@@ -5531,6 +5572,45 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
       rotated: (trace.rotation ?? 0) % 360 !== 0,
     }
   }, [getTraceSize, getTraceTransform])
+
+  // What an edge being dragged lands on with Shift held -- a trace resized, or
+  // cropped: a neighbour's edge or middle within reach of `around`, else the
+  // grid, the same way Shift-dragging does (without it, Shift in an empty part
+  // of the atrium would do nothing at all). One for each axis asked for
+  // (`edgeX`, `edgeY`: where the edge is now; null, not moving that way).
+  // `guide` is false for a grid match: the grid already draws itself, so a
+  // line on top of one of its own would be noise. `from`/`to` is the
+  // CANDIDATE's extent only -- the moving trace's is added after the snap,
+  // since the drag is what changes it. A rotated neighbour offers its centre
+  // and nothing else: its edges are not axis-aligned lines.
+  type EdgeMatch = { at: number; distance: number; from: number; to: number; guide: boolean }
+  const edgeTargets = (edgeX: number | null, edgeY: number | null, around: { x: number; y: number }, zoomNow: number, own: string | null): { x: EdgeMatch | null; y: EdgeMatch | null } => {
+    const held = multiSelectedIdsRef.current
+    const tolerance = ALIGN_SNAP_PX / zoomNow
+    const reach = ALIGN_NEIGHBOURHOOD_PX / zoomNow
+    let x: EdgeMatch | null = null
+    let y: EdgeMatch | null = null
+    for (const other of visibleTracesRef.current as Trace[]) {
+      if (other.id === own || held.has(other.id)) continue
+      const box = traceBoxFor(other, undefined, zoomNow)
+      if (Math.abs(box.cx - around.x) > reach && Math.abs(box.cy - around.y) > reach) continue
+      if (edgeX !== null) {
+        for (const at of box.rotated ? [box.cx] : [box.cx - box.halfW, box.cx, box.cx + box.halfW]) {
+          const distance = Math.abs(at - edgeX)
+          if (distance <= tolerance && (!x || distance < x.distance)) x = { at, distance, guide: true, from: box.cy - box.halfH, to: box.cy + box.halfH }
+        }
+      }
+      if (edgeY !== null) {
+        for (const at of box.rotated ? [box.cy] : [box.cy - box.halfH, box.cy, box.cy + box.halfH]) {
+          const distance = Math.abs(at - edgeY)
+          if (distance <= tolerance && (!y || distance < y.distance)) y = { at, distance, guide: true, from: box.cx - box.halfW, to: box.cx + box.halfW }
+        }
+      }
+    }
+    const grid = gridLineSpacing && gridLineSpacing > 0 ? gridLineSpacing : GRID_SNAP_FALLBACK
+    const onGrid = (edge: number): EdgeMatch => { const at = Math.round(edge / grid) * grid; return { at, distance: Math.abs(at - edge), guide: false, from: 0, to: 0 } }
+    return { x: x ?? (edgeX !== null ? onGrid(edgeX) : null), y: y ?? (edgeY !== null ? onGrid(edgeY) : null) }
+  }
 
   // Where a path's point goes, dragged with Shift over another trace: onto
   // that trace's border (lib/pathGeometry) -- its nearest point, or a corner
@@ -9425,12 +9505,14 @@ return (
                   {(() => {
                     const trace = traces.find(t => t.id === contextMenu.traceId)
                     if (!trace || trace.type === 'audio' || trace.type === 'video' || isPin(trace)) return null
+                    // The selection it's part of, as one picture; else itself.
+                    const mirrored = multiSelectedIds.size > 1 && multiSelectedIds.has(trace.id) ? Array.from(multiSelectedIds) : [trace.id]
                     return (
                       <>
                         <button
                           className="ctx-item"
                           onClick={() => {
-                            updateTraceCustomization(trace.id, { flipHorizontal: !trace.flipHorizontal })
+                            mirrorTraces(mirrored, 'horizontal')
                             setContextMenu(null)
                           }}
                         >
@@ -9439,7 +9521,7 @@ return (
                         <button
                           className="ctx-item"
                           onClick={() => {
-                            updateTraceCustomization(trace.id, { flipVertical: !trace.flipVertical })
+                            mirrorTraces(mirrored, 'vertical')
                             setContextMenu(null)
                           }}
                         >
