@@ -46,30 +46,25 @@ test('nothing changed is nothing to record', () => {
 
 import { applyLayerDelta } from '../src/lib/layerDelta.ts'
 
-// A database that notes each write, and a store that keeps what it's given.
+// A store that keeps what it's given, and notes each change marked for Save.
 function fakes(state: { traces: any[]; links: any[]; layers: any[] }) {
   const writes: string[] = []
-  const db = {
-    from(table: string) {
-      const write = (what: string) => ({ eq: async (_: string, id: string) => { writes.push(`${what} ${table} ${id}`) } })
-      return {
-        upsert: async (row: any) => { writes.push(`upsert ${table} ${row.id}`) },
-        update: (row: any) => write(`update(${Object.keys(row).join(',')})`),
-        delete: () => write('delete'),
-      }
-    },
-  }
   const store = () => ({
     ...state,
     putLayer: (l: any) => { state.layers = [...state.layers.filter(x => x.id !== l.id), l] },
     forgetLayer: (id: string) => { state.layers = state.layers.filter(x => x.id !== id) },
+    markLayerChanged: (id: string) => { writes.push(`write layers ${id}`) },
+    markLayerDeleted: (id: string) => { writes.push(`delete layers ${id}`) },
     addTrace: (t: any) => { state.traces = [...state.traces.filter(x => x.id !== t.id), t] },
     removeTrace: (id: string) => { state.traces = state.traces.filter(x => x.id !== id) },
-    putLink: (l: any) => { state.links = [...state.links.filter(x => x.id !== l.id), l] },
-    dropLink: (id: string) => { state.links = state.links.filter(x => x.id !== id) },
+    markTraceChanged: (id: string) => { writes.push(`write traces ${id}`) },
+    markTraceDeleted: (id: string) => { writes.push(`delete traces ${id}`) },
+    unmarkTraceDeleted: () => {},
+    putLink: (l: any) => { writes.push(`write trace_links ${l.id}`); state.links = [...state.links.filter(x => x.id !== l.id), l] },
+    dropLink: (id: string) => { writes.push(`delete trace_links ${id}`); state.links = state.links.filter(x => x.id !== id) },
   })
   const adopted: string[] = []
-  return { writes, target: { db, store, adopt: (id: string) => adopted.push(id) }, adopted }
+  return { writes, target: { store, adopt: (id: string) => adopted.push(id) }, adopted }
 }
 
 test('undoing a group deleted with its traces brings back the group, then its traces, then their connections', async () => {
@@ -81,7 +76,7 @@ test('undoing a group deleted with its traces brings back the group, then its tr
   const state = { ...after }
   const f = fakes(state)
   await applyLayerDelta(reverseDelta(d), f.target)
-  assert.deepEqual(f.writes, ['upsert layers G', 'upsert traces a', 'upsert trace_links L1'])
+  assert.deepEqual(f.writes, ['write layers G', 'write traces a', 'write trace_links L1'])
   assert.deepEqual([state.layers.map(x => x.id), state.traces.map(x => x.id).sort(), state.links.map(x => x.id)], [['G'], ['a', 'c'], ['L1']])
   assert.deepEqual(f.adopted, ['a'])
   // And done again: the connection first, then the trace, then the group.
@@ -97,6 +92,6 @@ test('undoing an ungroup makes the group again before moving its traces back int
   const state = { traces: [{ ...a, layerId: null, orderKey: 'b5' }], links: [], layers: [] as any[] }
   const f = fakes(state)
   await applyLayerDelta(reverseDelta(d), f.target)
-  assert.deepEqual(f.writes, ['upsert layers G', 'update(layer_id,order_key) traces a'])
+  assert.deepEqual(f.writes, ['write layers G', 'write traces a'])
   assert.deepEqual([state.traces[0].layerId, state.traces[0].orderKey, state.layers.map(x => x.id)], ['G', 'a0', ['G']])
 })

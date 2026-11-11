@@ -8,18 +8,18 @@
 // stroke taken away (undone, erased entirely, cleared) is deleted then and
 // there, and put back as the same row -- rather than waiting for Save.
 
+import { newTraces } from './traceWrites'
 import { supabase, isDesktop } from './supabase'
 import { useGameStore } from '../store/gameStore'
 import type { Trace } from '../types/database'
 import { asStrokeData, drawPlacedPicture, fitBox, isDrawingTrace, localToWorldDelta, nextRev, pictureSize, placementBounds, renderStrokeData, splitStrokes, tintPicture, type Picture, type Piece, type Stroke, type StrokeData, type TracePlacement } from './brushes'
-import { buildTraceInsertRow, traceRow } from './traceInsert'
+import { buildTraceInsertRow } from './traceInsert'
 import { adoptTraces, withLayerUndo } from './layerUndo'
 import { queueLayerChange } from './layerQueue'
 import { recordAction } from './actionHistory'
 import { createGroup } from '../hooks/useLayers'
 import { drawRanks, keysAt, keysBetween } from './order'
 import { uploadTraceFile } from './traceUpload'
-import { mapRowToTrace } from '../hooks/useTraces'
 
 // Every stroke's picture, by its file's address: painted here, or loaded.
 const pictures = new Map<string, Picture>()
@@ -120,27 +120,23 @@ export const pictureRow = (fields: Partial<PictureFields>) =>
   Object.fromEntries(Object.entries(fields).map(([key, value]) => [COLUMNS[key as keyof PictureFields], value ?? null]))
 
 // A stroke given (some of) these fields: in the store and the database at once.
+// Written with the next Save, as any change is -- not at once: a drawing left
+// without saving is left as it was (the user, 2026-11-11).
 export async function writePicture(traceId: string, fields: Partial<PictureFields>): Promise<void> {
-  const current = useGameStore.getState().traces.find(t => t.id === traceId)
-  if (current) useGameStore.getState().addTrace({ ...current, ...fields })
-  if (!supabase) return
-  const { error } = await (supabase.from('traces') as any).update(pictureRow(fields)).eq('id', traceId)
-  if (error) console.error('[drawing] could not save a stroke:', error)
+  const store = useGameStore.getState()
+  const current = store.traces.find(t => t.id === traceId)
+  if (!current) return
+  store.addTrace({ ...current, ...fields })
+  store.markTraceChanged(traceId)
 }
 
-// Strokes taken away: from the store, and deleted from the database now,
-// with nothing of theirs left waiting for Save.
+// Strokes taken away: from the store, their rows deleted with the next Save.
 export async function dropStrokes(gone: Trace[]): Promise<void> {
-  if (gone.length === 0) return
   const store = useGameStore.getState()
   for (const t of gone) {
     store.removeTrace(t.id)
     store.markTraceDeleted(t.id)
-    store.unmarkTraceDeleted(t.id)
   }
-  if (!supabase) return
-  const { error } = await (supabase.from('traces') as any).delete().in('id', gone.map(t => t.id))
-  if (error) console.error('[drawing] could not delete strokes:', error)
 }
 
 // Strokes put back as they were, the same rows, ids and all. Their own step
@@ -159,12 +155,12 @@ export async function restoreStrokes(back: Trace[]): Promise<void> {
     return picture && t.lobbyId ? { ...t, mediaUrl: await saveDrawingPicture(picture, t.lobbyId, t.userId) } : t
   }))
   adoptTraces(back.map(t => t.id))
-  for (const t of back) useGameStore.getState().addTrace(t)
-  if (!supabase) return
+  const store = useGameStore.getState()
+  // Back, and written with the next Save -- a row deleted, or never written.
   for (const t of back) {
-    const { error } = await (supabase.from('traces') as any)
-      .insert(traceRow(t))
-    if (error) console.error('[drawing] could not put a stroke back:', error)
+    store.addTrace(t)
+    store.unmarkTraceDeleted(t.id)
+    store.markTraceChanged(t.id)
   }
   for (const t of back) if (t.strokeData) refreshDrawingFile(t.id)
 }
@@ -333,14 +329,11 @@ export function splitDrawing(traceId: string, strokeName: (n: number) => string)
         }, drawing.userId, drawing.username, drawing.lobbyId, 0, 0),
         id: crypto.randomUUID(),
       }
-      const { error } = await (supabase.from('traces') as any).insert(row)
-      if (error) throw error
-      useGameStore.getState().addTrace(mapRowToTrace(row))
+      // There at once, written with the next Save (lib/traceWrites).
+      newTraces([row])
     }
-    const { error } = await (supabase.from('traces') as any).delete().eq('id', drawing.id)
-    if (error) throw error
     useGameStore.getState().removeTrace(drawing.id)
-    window.dispatchEvent(new Event('atrium:layers-changed'))
+    useGameStore.getState().markTraceDeleted(drawing.id)
     return true
   }))
 }
@@ -411,14 +404,12 @@ export function rasterizeDrawings(traceIds: string[], density: number, name: str
       }, top.userId, top.username, top.lobbyId, 0, 0),
       id: crypto.randomUUID(),
     }
-    const { error } = await (supabase.from('traces') as any).insert(row)
-    if (error) throw error
-    useGameStore.getState().addTrace(mapRowToTrace(row))
-    const gone = chosen.map(t => t.id)
-    const { error: deleteError } = await (supabase.from('traces') as any).delete().in('id', gone)
-    if (deleteError) throw deleteError
-    for (const id of gone) useGameStore.getState().removeTrace(id)
-    window.dispatchEvent(new Event('atrium:layers-changed'))
+    // The picture there at once, the strokes gone: written with the next Save.
+    newTraces([row])
+    for (const t of chosen) {
+      useGameStore.getState().removeTrace(t.id)
+      useGameStore.getState().markTraceDeleted(t.id)
+    }
     return row.id as string
   }))
 }

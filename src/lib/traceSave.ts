@@ -10,13 +10,13 @@ import { useGameStore } from '../store/gameStore'
 import { showToast } from './toast'
 import { t, tCount } from './i18n'
 import { linkRow } from './traceLinks'
-import { whenTracesWritten } from './traceWrites'
 import { traceColumns, traceRow } from './traceInsert'
 import { locationColumns, locationRow, mapLocationRow, receiveLocations } from './locations'
 import { mapRowToLink } from './traceLinks'
 import { fetchAllLobbyTraces, mapRowToTrace } from '../hooks/useTraces'
+import { layerColumns, layerRow, mapRowToLayer } from '../hooks/useLayers'
 import { adoptTraces } from './layerUndo'
-import type { LobbyLocation, Trace } from '../types/database'
+import type { Layer, LobbyLocation, Trace } from '../types/database'
 import type { TraceLink } from './traceLinks'
 
 // Fired on window whenever a save completes. TraceOverlay drops its local
@@ -45,6 +45,7 @@ type Written = {
   traces: Trace[]; deleted: string[]; gone: string[]
   links: TraceLink[]; deletedLinks: string[]; goneLinks: string[]
   locations: LobbyLocation[]; deletedLocations: string[]
+  layers: Layer[]; deletedLayers: string[]; goneLayers: string[]
 }
 function settle(written: Written) {
   useGameStore.setState(state => {
@@ -68,7 +69,13 @@ function settle(written: Written) {
     for (const l of written.locations) if (locationNow.get(l.id) === l) pendingLocations.delete(l.id)
     const deletedLocations = new Set(state.deletedLocations)
     for (const id of written.deletedLocations) deletedLocations.delete(id)
-    return { pendingChanges, pendingLinks, deletedTraces, deletedLinks, savedLinks, pendingLocations, deletedLocations }
+    const layerNow = new Map(state.layers.map(l => [l.id, l]))
+    const pendingLayers = new Set(state.pendingLayers)
+    for (const layer of written.layers) if (layerNow.get(layer.id) === layer) pendingLayers.delete(layer.id)
+    for (const id of written.goneLayers) if (!layerNow.has(id)) pendingLayers.delete(id)
+    const deletedLayers = new Set(state.deletedLayers)
+    for (const id of written.deletedLayers) deletedLayers.delete(id)
+    return { pendingChanges, pendingLinks, deletedTraces, deletedLinks, savedLinks, pendingLocations, deletedLocations, pendingLayers, deletedLayers }
   })
 }
 
@@ -94,10 +101,7 @@ async function write(): Promise<boolean> {
   try {
     // Taken before anything is awaited: leaving an atrium clears the store,
     // and the save that leaving starts must still have what it's to write.
-    const { pendingChanges, deletedTraces, traces, pendingLinks, deletedLinks, links, savedLinks, locations, pendingLocations, deletedLocations } = useGameStore.getState()
-    // New traces still on their way to the database first (lib/traceWrites):
-    // an update to a row not there yet would put it there twice.
-    await whenTracesWritten()
+    const { pendingChanges, deletedTraces, traces, pendingLinks, deletedLinks, links, savedLinks, locations, pendingLocations, deletedLocations, layers, pendingLayers, deletedLayers } = useGameStore.getState()
     const changed = traces.filter(tr => pendingChanges.has(tr.id))
     const gone = [...pendingChanges].filter(id => !changed.some(tr => tr.id === id))
     const linksChanged = links.filter(l => pendingLinks.has(l.id))
@@ -106,7 +110,16 @@ async function write(): Promise<boolean> {
     const linksDeleted = [...deletedLinks]
     const locationsChanged = locations.filter(l => pendingLocations.has(l.id))
     const locationsDeleted = [...deletedLocations]
+    // Groups: a parent before the groups in it.
+    const layersChanged = layers.filter(l => pendingLayers.has(l.id)).sort((a, b) => (a.parentId ? 1 : 0) - (b.parentId ? 1 : 0))
+    const goneLayers = [...pendingLayers].filter(id => !layersChanged.some(l => l.id === id))
+    const layersDeleted = [...deletedLayers]
     writing = new Set([...changed.map(tr => tr.id), ...deleted])
+
+    // Groups first, one after another (a parent before its children): a trace
+    // can't go into a group the database hasn't got.
+    const layersOk: boolean[] = []
+    for (const layer of layersChanged) layersOk.push(await writeRow(db, 'layers', layer.id, layerColumns(layer), () => layerRow(layer)))
 
     // Connections removed before their traces: on the web a trace's deletion
     // takes its connections with it anyway, but the desktop shim doesn't
@@ -123,6 +136,8 @@ async function write(): Promise<boolean> {
     }))
     const locationsGoneOk = await Promise.all(locationsDeleted.map(async id => !(await (db.from('lobby_locations') as any).delete().eq('id', id)).error))
     const locationsOk = await Promise.all(locationsChanged.map(l => writeRow(db, 'lobby_locations', l.id, locationColumns(l), () => locationRow(l))))
+    // Groups removed last, their traces gone from them by now.
+    const layersGoneOk = await Promise.all(layersDeleted.map(async id => !(await (db.from('layers') as any).delete().eq('id', id)).error))
 
     settle({
       traces: changed.filter((_, i) => tracesOk[i]),
@@ -133,8 +148,11 @@ async function write(): Promise<boolean> {
       goneLinks,
       locations: locationsChanged.filter((_, i) => locationsOk[i]),
       deletedLocations: locationsDeleted.filter((_, i) => locationsGoneOk[i]),
+      layers: layersChanged.filter((_, i) => layersOk[i]),
+      deletedLayers: layersDeleted.filter((_, i) => layersGoneOk[i]),
+      goneLayers,
     })
-    const refused = [tracesOk, deletedOk, linksOk, linksGoneOk, locationsOk, locationsGoneOk].flat().filter(ok => !ok).length
+    const refused = [layersOk, tracesOk, deletedOk, linksOk, linksGoneOk, locationsOk, locationsGoneOk, layersGoneOk].flat().filter(ok => !ok).length
     if (refused > 0) {
       // Left to be written: the next try may get through, and they're the
       // user's work either way.
@@ -161,7 +179,15 @@ let inFlight: Promise<boolean> | null = null
 /** Once the save under way, if any, is over -- written or not. */
 export const whenSaveDone = (): Promise<unknown> => inFlight ?? Promise.resolve()
 /** Saved because it was asked for (Save, Ctrl+S): heard, when it went through (lib/sounds). */
-export const saveByHand = (): Promise<boolean> => saveAllChanges().then(ok => { if (ok) play('save'); return ok })
+/** Said when a save by hand went through: what's on screen is now what's kept (LobbyScene pictures it). */
+export const SAVED_BY_HAND_EVENT = 'atrium:saved-by-hand'
+export const saveByHand = (): Promise<boolean> => saveAllChanges().then(ok => {
+  if (ok) {
+    play('save')
+    window.dispatchEvent(new Event(SAVED_BY_HAND_EVENT))
+  }
+  return ok
+})
 
 export function saveAllChanges(): Promise<boolean> {
   if (inFlight) return inFlight.then(() => saveAllChanges())
@@ -263,10 +289,11 @@ export async function discardAllChanges(lobbyId: string): Promise<boolean> {
   const store = useGameStore.getState()
   if (!supabase || store.isSavingChanges || !store.hasPendingChanges()) return false
   try {
-    const [rows, links, places] = await Promise.all([
+    const [rows, links, places, groups] = await Promise.all([
       fetchAllLobbyTraces(supabase, lobbyId),
       (supabase.from('trace_links') as any).select('*').eq('lobby_id', lobbyId),
       (supabase.from('lobby_locations') as any).select('*').eq('lobby_id', lobbyId).order('order_index', { ascending: true }),
+      (supabase.from('layers') as any).select('*').eq('lobby_id', lobbyId),
     ])
     if (!rows) return false
     const traces = rows.map(mapRowToTrace)
@@ -283,6 +310,8 @@ export async function discardAllChanges(lobbyId: string): Promise<boolean> {
     // Left as they are if they can't be read.
     if (!links.error && Array.isArray(links.data)) useGameStore.getState().setLinks(links.data.map(mapRowToLink))
     if (!places.error && Array.isArray(places.data)) receiveLocations(places.data.map(mapLocationRow))
+    // The groups as saved: none waiting any more, so all of them as read.
+    if (!groups.error && Array.isArray(groups.data)) useGameStore.getState().setLayers(groups.data.map(mapRowToLayer))
     useGameStore.getState().setSaveFailed(false)
     window.dispatchEvent(new CustomEvent(TRACE_DISCARD_COMPLETED_EVENT))
     return true

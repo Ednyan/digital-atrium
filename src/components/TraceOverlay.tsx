@@ -1133,15 +1133,12 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
     const borders = (parseFloat(style.borderTopWidth) || 0) + (parseFloat(style.borderBottomWidth) || 0)
     setGroupFlyoutMaxHeight(last.offsetTop + last.offsetHeight + padBottom + borders)
   }, [flyout === 'group', groupLayers.length])
-  // One trace's new group (null: none) and key: shown, then written.
+  // One trace's new group (null: none) and key: in the store, written with the next Save.
   const writeTraceGroupKey = async (trace: Trace, layerId: string | null, orderKey: string) => {
-    const { error } = await (supabase!.from('traces') as any)
-      .update({ layer_id: layerId, order_key: orderKey })
-      .eq('id', trace.id)
-    if (error) return
     // As it is now, not as it was read: edits waiting for Save stay.
     const now = useGameStore.getState().traces.find(t => t.id === trace.id) ?? trace
     useGameStore.getState().addTrace({ ...now, layerId, orderKey })
+    useGameStore.getState().markTraceChanged(trace.id)
   }
 
   // Into a group, on top of it, in the order they were drawn in. One write
@@ -1210,8 +1207,8 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
   }, [lobbyId, userId, moveIntoGroup])
 
   // Ctrl+G: the selection into a new group called "Group N", N the lowest
-  // number no group here already has. Names are read fresh rather than from
-  // groupLayers, which on desktop can miss a group the Layer panel just made.
+  // number no group here already has -- the store's, which holds those not
+  // yet saved too (the database's would miss them).
   //
   // A second Ctrl+G while a layer change is under way is ignored: queued, it
   // would make another group and move everything into that one.
@@ -1221,8 +1218,7 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
     if (!supabase || !lobbyId || !canEdit || traceIds.length === 0 || layerChangeUnderWay()) return
     play('group')
     await queueLayerChange(() => withLayerUndo('group', async () => {
-      const { data } = await (supabase!.from('layers') as any).select('name').eq('lobby_id', lobbyId)
-      const taken = ((data ?? []) as { name: string | null }[]).map(l => l.name)
+      const taken = useGameStore.getState().layers.map(l => l.name)
       await makeGroupWith(traceIds, firstFreeName(taken, n => t('atrium.layers.numberedGroup', { n })))
     }))
   }, [lobbyId, canEdit, makeGroupWith])
@@ -1258,14 +1254,10 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
       for (const layerId of whole) {
         const members = useGameStore.getState().traces.filter(tr => tr.layerId === layerId).map(tr => tr.id)
         await releaseFromGroups(members)
-        const { error } = await (supabase!.from('layers') as any).delete().eq('id', layerId)
-        if (error) {
-          console.error('[layers] could not remove the group:', error)
-          continue
-        }
+        // Gone here, removed with the next Save (after its traces have left it).
         useGameStore.getState().forgetLayer(layerId)
+        useGameStore.getState().markLayerDeleted(layerId)
       }
-      window.dispatchEvent(new Event('atrium:layers-changed'))
     }))
   }
   // The groups some traces are in.
@@ -1545,16 +1537,11 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
       if (editingTraceRef.current?.id === id) setEditingTrace(null)
       const store = useGameStore.getState()
       store.removeTrace(id)
-      // Nothing left to save or delete for it at Save.
+      // Deleted with the next Save, as any trace is (one never saved: nothing to delete).
       store.markTraceDeleted(id)
-      store.unmarkTraceDeleted(id)
       knownTraceIdsRef.current?.delete(id)
       undoStackRef.current = undoStackRef.current.filter(op => !((op.kind === 'add' || op.kind === 'update') && op.traceId === id))
       showReach()
-      // Then'd, not just called: a query is only sent once it's awaited.
-      if (supabase) (supabase.from('traces') as any).delete().eq('id', id).then(({ error }: { error: unknown }) => {
-        if (error) console.error('[text] could not remove an empty text:', error)
-      })
     }
   }, [inlineEditingTraceId, selectedTraceId, multiSelectedIds])
 
@@ -5843,8 +5830,8 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
     // Under everything, so what it holds is drawn over it.
     const framed = newFrame(box, name, { userId, username }, currentTracePreset(lobbyId), keyAt(stack, 0) ?? keysOnTop(stack)[0])
     const draft: Trace = slot ? { ...framed, frameArrange: slot, strokeStyle: 'dashed' } : framed
-    // There at once (lib/traceWrites), written behind.
-    const frame = insertTrace(buildTraceInsertRow(draft, userId, username, lobbyId, 0, 0), message => showToast(t('atrium.error.frameFailed', { message })))
+    // There at once, written with the next Save (lib/traceWrites).
+    const frame = insertTrace(buildTraceInsertRow(draft, userId, username, lobbyId, 0, 0))
     const all = useGameStore.getState().traces
     const units = wrap
       ? unitsOf(all, groups, new Set(wrap))
@@ -9979,7 +9966,38 @@ return (
             onChange={borderRadius => change({ borderRadius })}
           />
         )
-        const fontSize = typeof editingTrace.fontSize === 'number' ? editingTrace.fontSize : (editingTrace.fontSize === 'small' ? 12 : editingTrace.fontSize === 'large' ? 24 : 16)
+        const setSize = typeof editingTrace.fontSize === 'number' ? editingTrace.fontSize : (editingTrace.fontSize === 'small' ? 12 : editingTrace.fontSize === 'large' ? 24 : 16)
+        // Filling its box, its size is the one the box gives it -- shown, as any
+        // size is, and set by sizing the box to it (the user, 2026-11-11: the size
+        // hidden, Fills Box was a guess; now it goes both ways). The box as it's
+        // drawn, in the atrium's units (as the text's own fit measures it).
+        const fitFont = { family: resolveFontFamilyCss(editingTrace.fontFamily ?? 'sans'), bold: editingTrace.textBold, italic: editingTrace.textItalic }
+        const fitBoxNow = () => {
+          const tf = getTraceTransform(live), size = getTraceSize(live)
+          return { tf, w: size.width * (live.cropWidth ?? 1) * tf.scaleX, h: size.height * (live.cropHeight ?? 1) * tf.scaleY }
+        }
+        const fontSize = editingTrace.textFit
+          ? Math.round(fitFontSize(editingTrace.content ?? '', fitBoxNow().w, fitBoxNow().h, fitFont))
+          : setSize
+        // A size asked of a box the text fills: the box scaled until the text fits
+        // at it -- a few rounds, as the box's padding doesn't scale with it --
+        // its top left where it was. One step of undo.
+        const fitBoxTo = (size: number) => {
+          const { tf, w, h } = fitBoxNow()
+          let k = 1
+          for (let i = 0; i < 4; i++) {
+            const got = fitFontSize(editingTrace.content ?? '', w * k, h * k, fitFont)
+            if (!(got > 0) || Math.abs(got - size) < 0.25) break
+            k *= size / got
+          }
+          if (!Number.isFinite(k) || k <= 0 || Math.abs(k - 1) < 0.001) return
+          const turn = ((tf.rotation ?? 0) * Math.PI) / 180
+          const dx = (w * k - w) / 2, dy = (h * k - h) / 2
+          updateTraceTransform(live.id, {
+            scaleX: tf.scaleX * k, scaleY: tf.scaleY * k,
+            x: tf.x + dx * Math.cos(turn) - dy * Math.sin(turn), y: tf.y + dx * Math.sin(turn) + dy * Math.cos(turn),
+          })
+        }
         const lightColour = editingTrace.lightColor ?? '#ffffff'
         const orderLabel = orderLabels(!!groupIdOf(live, layers))
         return (
@@ -10071,7 +10089,7 @@ return (
                 title={t('atrium.customize.sectionText')}
                 summary={[
                   FONT_FAMILY_OPTIONS.find(font => font.value === (editingTrace.fontFamily ?? 'sans'))?.label,
-                  editingTrace.textFit ? t('atrium.controls.fillsBox') : `${fontSize} px`,
+                  `${fontSize} px`,
                 ].filter(Boolean).join(' · ')}
               >
                 <WordsLinkRow label={t('templates.words')} />
@@ -10090,21 +10108,22 @@ return (
                     ))}
                   </select>
                 </Row>
-                {/* Filling its box, the text has no size of its own to set. */}
-                {!editingTrace.textFit && (
-                  <Row label={t('atrium.customize.fontSize')} link="fontSize">
-                    <FontSizeField
-                      min={8}
-                      max={200}
-                      value={fontSize}
-                      // Through updateTraceCustomization, as every other
-                      // setting: it was written straight into the store, so
-                      // a size change was no step of undo at all.
-                      onChange={value => change({ fontSize: value, ...fittedTextBox({ ...editingTrace, fontSize: value }) })}
-                      placeholder={t('atrium.customize.fontSizeHint')}
-                    />
-                  </Row>
-                )}
+                {/* Always shown: filling its box, the size the box gives it -- and a
+                    size set there sizes the box to it (fitBoxTo). */}
+                <Row label={t('atrium.customize.fontSize')} link={editingTrace.textFit ? undefined : 'fontSize'}>
+                  <FontSizeField
+                    min={8}
+                    max={200}
+                    value={fontSize}
+                    // Through updateTraceCustomization, as every other
+                    // setting: it was written straight into the store, so
+                    // a size change was no step of undo at all.
+                    onChange={value => (editingTrace.textFit
+                      ? fitBoxTo(value)
+                      : change({ fontSize: value, ...fittedTextBox({ ...editingTrace, fontSize: value }) }))}
+                    placeholder={t('atrium.customize.fontSizeHint')}
+                  />
+                </Row>
                 {/* Whether the font follows the trace's own scale, or stays
                     fixed and lets the box only control how much room the text
                     has to reflow in -- or fills the box. */}

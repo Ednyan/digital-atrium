@@ -23,10 +23,9 @@ export interface PreviewMemory {
 
 /** Whether it's time to make one: changed since a whole one, or the last wasn't --
  *  and never over one chosen. */
-export function previewDue(last: PreviewMemory | null, print: string, now: number, atMostEvery: number, side = 0) {
+export function previewDue(last: PreviewMemory | null, print: string, side = 0) {
   if (!last) return true
   if (last.chosen) return false
-  if (now - last.at < atMostEvery) return false
   return !(last.whole && last.print === print && (last.side ?? 0) >= side)
 }
 

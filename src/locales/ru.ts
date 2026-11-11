@@ -791,7 +791,7 @@ const ru: Catalogue = {
   'atrium.draw.smooth': 'Сглаживание',
   'atrium.draw.hardness': 'Жёсткость',
   'atrium.draw.exit': 'Выйти из рисования',
-  'atrium.draw.hint': 'Нажмите и ведите, чтобы рисовать — каждый штрих сохраняется сам • E ластик • Ctrl+Z отменить, Ctrl+Shift+Z вернуть • Esc выходит',
+  'atrium.draw.hint': "Нажмите и ведите, чтобы рисовать • E ластик • Ctrl+Z отменить, Ctrl+Shift+Z вернуть • Esc выйти",
   'atrium.draw.strokeSaveFailed': 'Не удалось сохранить штрих: {message}',
   'atrium.draw.strokeColour': 'Цвет штриха',
   'common.create': 'Создать',

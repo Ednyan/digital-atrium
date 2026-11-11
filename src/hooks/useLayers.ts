@@ -21,9 +21,29 @@ export function mapRowToLayer(row: any): Layer {
   }
 }
 
-// Reads the atrium's groups again. Changes made here put themselves in the
-// store as they go; this is for everything else -- another person's change on
-// the web, or anything that only announced itself (atrium:layers-changed).
+// A group as the database keeps it: the columns a save writes, and the whole
+// row it inserts when the group isn't there yet (lib/traceSave). Its template
+// only when it has one -- or had and lost it, null -- so a database without
+// the column still takes an ordinary group.
+export function layerColumns(layer: Layer): Record<string, unknown> {
+  return {
+    name: layer.name,
+    order_key: layer.orderKey ?? null,
+    is_group: layer.isGroup,
+    parent_id: layer.parentId ?? null,
+    ...(layer.template !== undefined ? { template: layer.template ?? null } : {}),
+  }
+}
+export const layerRow = (layer: Layer): Record<string, unknown> => ({
+  id: layer.id,
+  lobby_id: layer.lobbyId ?? null,
+  user_id: layer.userId,
+  ...(layer.createdAt ? { created_at: layer.createdAt } : {}),
+  ...layerColumns(layer),
+})
+
+// Reads the atrium's groups again, keeping what's waiting here (setLayers):
+// another person's change, through the live feed.
 export async function reloadLayers(lobbyId: string) {
   if (!supabase) return
   const { data, error } = await (supabase.from('layers') as any).select('*').eq('lobby_id', lobbyId)
@@ -32,84 +52,70 @@ export async function reloadLayers(lobbyId: string) {
   }
 }
 
-// A group's new place in the stack: shown at once, then written. .select() so
-// a refusal can't pass for success -- RLS doesn't raise on a forbidden UPDATE,
-// the row just isn't matched -- and on one, the groups are read back as they
-// are. Undoable when run inside withLayerUndo, as its callers do.
-export async function writeGroupKey(layer: Layer, orderKey: string, lobbyId: string) {
-  if (!supabase) return
-  useGameStore.getState().putLayer({ ...layer, orderKey })
-  const { data, error } = await (supabase.from('layers') as any)
-    .update({ order_key: orderKey }).eq('id', layer.id).select('id')
-  if (error || !Array.isArray(data) || data.length === 0) {
-    console.error('Error moving group:', error ?? 'no row updated -- gone, or write access denied')
-    await reloadLayers(lobbyId)
-  }
+// Every change to a group here is made in the store and marked for the next
+// Save (lib/traceSave), as a trace's is -- the user, 2026-11-11: written as
+// they were made, they outlived Don't Save and leaving without saving. Undoable
+// when run inside withLayerUndo, as their callers do.
+
+// A group's new place in the stack.
+export async function writeGroupKey(layer: Layer, orderKey: string, _lobbyId?: string) {
+  const live = useGameStore.getState().layers.find(l => l.id === layer.id) ?? layer
+  useGameStore.getState().putLayer({ ...live, orderKey })
+  useGameStore.getState().markLayerChanged(layer.id)
 }
 
 // What a change of order left under its slot, out of it (lib/frames
-// underTheirSlots) -- written now, as a group's place is: inside the same
-// withLayerUndo as that change (layerDelta tracks frameId and the crop), so an
-// undo puts it back in.
-const SLOT_COLUMNS = { cropX: 'crop_x', cropY: 'crop_y', cropWidth: 'crop_width', cropHeight: 'crop_height', scaleX: 'scale_x', scaleY: 'scale_y' } as const
+// underTheirSlots): inside the same withLayerUndo as that change (layerDelta
+// tracks frameId and the crop), so an undo puts it back in.
 export async function letGoUnderSlots() {
-  if (!supabase) return
   const { traces, layers } = useGameStore.getState()
   for (const trace of underTheirSlots(traces, drawRanks(traces, layers))) {
     const out = outOfSlot(trace, traces.find(t => t.id === trace.frameId))
-    const { error } = await (supabase.from('traces') as any)
-      .update({ frame_id: null, ...Object.fromEntries(Object.entries(out).map(([key, value]) => [SLOT_COLUMNS[key as keyof typeof out], value])) })
-      .eq('id', trace.id)
-    if (error) continue
     const now = useGameStore.getState().traces.find(t => t.id === trace.id) ?? trace
     useGameStore.getState().addTrace({ ...now, frameId: null, ...out })
+    useGameStore.getState().markTraceChanged(trace.id)
     // What the canvas still draws for it from a drag gives way to this.
     window.dispatchEvent(new CustomEvent(TRACES_RECEIVED_EVENT, { detail: [trace.id] }))
   }
 }
 
-// A group's template values (lib/templateValues), changed: as a group's place is.
+// A group's template values (lib/templateValues), changed.
 // Not undone with its traces: a value undone away from them stays, used by none.
-export async function writeGroupTemplate(layer: Layer, template: TemplateValues | null, lobbyId: string) {
-  if (!supabase) return
+export async function writeGroupTemplate(layer: Layer, template: TemplateValues | null, _lobbyId?: string) {
   // Onto the group as it is now: an undo writes long after `layer` was read.
   const live = useGameStore.getState().layers.find(l => l.id === layer.id) ?? layer
   useGameStore.getState().putLayer({ ...live, template })
-  const { data, error } = await (supabase.from('layers') as any)
-    .update({ template }).eq('id', layer.id).select('id')
-  if (error || !Array.isArray(data) || data.length === 0) {
-    console.error('Error keeping the values:', error ?? 'no row updated -- gone, or write access denied')
-    await reloadLayers(lobbyId)
-  }
-  window.dispatchEvent(new Event('atrium:layers-changed'))
+  useGameStore.getState().markLayerChanged(layer.id)
 }
 
-// A new group -- on top of everything, unless given its place in the stack --
-// put in the store and announced. Two people doing this at the same moment
-// may pick the same key; the tie is broken by id, the same way for everyone.
+// A new group -- on top of everything, unless given its place in the stack.
+// Two people doing this at the same moment may pick the same key; the tie is
+// broken by id, the same way for everyone.
 export async function createGroup(lobbyId: string, name: string, userId: string | null, orderKey?: string, template: TemplateValues | null = null): Promise<Layer> {
   const { traces, layers } = useGameStore.getState()
-  const { data, error } = await (supabase!.from('layers') as any)
-    .insert({ name, order_key: orderKey ?? keysOnTop(topLevel(traces, layers))[0], is_group: true, user_id: userId, lobby_id: lobbyId, ...(template ? { template } : {}) })
-    .select()
-    .single()
-  if (error || !data) throw new Error(error?.message || 'the group was not made')
-  const layer = mapRowToLayer(data)
+  const layer: Layer = {
+    id: crypto.randomUUID(),
+    createdAt: new Date().toISOString(),
+    name,
+    orderKey: orderKey ?? keysOnTop(topLevel(traces, layers))[0],
+    isGroup: true,
+    parentId: null,
+    template,
+    userId: userId ?? '',
+    lobbyId,
+  }
   useGameStore.getState().putLayer(layer)
-  // Desktop has no realtime to tell anyone else.
-  window.dispatchEvent(new Event('atrium:layers-changed'))
+  useGameStore.getState().markLayerChanged(layer.id)
   return layer
 }
 
-// The atrium's groups: loaded with it and kept live, like its traces. On
-// desktop the channel is the local shim's and never fires, so a change made
-// outside the store says so with atrium:layers-changed.
+// The atrium's groups: loaded with it and kept live, like its traces. Changes
+// made here are in the store already; others' arrive through the live feed.
 export function useLayers(lobbyId: string | null) {
   useEffect(() => {
     if (!supabase || !lobbyId) return
     const reload = () => { void reloadLayers(lobbyId) }
     reload()
-    window.addEventListener('atrium:layers-changed', reload)
     // Others' changes (lib/liveChanges): through the room, or Supabase's feed.
     const stopLive = liveTable(lobbyId, 'layers', () => {
       const channel = supabase
@@ -118,9 +124,6 @@ export function useLayers(lobbyId: string | null) {
         .subscribe()
       return () => { channel.unsubscribe() }
     }, reload)
-    return () => {
-      window.removeEventListener('atrium:layers-changed', reload)
-      stopLive()
-    }
+    return () => { stopLive() }
   }, [lobbyId])
 }

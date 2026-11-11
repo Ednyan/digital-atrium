@@ -145,10 +145,7 @@ export async function enterBrowserAtrium(lobbyId: string, guest: Maker | null) {
 export function leaveBrowserAtrium(): Promise<void> {
   if (!inside) return Promise.resolve()
   return leaving ??= (async () => {
-    const [{ whenTracesWritten }, { whenLayerChangesDone }, { whenSaveDone }] = await Promise.all([
-      import('./traceWrites'), import('./layerQueue'), import('./traceSave'),
-    ])
-    await whenTracesWritten()
+    const [{ whenLayerChangesDone }, { whenSaveDone }] = await Promise.all([import('./layerQueue'), import('./traceSave')])
     await whenLayerChangesDone()
     await whenSaveDone()
     // What a Drive atrium had left to send, on its way.

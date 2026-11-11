@@ -8,9 +8,9 @@
 // picture's is: what it shows, already read (lib/spreadsheet), so it's never
 // read from the spreadsheet again.
 
+import { newTraces } from './traceWrites'
 import { supabase } from './supabase'
 import { useGameStore } from '../store/gameStore'
-import { mapRowToTrace } from '../hooks/useTraces'
 import { createGroup } from '../hooks/useLayers'
 import { uploadTraceFile } from './traceUpload'
 import { currentTracePreset } from './tracePresets'
@@ -91,10 +91,8 @@ export async function importSpreadsheet(file: File, at: { x: number; y: number }
         order_key: keys[i],
       })),
     ]
-    const { data, error } = await (db.from('traces') as any).insert(rows).select()
-    if (error) throw new Error(error.message)
-    for (const row of data ?? []) useGameStore.getState().addTrace(mapRowToTrace(row))
-    window.dispatchEvent(new Event('atrium:layers-changed'))
+    // There at once, written with the next Save (lib/traceWrites).
+    const data = newTraces(rows).map(trace => ({ id: trace.id, media_url: trace.mediaUrl }))
     if (path) {
       void followFile(path, (data ?? []).flatMap((row: any) => {
         const i = urls.indexOf(row.media_url)

@@ -192,6 +192,8 @@ export function traceColumns(trace: Trace): Record<string, any> {
     order_key: trace.orderKey ?? null,
     layer_name: trace.layerName ?? null,
     frame_id: trace.frameId ?? null,
+    // Its group: the save's to write, as every change is (group changes wait for it too).
+    layer_id: trace.layerId ?? null,
   }
   // A frame's only, and only once set -- switched off it's null, which must
   // reach the database -- so a database without the column (add_frame_arrange

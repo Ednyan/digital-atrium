@@ -753,7 +753,7 @@ const ko: Catalogue = {
   'atrium.draw.smooth': '부드럽게',
   'atrium.draw.hardness': '경도',
   'atrium.draw.exit': '그리기 끝내기',
-  'atrium.draw.hint': '끌어서 그려요 — 한 획마다 저장돼요 • E 지우개 • Ctrl+Z 되돌리기, Ctrl+Shift+Z 다시 실행 • Esc 나가기',
+  'atrium.draw.hint': "끌어서 그려요 • E 지우개 • Ctrl+Z 되돌리기, Ctrl+Shift+Z 다시 실행 • Esc 나가기",
   'atrium.draw.strokeSaveFailed': '획 하나를 저장하지 못했어요: {message}',
   'atrium.draw.strokeColour': '획 색상',
   'common.create': '만들기',

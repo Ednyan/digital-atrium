@@ -2,14 +2,14 @@
 //
 // A layer change -- a group made, renamed, moved or removed, traces moved
 // between groups or reordered or locked from the Layer panel, a group deleted
-// with its traces -- is written to the database as it's made, through the
-// layer queue rather than the save trace edits go by (lib/traceSave). So its
-// undo is a write too. withLayerUndo runs
+// with its traces -- is made in the store and written with the next Save, as
+// every change is (lib/traceSave; the user, 2026-11-11: it used to be written
+// as it was made, so Don't Save and leaving without saving left it). Its undo
+// is a change in the store too. withLayerUndo runs
 // a change and records what it did (lib/layerDelta) as one step in the
 // atrium's history (lib/actionHistory); undo and redo apply that difference
 // backwards and forwards, through the layer queue like any layer change.
 
-import { supabase } from './supabase'
 import { useGameStore } from '../store/gameStore'
 import { recordAction } from './actionHistory'
 import { queueLayerChange } from './layerQueue'
@@ -33,17 +33,15 @@ export const layerChangeAdopts = (id: string) => adopted.delete(id) || applying 
 // others' new ones arriving over realtime (hooks/useTraces).
 export const adoptTraces = (ids: Iterable<string>) => { for (const id of ids) adopted.add(id) }
 
-// Makes the store and the database what `delta` leads to (lib/layerDelta).
+// Makes the store what `delta` leads to, marked for Save (lib/layerDelta).
 export async function applyLayerDelta(delta: LayerDelta): Promise<void> {
-  if (!supabase) return
   applying++
   try {
-    await applyDelta(delta, { db: supabase, store: () => useGameStore.getState(), adopt: id => adopted.add(id) })
+    await applyDelta(delta, { store: () => useGameStore.getState(), adopt: id => adopted.add(id) })
   } finally {
     applying--
   }
   // Desktop has no realtime to tell the Layer panel.
-  window.dispatchEvent(new Event('atrium:layers-changed'))
 }
 
 // What a change made, by id, when it says (an import): its step is those

@@ -752,7 +752,7 @@ const zh: Catalogue = {
   'atrium.draw.smooth': '平滑',
   'atrium.draw.hardness': '硬度',
   'atrium.draw.exit': '退出绘制',
-  'atrium.draw.hint': '按住并拖动即可作画，每一笔都会自动保存 • E 橡皮擦 • Ctrl+Z 撤销、Ctrl+Shift+Z 重做 • Esc 退出',
+  'atrium.draw.hint': "按住并拖动即可作画 • E 橡皮擦 • Ctrl+Z 撤销、Ctrl+Shift+Z 重做 • Esc 退出",
   'atrium.draw.strokeSaveFailed': '有一笔没能保存：{message}',
   'atrium.draw.strokeColour': '笔画颜色',
   'common.create': '创建',

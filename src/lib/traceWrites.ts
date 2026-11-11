@@ -1,44 +1,34 @@
-// A new trace, there at once.
+// New traces: there at once, and kept the way every other change is -- in the
+// store, marked to be written, and written with the next Save (lib/traceSave,
+// whose write inserts a row that isn't there yet). Not before.
 //
-// Made in the store the moment it's asked for and written to the database
-// behind it -- as Excalidraw makes things: nothing waits on the round trip to
-// appear, which on the web was most of the time between letting go of a
-// dragged-out shape and seeing it. Its id is made here, so the row it becomes
-// is the same trace. A write that fails takes it away again and says why
-// (onFailed).
+// They used to be written to the database the moment they were made, while
+// changes and deletions waited for Save -- the user, 2026-11-11: what was made
+// stayed though one left without saving, and Don't Save couldn't take it back,
+// since it reads the atrium again from the database. And where a path wrote
+// first and showed after, the database's echo of the insert could arrive first
+// and be taken for someone else's trace: no step of undo for it.
 //
-// Whatever writes to trace rows straight away waits for these first
-// (whenTracesWritten): the layer queue and Save do, so neither ever updates a
-// row that isn't there yet.
+// Made in the store first, each is seen by TraceOverlay as one's own addition
+// (one step of undo for all made together), unless the caller records a step
+// of its own (adoptTraces, as a drawing does).
 
-import { supabase } from './supabase'
 import { useGameStore } from '../store/gameStore'
 import { mapRowToTrace } from '../hooks/useTraces'
-import { waitBeforeLayerChanges } from './layerQueue'
 import type { Trace } from '../types/database'
 
-const writing = new Set<Promise<void>>()
-
-export function whenTracesWritten(): Promise<void> {
-  return Promise.all([...writing]).then(() => undefined)
-}
-waitBeforeLayerChanges(whenTracesWritten)
-
-// `row` as the database has it (column names), without an id. The trace, as
-// it now is in the store.
-export function insertTrace(row: Record<string, any>, onFailed: (message: string) => void): Trace {
-  const full = { ...row, id: crypto.randomUUID(), created_at: new Date().toISOString() }
-  const trace = mapRowToTrace(full)
-  useGameStore.getState().addTrace(trace)
-  if (supabase) {
-    const write: Promise<void> = (async () => {
-      const { error } = await (supabase.from('traces') as any).insert(full)
-      if (error) {
-        useGameStore.getState().removeTrace(trace.id)
-        onFailed(error.message ?? String(error))
-      }
-    })().finally(() => { writing.delete(write) })
-    writing.add(write)
+/** `rows` as the database has them (column names), ids made if they have none:
+ *  in the store now, written with the next Save. The traces, as the store has them. */
+export function newTraces(rows: Record<string, any>[]): Trace[] {
+  const store = useGameStore.getState()
+  const now = new Date().toISOString()
+  const made = rows.map(row => mapRowToTrace({ ...row, id: row.id ?? crypto.randomUUID(), created_at: row.created_at ?? now }))
+  for (const trace of made) {
+    store.addTrace(trace)
+    store.markTraceChanged(trace.id)
   }
-  return trace
+  return made
 }
+
+/** One new trace (newTraces). */
+export const insertTrace = (row: Record<string, any>): Trace => newTraces([row])[0]

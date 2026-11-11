@@ -8,7 +8,7 @@ import { drawRanks, inOrder, isValidOrderKey, keysBetween, topLevel, type Ordere
 import { feelSpring, feelStep } from '../lib/dragFeel'
 import { panelDrop, type PanelDropTarget } from '../lib/panelDrop'
 import { cleanTitle } from '../lib/traceNames'
-import { createGroup as insertGroup, letGoUnderSlots, reloadLayers, writeGroupKey } from '../hooks/useLayers'
+import { createGroup as insertGroup, letGoUnderSlots, writeGroupKey } from '../hooks/useLayers'
 import { queueLayerChange } from '../lib/layerQueue'
 import { UNLOCKED, isLockedTrace } from '../lib/traceLock'
 import { withLayerUndo } from '../lib/layerUndo'
@@ -146,7 +146,7 @@ interface LayerPanelProps {
 export default function LayerPanel({ lobbyId, onClose, selectedTraceId, multiSelectedTraceIds, onCustomize, onSetSelection, onSelectTrace, onGoToTrace, onSelectGroupTraces, onGoToTraces, canEdit = true }: LayerPanelProps) {
   const { t } = useTranslation()
   const multiSelectedSet = new Set(multiSelectedTraceIds ?? [])
-  const { traces, username, userId, addTrace, removeTrace } = useGamePick('traces', 'username', 'userId', 'addTrace', 'removeTrace')
+  const { traces, username, userId, addTrace } = useGamePick('traces', 'username', 'userId', 'addTrace')
   // The atrium's groups, from the store (hooks/useLayers loads and keeps them).
   // Changes read useGameStore.getState().layers instead: queued behind another
   // (lib/layerQueue), they run after this render's copy is out of date.
@@ -280,21 +280,17 @@ export default function LayerPanel({ lobbyId, onClose, selectedTraceId, multiSel
   // What a trace is ordered among, itself included, bottom to top.
   const poolOf = (layerId: string | null): (Trace | Layer)[] => (layerId ? groupBottomUp(layerId) : stackBottomUp())
 
-  // A trace's new place (and group, if given): shown at once, then written.
-  // A refusal puts back the trace as it was.
+  // Everything changed from here is changed in the store and written with the
+  // next Save (lib/traceSave), as every change is -- the user, 2026-11-11:
+  // written as it was made, a group change outlived Don't Save.
+
+  // A trace's new place (and group, if given).
   const writeTraceKey = async (trace: Trace, orderKey: string, layerId?: string | null) => {
-    if (!supabase) return
     const store = useGameStore.getState()
     const before = store.traces.find(t => t.id === trace.id) ?? trace
     const moved = layerId === undefined ? { orderKey } : { orderKey, layerId }
     store.addTrace({ ...before, ...moved })
-    const update: Record<string, unknown> = { order_key: orderKey }
-    if (layerId !== undefined) update.layer_id = layerId
-    const { error } = await (supabase.from('traces') as any).update(update).eq('id', trace.id)
-    if (error) {
-      console.error('Error moving trace:', error)
-      useGameStore.getState().addTrace(before)
-    }
+    store.markTraceChanged(trace.id)
   }
 
   // A new key for a group or a trace in the stack, whichever it is.
@@ -341,60 +337,34 @@ export default function LayerPanel({ lobbyId, onClose, selectedTraceId, multiSel
     setDialogTargetId(layerId)
   }
 
-  // Traces deleted from here, gone from the canvas as well, with their threads.
-  // The group delete removed them from the database only, so on desktop --
-  // which has no realtime to report it -- they stayed on screen. Threads: the
-  // web's foreign keys delete them with the trace, desktop's database has
-  // none, so they are deleted here for both (the web doesn't mind).
+  // Traces deleted from here, with their threads: gone from the canvas, and
+  // deleted with the next Save (threads first: desktop's database doesn't
+  // cascade).
   const forgetDeletedTraces = async (traceIds: string[]) => {
-    if (!supabase || traceIds.length === 0) return
+    if (traceIds.length === 0) return
     const gone = new Set(traceIds)
     const store = useGameStore.getState()
     const threads = store.links.filter(l => gone.has(l.from) || gone.has(l.to)).map(l => l.id)
-    for (const id of traceIds) store.removeTrace(id)
     for (const id of threads) store.dropLink(id)
-    if (threads.length > 0) await (supabase.from('trace_links') as any).delete().in('id', threads)
+    for (const id of traceIds) {
+      store.removeTrace(id)
+      store.markTraceDeleted(id)
+    }
   }
 
+  // The group and everything in it.
   const doDeleteGroupNow = async (layerId: string) => {
-    if (!supabase || !canEdit) return
-    const groupTraceIds = getTracesForLayer(layerId).map(t => t.id)
-
-    // Delete all traces in this group
-    const { error: tracesError } = await supabase
-      .from('traces')
-      .delete()
-      .eq('layer_id', layerId)
-
-    if (tracesError) {
-      return
-    }
-    await forgetDeletedTraces(groupTraceIds)
-
-    // Delete the group
-    const { error } = await supabase.from('layers').delete().eq('id', layerId)
-
-    if (error) {
-      console.error('Error deleting group:', error)
-      return
-    }
-
-    await reloadLayers(lobbyId)
+    if (!canEdit) return
+    await forgetDeletedTraces(getTracesForLayer(layerId).map(t => t.id))
+    useGameStore.getState().forgetLayer(layerId)
+    useGameStore.getState().markLayerDeleted(layerId)
   }
 
   // Deletes a single trace directly (grouped or ungrouped) -- previously the
   // only way to remove a trace from the Layer panel was to delete its entire
   // group, which took every other trace in it down too.
   const doDeleteTraceNow = async (traceId: string) => {
-    if (!supabase || !canEdit) return
-
-    const { error } = await supabase.from('traces').delete().eq('id', traceId)
-
-    if (error) {
-      console.error('Error deleting trace:', error)
-      return
-    }
-
+    if (!canEdit) return
     await forgetDeletedTraces([traceId])
   }
 
@@ -456,34 +426,21 @@ export default function LayerPanel({ lobbyId, onClose, selectedTraceId, multiSel
     />
   )
 
-  // A trace's name (a text trace's) or title (anything else), from here: shown
-  // at once, then written.
+  // A trace's name (a text trace's) or title (anything else), from here.
   const doRenameTraceNow = async (traceId: string, name: { layerName: string } | { content: string }) => {
-    if (!supabase || !canEdit) return
+    if (!canEdit) return
     const before = useGameStore.getState().traces.find(t => t.id === traceId)
     if (!before) return
     useGameStore.getState().addTrace({ ...before, ...name })
-    const column = 'layerName' in name ? { layer_name: name.layerName } : { content: name.content }
-    const { error } = await (supabase.from('traces') as any).update(column).eq('id', traceId)
-    if (error) {
-      console.error('Error renaming trace:', error)
-      useGameStore.getState().addTrace(before)
-    }
+    useGameStore.getState().markTraceChanged(traceId)
   }
 
   const doRenameGroupNow = async (layerId: string, newName: string) => {
-    if (!supabase || !newName.trim() || !canEdit) return
-
-    const { error } = await (supabase.from('layers') as any)
-      .update({ name: newName.trim() })
-      .eq('id', layerId)
-
-    if (error) {
-      console.error('Error renaming group:', error)
-      return
-    }
-
-    await reloadLayers(lobbyId)
+    if (!newName.trim() || !canEdit) return
+    const group = useGameStore.getState().layers.find(l => l.id === layerId)
+    if (!group) return
+    useGameStore.getState().putLayer({ ...group, name: newName.trim() })
+    useGameStore.getState().markLayerChanged(layerId)
   }
 
   // Deletes the group but keeps its traces, left in the stack where the group
@@ -491,18 +448,11 @@ export default function LayerPanel({ lobbyId, onClose, selectedTraceId, multiSel
   // -- as a one-click menu item that needed to be an explicit, distinct
   // choice rather than the only meaning of "Delete".
   const doDeleteGroupKeepTracesNow = async (layerId: string) => {
-    if (!supabase || !canEdit) return
-
+    if (!canEdit) return
     const groupTraces = groupBottomUp(layerId)
     if (groupTraces.length > 0) await releaseNow(groupTraces.map(t => t.id))
-
-    const { error } = await supabase.from('layers').delete().eq('id', layerId)
-    if (error) {
-      console.error('Error deleting group:', error)
-      return
-    }
-
-    await reloadLayers(lobbyId)
+    useGameStore.getState().forgetLayer(layerId)
+    useGameStore.getState().markLayerDeleted(layerId)
   }
 
   // Copies a group and everything in it into a brand-new group, so the copies
@@ -548,21 +498,13 @@ export default function LayerPanel({ lobbyId, onClose, selectedTraceId, multiSel
     for (const traceId of traceIds) await setTraceLockedNow(traceId, locked)
   }
   const setTraceLockedNow = async (traceId: string, locked: boolean) => {
-    if (!supabase || !canEdit) return
+    if (!canEdit) return
     // Unlocking clears "ignore clicks" too, which now counts as locked
     // (lib/traceLock).
-    const { error } = await (supabase.from('traces') as any)
-      .update(locked ? { is_locked: true } : { is_locked: false, ignore_clicks: false })
-      .eq('id', traceId)
-    if (error) {
-      console.error('Error updating lock:', error)
-      return
-    }
     const trace = useGameStore.getState().traces.find(t => t.id === traceId)
-    if (trace) {
-      removeTrace(traceId)
-      addTrace({ ...trace, ...(locked ? { isLocked: true } : UNLOCKED) })
-    }
+    if (!trace) return
+    addTrace({ ...trace, ...(locked ? { isLocked: true } : UNLOCKED) })
+    useGameStore.getState().markTraceChanged(traceId)
   }
 
   // Whether an embed can be used in place, rather than only looked at.
@@ -574,18 +516,12 @@ export default function LayerPanel({ lobbyId, onClose, selectedTraceId, multiSel
   // trace that is awkward to right-click, because the pointer goes into the
   // iframe rather than to the trace under it.
   const setTracesEnableInteractionNow = async (traceIds: string[], enabled: boolean) => {
-    if (!supabase || !canEdit || traceIds.length === 0) return
-
+    if (!canEdit || traceIds.length === 0) return
     for (const traceId of traceIds) {
-      const { error } = await (supabase.from('traces') as any)
-        .update({ enable_interaction: enabled })
-        .eq('id', traceId)
-      if (error) {
-        console.error('Error updating interaction:', error)
-        continue
-      }
       const trace = useGameStore.getState().traces.find(t => t.id === traceId)
-      if (trace) addTrace({ ...trace, enableInteraction: enabled })
+      if (!trace) continue
+      addTrace({ ...trace, enableInteraction: enabled })
+      useGameStore.getState().markTraceChanged(traceId)
     }
   }
 

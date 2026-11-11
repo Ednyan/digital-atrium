@@ -5,9 +5,8 @@
 
 import { supabase } from './supabase'
 import { useGameStore } from '../store/gameStore'
-import { mapRowToTrace } from '../hooks/useTraces'
 import { createGroup } from '../hooks/useLayers'
-import { insertTrace } from './traceWrites'
+import { insertTrace, newTraces } from './traceWrites'
 import { uploadTraceFile } from './traceUpload'
 import { currentTracePreset } from './tracePresets'
 import { scaleToDisplayBox } from './binPack'
@@ -55,7 +54,7 @@ export async function createPdfTrace(file: File, at: { x: number; y: number }, w
     width: size.width,
     height: size.height,
     ...newTraceOrderFields(traces, layers)[0],
-  }, message => showToast(t('atrium.error.traceSaveFailed', { message })))
+  })
 }
 
 // A PowerPoint deck as a document trace at `at`, paged as a PDF is: its
@@ -94,7 +93,7 @@ export async function createDeckTrace(file: File, at: { x: number; y: number }, 
     width: size.width,
     height: size.height,
     ...newTraceOrderFields(traces, layers)[0],
-  }, message => showToast(t('atrium.error.traceSaveFailed', { message })))
+  })
   if (path) void (await import('./liveFiles')).followFile(path, [{ id: trace.id, kind: 'deck', index: 0 }])
   return trace
 }
@@ -184,14 +183,12 @@ export function extractPages(traceId: string, who: TraceMaker, onProgress?: (don
     const shown = Math.max((doc.width || 424) * Math.abs(doc.scaleX ?? doc.scale ?? 1), (doc.height || 600) * Math.abs(doc.scaleY ?? doc.scale ?? 1))
     const rows = await pageRows(pages, { x: doc.x, y: doc.y }, pageColumns(pages.length), who, shown,
       i => ({ layer_id: groupId, order_key: keys[i], content: t('atrium.trace.pageN', { n: i + 1 }) }))
-    const { data, error } = await (db.from('traces') as any).insert(rows).select()
-    if (error) throw new Error(error.message)
-    for (const row of data ?? []) useGameStore.getState().addTrace(mapRowToTrace(row))
+    // There at once, written with the next Save (lib/traceWrites).
+    newTraces(rows)
 
-    // The document goes, now its pages are there.
-    await (db.from('traces') as any).delete().eq('id', doc.id)
+    // The document goes, now its pages are there -- deleted with the same Save.
     useGameStore.getState().removeTrace(doc.id)
-    window.dispatchEvent(new Event('atrium:layers-changed'))
+    useGameStore.getState().markTraceDeleted(doc.id)
 
     const megabytes = pages.reduce((sum, p) => sum + p.blob.size, 0) / (1024 * 1024)
     showToast(tCount('atrium.toast.pagesPlaced', pages.length, { size: megabytes.toFixed(1) }))

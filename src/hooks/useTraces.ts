@@ -9,7 +9,6 @@ import { useGameStore, useGamePick } from '../store/gameStore'
 import { supabase, isLocalData, cloudClient } from '../lib/supabase'
 import { adoptTraces } from '../lib/layerUndo'
 import { liveTable, readRows, TRACES_RECEIVED_EVENT } from '../lib/liveChanges'
-import { whenTracesWritten } from '../lib/traceWrites'
 import { isBeingWritten, whenSaveDone } from '../lib/traceSave'
 import type { Trace } from '../types/database'
 import type { Change } from '../lib/liveChanges'
@@ -349,7 +348,6 @@ export function useTraces(lobbyId: string | null) {
         // All of them: what's here and saved but no longer there was deleted.
         // Only what was here before the read -- a trace made during it isn't
         // in the read, and isn't gone.
-        await whenTracesWritten()
         const before = new Set(useGameStore.getState().traces.map(t => t.id))
         const rows = await fetchAllLobbyTraces(supabase, lobbyId)
         receiveRows(rows, false)

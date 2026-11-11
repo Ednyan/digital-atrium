@@ -9,8 +9,7 @@
 // can be tested.
 
 import type { Layer, Trace } from '../types/database'
-import { traceRow } from './traceInsert.ts'
-import { linkRow, type TraceLink } from './traceLinks.ts'
+import type { TraceLink } from './traceLinks.ts'
 
 export interface LayerSnapshot {
   traces: Trace[]
@@ -103,84 +102,64 @@ export function reverseDelta(d: LayerDelta): LayerDelta {
   }
 }
 
-// What a delta is applied to: the database (the client's from(table)), the
-// store, and a note of each trace it brings in (lib/layerUndo).
+// What a delta is applied to: the store, every change in it marked to be
+// written with the next Save (lib/traceSave) -- group changes wait for Save as
+// trace changes do (the user, 2026-11-11) -- and a note of each trace it brings
+// in (lib/layerUndo).
 export interface LayerDeltaTarget {
-  db: { from(table: string): any }
   store: () => {
     layers: Layer[]
     traces: Trace[]
     putLayer(layer: Layer): void
     forgetLayer(id: string): void
+    markLayerChanged(id: string): void
+    markLayerDeleted(id: string): void
     addTrace(trace: Trace): void
     removeTrace(id: string): void
+    markTraceChanged(id: string): void
+    markTraceDeleted(id: string): void
+    unmarkTraceDeleted(id: string): void
     putLink(link: TraceLink): void
     dropLink(id: string): void
   }
   adopt(traceId: string): void
 }
 
-const TRACE_COLUMNS: Record<TrackedField, string> = {
-  layerId: 'layer_id',
-  orderKey: 'order_key',
-  layerName: 'layer_name',
-  content: 'content',
-  isLocked: 'is_locked',
-  ignoreClicks: 'ignore_clicks',
-  enableInteraction: 'enable_interaction',
-  frameId: 'frame_id',
-  cropX: 'crop_x',
-  cropY: 'crop_y',
-  cropWidth: 'crop_width',
-  cropHeight: 'crop_height',
-  scaleX: 'scale_x',
-  scaleY: 'scale_y',
-}
-const LAYER_COLUMNS: Record<keyof LayerValues, string> = { name: 'name', orderKey: 'order_key', parentId: 'parent_id' }
-const columns = (values: object, names: Record<string, string>) =>
-  Object.fromEntries(Object.entries(values).map(([key, value]) => [names[key], value ?? null]))
-
-// Makes the store and the database what `delta` leads to. Groups come back
-// before the traces that go into them and go after the traces leave them;
-// connections go before their traces and come back after both their ends.
+// Makes the store what `delta` leads to, in the order the save will write it:
+// groups come back before the traces that go into them and go after the traces
+// leave them; connections go before their traces and come back after both their ends.
 export async function applyLayerDelta(delta: LayerDelta, to: LayerDeltaTarget): Promise<void> {
-  const { db, store } = to
+  const { store } = to
   for (const layer of delta.layersAdded) {
-    await db.from('layers').upsert({
-      id: layer.id, name: layer.name, order_key: layer.orderKey ?? null, is_group: layer.isGroup,
-      parent_id: layer.parentId ?? null, user_id: layer.userId, lobby_id: layer.lobbyId ?? null,
-    })
     store().putLayer(layer)
+    store().markLayerChanged(layer.id)
   }
   for (const change of delta.layersChanged) {
-    await db.from('layers').update(columns(change.after, LAYER_COLUMNS)).eq('id', change.id)
     const now = store().layers.find(l => l.id === change.id)
-    if (now) store().putLayer({ ...now, ...change.after })
+    if (!now) continue
+    store().putLayer({ ...now, ...change.after })
+    store().markLayerChanged(change.id)
   }
   for (const trace of delta.tracesAdded) {
     to.adopt(trace.id)
-    await db.from('traces').upsert(traceRow(trace))
     store().addTrace(trace)
+    store().unmarkTraceDeleted(trace.id)
+    store().markTraceChanged(trace.id)
   }
   for (const change of delta.tracesChanged) {
-    await db.from('traces').update(columns(change.after, TRACE_COLUMNS)).eq('id', change.id)
     const now = store().traces.find(t => t.id === change.id)
-    if (now) store().addTrace({ ...now, ...change.after })
+    if (!now) continue
+    store().addTrace({ ...now, ...change.after })
+    store().markTraceChanged(change.id)
   }
-  for (const link of delta.linksRemoved) {
-    await db.from('trace_links').delete().eq('id', link.id)
-    store().dropLink(link.id)
-  }
+  for (const link of delta.linksRemoved) store().dropLink(link.id)
   for (const trace of delta.tracesRemoved) {
-    await db.from('traces').delete().eq('id', trace.id)
     store().removeTrace(trace.id)
+    store().markTraceDeleted(trace.id)
   }
-  for (const link of delta.linksAdded) {
-    await db.from('trace_links').upsert(linkRow(link))
-    store().putLink(link)
-  }
+  for (const link of delta.linksAdded) store().putLink(link)
   for (const layer of delta.layersRemoved) {
-    await db.from('layers').delete().eq('id', layer.id)
     store().forgetLayer(layer.id)
+    store().markLayerDeleted(layer.id)
   }
 }

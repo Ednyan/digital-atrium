@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
+import { newTraces } from '../lib/traceWrites'
 import { useTranslation } from '../lib/i18n'
 import { supabase } from '../lib/supabase'
 import { useGameStore, useGamePick } from '../store/gameStore'
-import { mapRowToTrace } from '../hooks/useTraces'
 import { packBoxesAroundCenter, scaleToDisplayBox, getDefaultTraceBoxSize } from '../lib/binPack'
 import { keysOnTopOfGroup } from '../lib/order'
 import { cleanTitle, firstFreeName } from '../lib/traceNames'
@@ -27,7 +27,7 @@ type Step = 'boards' | 'pins-loading' | 'confirm' | 'importing' | 'error'
 
 export default function PinterestImportPanel({ onClose, lobbyId, worldCenter, packingShape }: PinterestImportPanelProps) {
   const { t } = useTranslation()
-  const { userId, username, addTrace } = useGamePick('userId', 'username', 'addTrace')
+  const { userId, username } = useGamePick('userId', 'username')
   const [step, setStep] = useState<Step>('boards')
   const [boards, setBoards] = useState<PinterestBoard[]>([])
   const [boardsLoading, setBoardsLoading] = useState(true)
@@ -138,16 +138,8 @@ export default function PinterestImportPanel({ onClose, lobbyId, worldCenter, pa
       const CHUNK_SIZE = 50
       for (let i = 0; i < rows.length; i += CHUNK_SIZE) {
         const chunk = rows.slice(i, i + CHUNK_SIZE)
-        const { data, error } = await supabase.from('traces').insert(chunk as any).select()
-        if (error) {
-          console.error('[PinterestImportPanel] bulk insert error:', error)
-          setErrorMessage(error.message || t('atrium.pinterest.errImportSome'))
-          setStep('error')
-          return
-        }
-        for (const row of data ?? []) {
-          addTrace(mapRowToTrace(row))
-        }
+        // There at once, written with the next Save (lib/traceWrites).
+        newTraces(chunk)
         setImportDone(prev => prev + chunk.length)
       }
 

@@ -5,8 +5,9 @@
 // kept with the atrium (lobbies.preview_url, preview_at -- add_lobby_preview.sql).
 //
 // Made only when something in the atrium or its look changed since the last
-// one (or there isn't one), at most every few minutes, and never in the way:
-// after leaving, once the browser is idle. Everything it needs is taken as the
+// one (or there isn't one), and never in the way: a moment after a save by
+// hand, or after leaving, once the browser is idle -- of the atrium as it's
+// kept, never with changes not saved (LobbyScene takePreview). Everything it needs is taken as the
 // atrium is left, since the canvas and the store are gone straight after.
 // One missing what it should show never replaces a picture, nor is shared
 // (lib/previewRules): better none than one that misleads everyone else's copy.
@@ -32,8 +33,6 @@ import type { TraceLink } from './traceLinks'
 
 // As many pixels as Home's largest showing of it wants on a sharp screen.
 const MAX_SIDE = 1600
-// Not again within this long of the last, changed or not (ms).
-const AT_MOST_EVERY = 3 * 60 * 1000
 const memoryKey = (lobbyId: string) => `atrium.preview.${lobbyId}`
 
 export interface PreviewDetail { lobbyId: string; url: string; at: string }
@@ -91,7 +90,7 @@ export function captureAtriumPreview(lobbyId: string, atrium: AtriumAsLeft) {
   const print = fingerprint(traces, atrium.look)
   let last: PreviewMemory | null = null
   try { last = JSON.parse(localStorage.getItem(memoryKey(lobbyId)) || 'null') } catch { /* none */ }
-  if (!previewDue(last, print, Date.now(), AT_MOST_EVERY, MAX_SIDE)) return
+  if (!previewDue(last, print, MAX_SIDE)) return
   // Its owner's own, chosen on another device: as its row says.
   if (isChosenPicture(readCards(useGameStore.getState().userId)[lobbyId]?.preview)) return
   // One made here, or one this device has from anywhere: this device's memory alone

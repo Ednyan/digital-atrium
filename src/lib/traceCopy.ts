@@ -14,6 +14,7 @@
 // so a caller records it as one layer change (copyMakesGroups, lib/layerUndo).
 // Traces alone are picked up as additions, as any new trace is (TraceOverlay).
 
+import { newTraces } from './traceWrites'
 import { supabase } from './supabase'
 import { useGameStore } from '../store/gameStore'
 import { createGroup } from '../hooks/useLayers'
@@ -41,7 +42,6 @@ function boxOf(trace: Trace): FrameBox {
   return { cx: (path.minX + path.maxX) / 2, cy: (path.minY + path.maxY) / 2, halfW: (path.maxX - path.minX) / 2, halfH: (path.maxY - path.minY) / 2 }
 }
 
-const BATCH = 50
 
 /** Whether copying `sources` makes groups or threads too: one layer change, then. */
 export function copyMakesGroups(sources: Trace[]): boolean {
@@ -130,23 +130,14 @@ export async function copyTraces(sources: Trace[], offset: { x: number; y: numbe
       ...(copy.frameId ? { frame_id: copy.frameId } : {}),
     }
   })
-  let written = 0
-  let refused: string | null = null
-  for (; written < rows.length && !refused; written += BATCH) {
-    const { error } = await (db.from('traces') as any).insert(rows.slice(written, written + BATCH))
-    if (error) refused = error.message ?? String(error)
-    else copies.slice(written, written + BATCH).forEach(copy => useGameStore.getState().addTrace(copy))
-  }
-  if (refused) throw new Error(refused)
+  // There at once, written with the next Save (lib/traceWrites), as every new trace is.
+  newTraces(rows)
 
   // Threads, once both their traces are in.
   if (copiedFrames.size > 0 || newGroups.size > 0) {
     const linkRows = carryLinks(store.links.map(linkRow), ids).map(link => ({ ...link, lobby_id: who.lobbyId }))
-    if (linkRows.length > 0) {
-      const { data } = await (db.from('trace_links') as any).insert(linkRows).select()
-      if (Array.isArray(data)) for (const row of data) useGameStore.getState().receiveLink(mapRowToLink(row))
-    }
+    // Written with the same Save, after their traces.
+    for (const row of linkRows) useGameStore.getState().putLink(mapRowToLink({ ...row, id: crypto.randomUUID() }))
   }
-  window.dispatchEvent(new Event('atrium:layers-changed'))
   return copies
 }

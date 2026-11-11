@@ -12,6 +12,7 @@ import { supabase, isDesktop, isLocalData } from './supabase'
 import { useGameStore, LOBBY_SIZE_LIMIT } from '../store/gameStore'
 import { mapRowToTrace } from '../hooks/useTraces'
 import { createGroup } from '../hooks/useLayers'
+import { newTraces } from './traceWrites'
 import { atriumEnvelope } from './atriumDownload'
 import { traceRow } from './traceInsert'
 import { carryLinks, linkRow, mapRowToLink, type TraceLink } from './traceLinks'
@@ -179,8 +180,7 @@ export function importIntoAtrium(file: AtriumFile, at: { x: number; y: number },
   // the atrium can be used while it runs (lib/layerUndo).
   const own = { traces: new Set<string>(), layers: new Set<string>(), links: new Set<string>() }
   return queueLayerChange(() => withLayerUndo('import', async () => {
-    const db = supabase
-    if (!db) return { added: 0, missing: 0, failed: 0 }
+    if (!supabase) return { added: 0, missing: 0, failed: 0 }
     const store = useGameStore.getState()
     const { traceKeyOf, layerKeyOf } = fileOrderKeys(file)
     const textNames = nameFileTraces(file, store.traces.filter(tr => tr.type === 'text').map(tr => tr.layerName ?? ''))
@@ -282,39 +282,24 @@ export function importIntoAtrium(file: AtriumFile, at: { x: number; y: number },
       rows.push(traceRow(placed))
     }
 
-    // Written a batch at a time, then put on the canvas all at once.
-    let failed = 0
-    const written: Record<string, any>[] = []
-    for (let i = 0; i < rows.length; i += 50) {
-      const batch = rows.slice(i, i + 50)
-      const { error } = await (db.from('traces') as any).insert(batch)
-      if (!error) written.push(...batch)
-      else if (!force) failed += batch.length
-      else {
-        // Forced: one at a time, and what's still turned away as a stand-in.
-        for (const row of batch) {
-          if (!(await (db.from('traces') as any).insert(row)).error) { written.push(row); continue }
-          const standIn = standInRow(row)
-          if ((await (db.from('traces') as any).insert(standIn)).error) failed++
-          else { written.push(standIn); standIns++ }
-        }
-      }
-      done += batch.length
-      onProgress?.(done, total)
-    }
-    for (const row of written) own.traces.add(row.id)
+    // On the canvas all at once, written with the next Save (lib/traceWrites), as
+    // every change is -- the user, 2026-11-11: written as it was placed, a
+    // template outlived Don't Save. A kind this atrium can't have is a stand-in
+    // already (above), if forced.
+    for (const row of rows) own.traces.add(row.id)
     adoptTraces(own.traces)
-    for (const row of written) useGameStore.getState().addTrace(mapRowToTrace(row))
-    const added = written.length
+    newTraces(rows)
+    done += rows.length
+    onProgress?.(done, total)
+    const added = rows.length
 
-    // Threads, once both their traces are in.
-    const linkRows = carryLinks(file.links, ids).map(l => ({ ...l, lobby_id: lobbyId }))
-    if (linkRows.length > 0) {
-      const { data } = await (db.from('trace_links') as any).insert(linkRows).select()
-      if (Array.isArray(data)) for (const row of data) { own.links.add(row.id); useGameStore.getState().receiveLink(mapRowToLink(row)) }
+    // Threads: written with the same Save, after their traces.
+    for (const row of carryLinks(file.links, ids)) {
+      const link = mapRowToLink({ ...row, lobby_id: lobbyId, id: crypto.randomUUID() })
+      own.links.add(link.id)
+      useGameStore.getState().putLink(link)
     }
-    window.dispatchEvent(new Event('atrium:layers-changed'))
-    return { added, missing, failed: failed + (file.traces.length - known.length), standIns }
+    return { added, missing, failed: file.traces.length - known.length, standIns }
   }, () => own)).then(result => {
     window.dispatchEvent(new CustomEvent(TRACES_PLACED_EVENT, { detail: [...own.traces] }))
     return result

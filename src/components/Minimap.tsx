@@ -19,6 +19,7 @@ import { useGamePick, useGameStore } from '../store/gameStore'
 import { boundsOf, traceBox } from '../lib/traceGeometry'
 import { isPathTrace } from '../lib/pathBounds'
 import { pathOutline, type PathPoint } from '../lib/pathGeometry'
+import { isFrame } from '../lib/frames'
 import { useTranslation } from '../lib/i18n'
 
 export interface MinimapHandle {
@@ -94,11 +95,17 @@ const Minimap = forwardRef<MinimapHandle, { onMove: (x: number, y: number) => vo
       map.current = { scale, x: (WIDTH - (maxX - minX) * scale) / 2 - minX * scale, y: (HEIGHT - (maxY - minY) * scale) / 2 - minY * scale }
       const ink = getComputedStyle(document.documentElement).getPropertyValue('--c-fg').trim() || '203 203 203'
       const { scale: k, x, y } = map.current
+      // Frames first, so what they hold is drawn over them; paths last, over all.
+      const rank = (trace: (typeof boxes)[number]['trace']) => (isFrame(trace) ? 0 : isPathTrace(trace) ? 2 : 1)
+      boxes.sort((a, b) => rank(a.trace) - rank(b.trace))
       for (const { trace, box } of boxes) {
-        // A shape in its own colour; pictures and media a little brighter
-        // than words, so the atrium's look reads even this small.
-        context.globalAlpha = trace.type === 'shape' && trace.shapeColor ? 0.85 : 1
-        const colour = trace.type === 'shape' && trace.shapeColor ? trace.shapeColor : `rgb(${ink} / ${trace.type === 'image' || trace.type === 'video' ? 0.55 : 0.32})`
+        // Each trace's limits drawn: a fill, and a crisp edge in the theme's
+        // ink over it -- the user, 2026-11-11: in the dark the traces were
+        // faint fills that ran into one another and the ground, a small one a
+        // speck. A shape in its own colour, pictures and media a little
+        // brighter than words; a frame its edge alone, over what it holds.
+        context.globalAlpha = 1
+        const colour = trace.type === 'shape' && trace.shapeColor ? trace.shapeColor : `rgb(${ink} / ${trace.type === 'image' || trace.type === 'video' ? 0.42 : 0.24})`
         if (isPathTrace(trace) && (trace.shapePoints?.length ?? 0) > 1) {
           // A path as its line, not the box around it.
           context.setTransform(ratio * k, 0, 0, ratio * k, ratio * x, ratio * y)
@@ -109,8 +116,18 @@ const Minimap = forwardRef<MinimapHandle, { onMove: (x: number, y: number) => vo
           context.setTransform(ratio, 0, 0, ratio, 0, 0)
           continue
         }
-        context.fillStyle = colour
-        context.fillRect(box.minX * k + x, box.minY * k + y, Math.max(1, (box.maxX - box.minX) * k), Math.max(1, (box.maxY - box.minY) * k))
+        // At least two pixels each way, on whole pixels: the edge crisp, not smeared.
+        const w = Math.max(2, Math.round((box.maxX - box.minX) * k)), h = Math.max(2, Math.round((box.maxY - box.minY) * k))
+        const left = Math.round(box.minX * k + x), top = Math.round(box.minY * k + y)
+        if (!isFrame(trace)) {
+          context.globalAlpha = trace.type === 'shape' && trace.shapeColor ? 0.85 : 1
+          context.fillStyle = colour
+          context.fillRect(left, top, w, h)
+          context.globalAlpha = 1
+        }
+        context.strokeStyle = `rgb(${ink} / ${isFrame(trace) ? 0.5 : 0.7})`
+        context.lineWidth = 1
+        context.strokeRect(left + 0.5, top + 0.5, w - 1, h - 1)
       }
       placeFrame()
     }

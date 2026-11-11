@@ -192,9 +192,20 @@ interface GameState {
   // with inOrder (lib/order). One list for the canvas, which draws by it, and
   // the Layer panel, which edits it; each used to load a copy of its own.
   layers: Layer[]
+  // Kept like traces since 2026-11-11 (the user: group changes wait for Save
+  // too): a group made or changed here in pendingLayers, one removed in
+  // deletedLayers, written by the save (lib/traceSave) -- groups before the
+  // traces that go into them, removed after the traces leave them.
+  pendingLayers: Set<string>
+  deletedLayers: Set<string>
+  // As loaded from the database -- keeping what's waiting here: a group made or
+  // changed and not yet saved stays as it is here, one removed stays removed.
   setLayers: (layers: Layer[]) => void
+  // From anywhere, unmarked (someone else's, live): what a change here also marks.
   putLayer: (layer: Layer) => void
   forgetLayer: (id: string) => void
+  markLayerChanged: (id: string) => void
+  markLayerDeleted: (id: string) => void
   markLinksSaved: (ids: string[]) => void
   setIsSavingChanges: (saving: boolean) => void
   setSaveFailed: (failed: boolean) => void
@@ -526,6 +537,8 @@ export const useGameStore = create<GameState>((set, get) => ({
       traces: [],
       links: [],
       layers: [],
+      pendingLayers: new Set<string>(),
+      deletedLayers: new Set<string>(),
       pendingLinks: new Set<string>(),
       deletedLinks: new Set<string>(),
       savedLinks: new Set<string>(),
@@ -576,6 +589,8 @@ export const useGameStore = create<GameState>((set, get) => ({
       deletedLinks: new Set<string>(),
       pendingLocations: new Set<string>(),
       deletedLocations: new Set<string>(),
+      pendingLayers: new Set<string>(),
+      deletedLayers: new Set<string>(),
     }),
 
   hasPendingChanges: () => {
@@ -583,6 +598,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     return state.pendingChanges.size > 0 || state.deletedTraces.size > 0
       || state.pendingLinks.size > 0 || state.deletedLinks.size > 0
       || state.pendingLocations.size > 0 || state.deletedLocations.size > 0
+      || state.pendingLayers.size > 0 || state.deletedLayers.size > 0
   },
 
   links: [],
@@ -625,9 +641,26 @@ export const useGameStore = create<GameState>((set, get) => ({
   pendingLocations: new Set<string>(),
   deletedLocations: new Set<string>(),
   layers: [],
-  setLayers: (layers) => set({ layers }),
+  pendingLayers: new Set<string>(),
+  deletedLayers: new Set<string>(),
+  setLayers: (loaded) => set((state) => ({
+    layers: [
+      ...loaded.filter(l => !state.pendingLayers.has(l.id) && !state.deletedLayers.has(l.id)),
+      ...state.layers.filter(l => state.pendingLayers.has(l.id)),
+    ],
+  })),
   putLayer: (layer) => set((state) => ({ layers: [...state.layers.filter(l => l.id !== layer.id), layer] })),
   forgetLayer: (id) => set((state) => ({ layers: state.layers.filter(l => l.id !== id) })),
+  markLayerChanged: (id) => set((state) => {
+    const deletedLayers = new Set(state.deletedLayers)
+    deletedLayers.delete(id)
+    return { pendingLayers: new Set(state.pendingLayers).add(id), deletedLayers }
+  }),
+  markLayerDeleted: (id) => set((state) => {
+    const pendingLayers = new Set(state.pendingLayers)
+    pendingLayers.delete(id)
+    return { pendingLayers, deletedLayers: new Set(state.deletedLayers).add(id) }
+  }),
   markLinksSaved: (ids) => set((state) => {
     const savedLinks = new Set(state.savedLinks)
     for (const id of ids) savedLinks.add(id)
@@ -680,6 +713,7 @@ const UNSAVED = [
   ['t', 'pendingChanges'], ['t', 'deletedTraces'],
   ['l', 'pendingLinks'], ['l', 'deletedLinks'],
   ['p', 'pendingLocations'], ['p', 'deletedLocations'],
+  ['g', 'pendingLayers'], ['g', 'deletedLayers'],
 ] as const
 const stamps = new Map<string, number>()
 let stamp = 0

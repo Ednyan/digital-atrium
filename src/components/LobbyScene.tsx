@@ -14,7 +14,6 @@ import ThemeToggle from './ThemeToggle'
 import { currentTracePreset, defaultPresetFor } from '../lib/tracePresets'
 import { readPackingShape } from '../lib/atriumPreferences'
 import { usePresence } from '../hooks/usePresence'
-import { mapRowToTrace } from '../hooks/useTraces'
 import TraceOverlay, { CULL_MARGIN } from './TraceOverlay'
 import { contentView, createWorldCamera, edgeInsets } from '../lib/worldCamera'
 import { boundsOf, traceBox } from '../lib/traceGeometry'
@@ -48,13 +47,13 @@ import { recordAction } from '../lib/actionHistory'
 import { adoptTraces } from '../lib/layerUndo'
 import { cachedPicture, dropStrokes, holdDrawingFiles, loadDrawingPicture, paintedDrawing, pictureFieldsOf, pictureRow, pieceFields, placementOf, releaseDrawingFiles, restoreStrokes, saveDrawingPicture, writeDrawing, writePicture, type PictureFields } from '../lib/drawingFiles'
 import { useClampedMenuPosition } from '../hooks/useClampedMenuPosition'
-import { discardAllChanges, saveAllChanges, saveByHand, startAutosave } from '../lib/traceSave'
+import { discardAllChanges, SAVED_BY_HAND_EVENT, saveAllChanges, saveByHand, startAutosave } from '../lib/traceSave'
 import { changeLocations, mapLocationRow, receiveLocations } from '../lib/locations'
 import { convertEmbedToInternalImage } from '../lib/traceConvert'
 import { drawRanks, groupIdOf, inOrder, keyAt, keysBetween, keysOnTopOfGroup, newTraceOrderFields, topLevel } from '../lib/order'
 import { inferFileExtension, uploadTraceFile } from '../lib/traceUpload'
 import { fileTitle, firstFreeName, nextShapeName, nextTextName, nextUntitledName } from '../lib/traceNames'
-import { insertTrace } from '../lib/traceWrites'
+import { insertTrace, newTraces } from '../lib/traceWrites'
 import { packBoxesAroundCenter, getDefaultTraceBoxSize, scaleToDisplayBox, probeRemoteImageDimensions } from '../lib/binPack'
 import { nextShapeStyle, previewFrameColour, rememberShapeStyle, shapePaint, shapeStyleColumns, textColourOn, type ShapeStyle } from '../lib/shapeStyle'
 import { defaultEmbedBox, embedSourcesIn } from '../lib/embedUrl'
@@ -87,7 +86,7 @@ import { WorkshopActions, WorkshopEmptyHint, WorkshopFrame, WorkshopSlotTool, Wo
 import type { TemplateValue } from '../lib/templateValues'
 import TemplateReveal, { assemblyOf, type Assembly } from './TemplateReveal'
 import { rememberCard } from '../lib/atriumCards'
-import { isBoxShape, type BoxShape } from '../lib/shapeStyle'
+import { isBoxShape, readableOn, type BoxShape } from '../lib/shapeStyle'
 import { roundedPolygonPath, shapePolygon } from '../lib/traceGeometry'
 import { formatSize } from '../lib/size'
 import { DRIVE_SPACE_EVENT } from '../lib/drive'
@@ -1090,21 +1089,35 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
     }
   }
   const tutorialRef = useRef(false)
+  // Its picture for the atrium browser, from what's on screen now -- by its
+  // owner alone, the same for everyone (lib/atriumPreview), made a moment later.
+  // Only of the atrium as it's kept: as a save by hand goes through, and as it's
+  // left with nothing waiting -- never with changes not saved (left without
+  // saving, they'd be in the picture, and not in the atrium). The user,
+  // 2026-11-11: a picture that took changes sometimes and sometimes not.
+  const takePreview = () => {
+    if (!isLobbyOwner || tutorialRef.current || workshopRef.current) return
+    const { traces, links, layers, hasPendingChanges } = useGameStore.getState()
+    if (hasPendingChanges()) return
+    captureAtriumPreview(lobbyId, {
+      traces, links, layers,
+      look: JSON.stringify(viewTheme ?? null),
+      background: viewTheme?.backgroundColor || '#0a0a0f',
+      room: snapshotRoom,
+    })
+  }
+  const takePreviewRef = useRef(takePreview)
+  takePreviewRef.current = takePreview
+  useEffect(() => {
+    const saved = () => takePreviewRef.current()
+    window.addEventListener(SAVED_BY_HAND_EVENT, saved)
+    return () => window.removeEventListener(SAVED_BY_HAND_EVENT, saved)
+  }, [])
   const leaveWithTransition = useCallback(() => {
     setLeaving(true)
     // For the welcome screen: what it was as it was left (lib/atriumCards).
     if (!tutorialRef.current && !workshopRef.current && currentLobby?.name) rememberCard(useGameStore.getState().userId, lobbyId, { name: currentLobby.name, traces: useGameStore.getState().traces.length })
-    // Its picture for the atrium browser, from what's on screen now -- by its
-    // owner alone, the same for everyone (lib/atriumPreview), made after leaving.
-    if (isLobbyOwner && !tutorialRef.current && !workshopRef.current) {
-      const { traces, links, layers } = useGameStore.getState()
-      captureAtriumPreview(lobbyId, {
-        traces, links, layers,
-        look: JSON.stringify(viewTheme ?? null),
-        background: viewTheme?.backgroundColor || '#0a0a0f',
-        room: snapshotRoom,
-      })
-    }
+    takePreview()
     setTimeout(() => onLeaveLobby(leaveToRef.current), 210)
   }, [onLeaveLobby, isLobbyOwner, currentLobby, userId, lobbyId, viewTheme])
   const askToLeave = (to?: string) => {
@@ -1384,7 +1397,11 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
   // are in the world (lib/drawingView), so a drawing stays where it was drawn
   // while the view pans and zooms around it.
   const committedLayerRef = useRef<{ canvas: HTMLCanvasElement; version: number; view: View | null } | null>(null)
-  const [drawingColor, setDrawingColor] = useState('#ffffff')
+  // Until one's chosen, the colour that reads on the atrium as it looks: white on
+  // a dark room, near-black on a light one -- white on a light room was a first
+  // stroke nobody could see.
+  const [chosenDrawingColor, setDrawingColor] = useState<string | null>(null)
+  const drawingColor = chosenDrawingColor ?? readableOn(viewTheme?.backgroundColor || '#0a0a0f')
   // Size, smoothing and hardness, the brush's and the eraser's apart: going
   // from one to the other keeps each as it was left. The eraser starts larger
   // than the brush. Hardness 100 is a hard edge, 0 as soft as it goes (see
@@ -1493,7 +1510,13 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
   // now, from a stroke's piece (rasterizeStroke), with its picture.
   const insertDrawn = async (piece: Piece, kind: 'drawing' | 'stroke', fields: { content: string; layer_id: string | null; order_key: string | null }) => {
     const mediaUrl = await saveDrawingPicture(piece.picture, lobbyId, userId)
-    const { data, error } = await supabase!.from('traces').insert({
+    // Its own step, recorded below, rather than an addition TraceOverlay would
+    // record when it sees it arrive: adopted before it's in the store.
+    const id = crypto.randomUUID()
+    adoptTraces([id])
+    // There at once, written with the next Save (lib/traceWrites), as every new trace is.
+    const [trace] = newTraces([{
+      id,
       user_id: userId,
       username,
       type: 'image',
@@ -1504,13 +1527,7 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
       show_filename: false,
       ...pictureRow(pieceFields({ ...piece, data: piece.data && { ...piece.data, kind } }, mediaUrl)),
       ...fields,
-    } as any).select()
-    if (error || !data?.[0]) throw error ?? new Error('no row came back')
-    const trace = mapRowToTrace(data[0])
-    // Its own step, recorded below, rather than an addition TraceOverlay would
-    // record when it sees it arrive.
-    adoptTraces([trace.id])
-    useGameStore.getState().addTrace(trace)
+    }])
     recordAction(madeStep(trace))
     return trace
   }
@@ -2511,9 +2528,7 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
       ...(size ? { width: Math.max(1, Math.round(size.width)), height: Math.max(1, Math.round(size.height)) } : {}),
       ...(points ? { shape_points: points } : {}),
       ...newTraceOrderFields(all, layers)[0],
-    }, message => showToast(isPath
-      ? t('atrium.error.pathFailed', { message })
-      : t('atrium.error.traceSaveFailed', { message })))
+    })
     return trace.id
   }
 
@@ -3292,17 +3307,8 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
         ...layerFields[i],
       }))
 
-      const { data, error } = await supabase.from('traces').insert(rows as any).select()
-      if (error) {
-        console.error('Batch embed insert error:', error)
-        showToast(t('atrium.error.embedsFailed', { message: error.message }))
-        return
-      }
-      if (data) {
-        for (const row of data) {
-          useGameStore.getState().addTrace(mapRowToTrace(row))
-        }
-      }
+      // There at once, written with the next Save (lib/traceWrites).
+      newTraces(rows)
     } else {
       for (let i = 0; i < urls.length; i++) {
         const trace: Trace = {
@@ -4907,7 +4913,7 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
       ...sized,
       ...layerFields,
       ...extra,
-    }, message => showToast(t('atrium.error.traceSaveFailed', { message })))
+    })
     // Returned so a caller can act on the trace it just made -- "Text" in
     // the canvas menu needs the id to put it straight into editing.
     return trace.id
