@@ -155,7 +155,7 @@ first. Web and Desktop mean only there; no mark means both.
 | Article | Covers | Order | Video |
 |---|---|---|---|
 | [`sharing`](working-together/sharing.md) | **Written.** Adding people, the invite link, asking to join; why browser and desktop atriums can't be linked | 1 | |
-| `people-and-roles` | Owner, admin, editor, viewer; who can edit; allowed, blocked, kicked; transfer | 2 | |
+| [`people-and-roles`](working-together/people-and-roles.md) | **Written.** Owner, admin, editor, viewer; adding, removing, blocking; asking to join; kicking | 2 | |
 | `public-atriums` | What public means, each kind of atrium | 2 | |
 | `drive-atriums` | Encrypted, by link; members; asking to join; bringing back deleted traces | 2 | |
 | `live-together` | Cursors, name tags, laser, Hide My IP | 3 | Yes |
