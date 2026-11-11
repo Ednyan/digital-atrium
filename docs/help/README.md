@@ -175,7 +175,7 @@ first. Web and Desktop mean only there; no mark means both.
 
 | Article | Covers | Order | Video |
 |---|---|---|---|
-| `preferences` | User Preferences, one by one: how you work, moving, seeing, sound, animations | 2 | |
+| [`preferences`](account-and-settings/preferences.md) | **Written.** User Preferences, one by one: profile, how you work, moving, seeing, people, sound, animations | 2 | |
 | `profile-and-account` | Name, cursor colour, password, signing in on desktop, delete account | 3 | |
 | `language-and-theme` | The 11 languages, light and dark | 3 | |
 
