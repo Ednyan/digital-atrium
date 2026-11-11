@@ -23,6 +23,8 @@ page of it.
 
 ## A picture
 
+![Export as image: What, Format, Size and Background, with a preview of what comes out and its size in pixels](../images/export-dialog.png)
+
 1. Select what you want in it, or nothing for all of it.
 2. Press **Ctrl+Shift+E**, or right-click a selected trace > **Export…**.
 3. Choose:

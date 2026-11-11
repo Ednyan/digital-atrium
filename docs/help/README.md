@@ -67,7 +67,7 @@ first. Web and Desktop mean only there; no mark means both.
 | [`moving-around`](moving-around/moving-around.md) | **Written.** Pan, zoom, Move the view (H), recenter (Shift+1), 100% (0), coordinates | 1 | Yes |
 | [`keyboard-shortcuts`](moving-around/keyboard-shortcuts.md) | **Written.** Every key, one page | 1 | |
 | `minimap-and-view` | Minimap, off-screen arrows, fade at the edge, hide UI, fullscreen | 3 | |
-| `locations-and-presenting` | Saved views, locking, presentation mode, export as slides or web page | 2 | Yes |
+| [`locations-and-presenting`](moving-around/locations-and-presenting.md) | **Written.** Saved views, locking, presentation mode, export as slides or web page | 2 | Yes |
 | `phones-and-tablets` | The bar along the foot, what changes with touch | 3 | |
 
 ### 3. Bringing things in (`bringing-things-in/`)
@@ -85,9 +85,9 @@ first. Web and Desktop mean only there; no mark means both.
 | Article | Covers | Order | Video |
 |---|---|---|---|
 | [`text`](bringing-things-in/text.md) | **Written.** Box or plain, sizing, fonts, alignment, inline editing | 1 | |
-| `shapes` | The five shapes, fill, outline, corners, a label | 2 | |
-| `paths-and-arrows` | Drawing, points, elbows, arrowheads, Shift to snap to a border | 2 | Yes |
-| `drawing` | Brushes, eraser, your own brushes, Edit Drawing, Split into Strokes, Rasterize | 2 | Yes |
+| [`shapes`](bringing-things-in/shapes.md) | **Written.** The five shapes, fill, outline, corners, a label | 2 | |
+| [`paths-and-arrows`](bringing-things-in/paths-and-arrows.md) | **Written.** Drawing, points, elbows, arrowheads, Shift to snap to a border | 2 | Yes |
+| [`drawing`](bringing-things-in/drawing.md) | **Written.** Brushes, eraser, your own brushes, Edit Drawing, Split into Strokes, Rasterize | 2 | Yes |
 
 **3.3 Pictures and media**
 

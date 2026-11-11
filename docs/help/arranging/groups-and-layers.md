@@ -64,7 +64,7 @@ The group's menu offers two ways:
 
 ## Good to know
 
-- Changes in the Layers panel are kept at once: **Don't Save** doesn't take them back, but **Ctrl+Z** does. See [Undo and saving](undo-and-saving.md).
+- Changes in the Layers panel wait for **Save** like any change: **Don't Save** takes them back, and so does **Ctrl+Z**. See [Undo and saving](undo-and-saving.md).
 - Groups can't go inside other groups.
 - A group has no box or title of its own. For a visible area with a title, use a frame.
 - New traces and new groups go on top of everything.

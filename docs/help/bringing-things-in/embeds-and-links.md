@@ -17,6 +17,8 @@ the canvas. Only its link is kept, so it takes almost no space.
 
 ## Add embeds
 
+![Press 7, click the canvas: a box asks for the link, and Embed places it](../images/embed-box.png)
+
 | You want | Do this |
 |---|---|
 | One from a link | Press **7**, click where it goes, paste the link, then **Embed** |

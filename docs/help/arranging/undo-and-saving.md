@@ -63,15 +63,14 @@ undo inside an atrium: 1 to 100.
 
 ## Good to know
 
-- Changes in the Layers panel (groups and their order) are kept as you make
-  them: **Don't Save** doesn't take them back, but **Ctrl+Z** does.
+- Everything waits for **Save**: new traces, changes, deletions, groups and their order, templates placed.
 - Undo history lasts while the atrium is open. Leave it, or reload, and it starts again.
 - In an atrium shared live, your undo takes back your own changes, not other people's.
 - Auto-save is set per device: on one computer, off on another.
 
 ## Related
 
-- [Groups and the Layers panel](groups-and-layers.md): changes there are kept at once.
+- [Groups and the Layers panel](groups-and-layers.md): groups, and the order things are drawn in.
 - [Keyboard shortcuts](../moving-around/keyboard-shortcuts.md): **Ctrl+S**, **Ctrl+Z** and the rest.
 - [Preferences](../account-and-settings/preferences.md): Auto-save and Steps you can undo.
 - [Export](../keeping-and-moving/export.md): keep a copy of the whole atrium as a file.
