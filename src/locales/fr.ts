@@ -377,7 +377,7 @@ const fr: Catalogue = {
   'browser.drive.from': 'de {name}',
   'browser.drive.decline': 'Refuser',
   'browser.drive.step.keys': 'Préparation de vos clés…',
-  'browser.drive.waiting': 'Votre invitation est ancienne, d’avant que les invitations puissent ouvrir un atrium d’elles-mêmes. Demandez à {owner} de la renvoyer (Partager, puis Renvoyer l’invitation) : vous entrerez aussitôt, où qu’il soit.',
+  'browser.drive.waiting': 'Votre invitation est ancienne, d’avant que les invitations puissent ouvrir un atrium d’elles-mêmes. Demandez à {owner} de la renvoyer (Réglages de l’Atrium, Personnes, puis Renvoyer l’invitation) : vous entrerez aussitôt, où qu’il soit.',
   'browser.drive.waitingAccount': 'Vous êtes connecté à un autre compte Google que lorsque vous avez rejoint. Demandez à {owner} de renvoyer votre invitation : vous entrerez aussitôt.',
   'browser.drive.notAdded': '{owner} ne vous a pas encore ajouté. Demandez-lui d’ajouter votre nom d’utilisateur : {username}',
   'browser.drive.ask': 'Demander à entrer',

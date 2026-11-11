@@ -408,7 +408,7 @@ export const en = {
   'browser.drive.from': 'from {name}',
   'browser.drive.decline': 'Decline',
   'browser.drive.step.keys': 'Getting your keys ready…',
-  'browser.drive.waiting': 'Your invitation is an old one, from before invitations could open an atrium by themselves. Ask {owner} to resend it (Share, then Resend invitation): you’ll get in straight after, wherever they are.',
+  'browser.drive.waiting': 'Your invitation is an old one, from before invitations could open an atrium by themselves. Ask {owner} to resend it (Atrium Settings, People, then Resend invitation): you’ll get in straight after, wherever they are.',
   'browser.drive.waitingAccount': 'You’re signed in to a different Google account than when you joined. Ask {owner} to resend your invitation: you’ll get in straight after, wherever they are.',
   'browser.drive.notAdded': "{owner} hasn't added you yet. Ask them to add your username: {username}",
   'browser.drive.ask': 'Ask to be let in',

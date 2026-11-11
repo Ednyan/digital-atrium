@@ -375,7 +375,7 @@ const es: Catalogue = {
   'browser.drive.from': 'de {name}',
   'browser.drive.decline': 'Rechazar',
   'browser.drive.step.keys': 'Preparando tus claves…',
-  'browser.drive.waiting': 'Tu invitación es antigua, de antes de que las invitaciones pudieran abrir un atrium por sí solas. Pide a {owner} que la reenvíe (Compartir y luego Reenviar invitación): entrarás enseguida, esté donde esté.',
+  'browser.drive.waiting': 'Tu invitación es antigua, de antes de que las invitaciones pudieran abrir un atrium por sí solas. Pide a {owner} que la reenvíe (Ajustes del Atrium, Personas y luego Reenviar invitación): entrarás enseguida, esté donde esté.',
   'browser.drive.waitingAccount': 'Has iniciado sesión con otra cuenta de Google distinta a la de cuando te uniste. Pide a {owner} que reenvíe tu invitación: entrarás enseguida.',
   'browser.drive.notAdded': '{owner} aún no te ha añadido. Pídele que añada tu nombre de usuario: {username}',
   'browser.drive.ask': 'Pedir que te dejen entrar',

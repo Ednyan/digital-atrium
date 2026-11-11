@@ -36,7 +36,7 @@ import OverlayPanel from './OverlayPanel'
 import MinimapPanel from './MinimapPanel'
 import { inOverlayMode, overlayNow, seeingThrough, setOverlay, useOverlay } from '../lib/overlay'
 import { LOBBY_CHANGED_EVENT, liveTable } from '../lib/liveChanges'
-import { endedFor, isDriveAtrium, isDriveOwner, isDriveViewer, isHostedAtrium, spaceOf, watchDriveStatus, type DriveEnd } from '../lib/driveSync'
+import { driveProblem, endedFor, ensureSignedIn, isDriveAtrium, isDriveOwner, isDriveViewer, isHostedAtrium, removePerson, spaceOf, watchDriveStatus, type DriveEnd } from '../lib/driveSync'
 import ReportAtriumModal from './ReportAtriumModal'
 import DriveSettings from './DriveSettings'
 import { takeColourAt } from '../lib/eyedropper'
@@ -3434,10 +3434,21 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
   // nothing differs, so an ordinary entry performs no state update at all.
   const { updateCursorPosition, getJoinedAt, kickUser } = usePresence(lobbyId, handleKicked)
 
+  // Out now; with `blacklist`, kept out. An atrium with a roster -- online or in
+  // Drive -- keeps people out by its roster: blocked, as Atrium Settings >
+  // People blocks. Its old way, the cloud's access list, is a table those never
+  // read: the person kicked could come straight back (2026-11-11).
   const executeKick = async (targetUserId: string, blacklist: boolean) => {
     setIsKicking(true)
+    const byRoster = blacklist && isDriveAtrium(lobbyId)
     try {
-      if (blacklist && supabase) {
+      // Google's window, if blocking needs one, while the click still counts.
+      if (byRoster) await ensureSignedIn(lobbyId)
+      // Out first: keeping them out after mustn't hold that up, nor its failing.
+      await kickUser(targetUserId, blacklist)
+      if (byRoster) {
+        await removePerson(lobbyId, userId, targetUserId, true)
+      } else if (blacklist && supabase) {
         const { data: { user } } = await supabase.auth.getUser()
         // A user can't be both whitelisted and blacklisted at once -- drop
         // them from the whitelist first, same as LobbyManagement's addToList.
@@ -3459,14 +3470,9 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
 
         if (error) throw error
       }
-
-      // Broadcast regardless of whether blacklisting succeeded -- kicking
-      // someone out right now shouldn't be blocked by the (separate)
-      // persistent-ban bookkeeping failing.
-      await kickUser(targetUserId, blacklist)
     } catch (err: any) {
       console.error('Error kicking user:', err)
-      showToast(err.message || t('atrium.error.kickFailed'))
+      showToast(byRoster ? driveProblem(err) : err.message || t('atrium.error.kickFailed'))
     } finally {
       setIsKicking(false)
       setKickTarget(null)

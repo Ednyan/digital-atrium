@@ -417,7 +417,7 @@ const zh: Catalogue = {
   'browser.drive.from': '来自 {name}',
   'browser.drive.decline': '拒绝',
   'browser.drive.step.keys': '正在准备你的密钥…',
-  'browser.drive.waiting': '你的邀请是旧的，来自邀请还不能自行打开 Atrium 的时候。请让 {owner} 重新发送（共享 → 重新发送邀请），之后你就能立即进入，无论对方是否在线。',
+  'browser.drive.waiting': '你的邀请是旧的，来自邀请还不能自行打开 Atrium 的时候。请让 {owner} 重新发送（Atrium 设置 → 成员 → 重新发送邀请），之后你就能立即进入，无论对方是否在线。',
   'browser.drive.waitingAccount': '你登录的 Google 账号与加入时不同。请让 {owner} 重新发送你的邀请，之后你就能立即进入。',
   'browser.drive.notAdded': '{owner} 还没有添加你。请让对方添加你的用户名：{username}',
   'browser.drive.ask': '请求进入',

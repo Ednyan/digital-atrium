@@ -414,7 +414,7 @@ const ja: Catalogue = {
   'browser.drive.from': '{name} から',
   'browser.drive.decline': '辞退',
   'browser.drive.step.keys': '鍵を準備しています…',
-  'browser.drive.waiting': 'この招待は、招待だけで Atrium を開けるようになる前の古いものです。{owner} に再送を頼んでください（共有 → 招待を再送）。再送されればすぐに入れます。',
+  'browser.drive.waiting': 'この招待は、招待だけで Atrium を開けるようになる前の古いものです。{owner} に再送を頼んでください（Atrium の設定 → メンバー → 招待を再送）。再送されればすぐに入れます。',
   'browser.drive.waitingAccount': '参加したときとは別の Google アカウントでログインしています。{owner} に招待の再送を頼んでください。すぐに入れます。',
   'browser.drive.notAdded': '{owner} はまだあなたを追加していません。あなたのユーザー名を追加するよう頼んでください：{username}',
   'browser.drive.ask': '入室をリクエスト',

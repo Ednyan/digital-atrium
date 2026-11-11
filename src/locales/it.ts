@@ -379,7 +379,7 @@ const it: Catalogue = {
   'browser.drive.from': 'da {name}',
   'browser.drive.decline': 'Rifiuta',
   'browser.drive.step.keys': 'Preparo le tue chiavi…',
-  'browser.drive.waiting': 'Il tuo invito è vecchio, di prima che gli inviti potessero aprire un atrium da soli. Chiedi a {owner} di inviarlo di nuovo (Condividi, poi Invia di nuovo l’invito): entrerai subito, ovunque si trovi.',
+  'browser.drive.waiting': 'Il tuo invito è vecchio, di prima che gli inviti potessero aprire un atrium da soli. Chiedi a {owner} di inviarlo di nuovo (Impostazioni Atrium, Persone, poi Invia di nuovo l’invito): entrerai subito, ovunque si trovi.',
   'browser.drive.waitingAccount': 'Sei collegato a un account Google diverso da quando ti sei unito. Chiedi a {owner} di inviare di nuovo il tuo invito: entrerai subito.',
   'browser.drive.notAdded': '{owner} non ti ha ancora aggiunto. Chiedigli di aggiungere il tuo nome utente: {username}',
   'browser.drive.ask': 'Chiedi di entrare',

@@ -379,7 +379,7 @@ const ptBR: Catalogue = {
   'browser.drive.from': 'de {name}',
   'browser.drive.decline': 'Recusar',
   'browser.drive.step.keys': 'Preparando suas chaves…',
-  'browser.drive.waiting': 'Seu convite é antigo, de antes de os convites poderem abrir um atrium sozinhos. Peça a {owner} que o reenvie (Compartilhar e depois Reenviar convite): você entra logo em seguida, esteja a pessoa onde estiver.',
+  'browser.drive.waiting': 'Seu convite é antigo, de antes de os convites poderem abrir um atrium sozinhos. Peça a {owner} que o reenvie (Configurações do Atrium, Pessoas e depois Reenviar convite): você entra logo em seguida, esteja a pessoa onde estiver.',
   'browser.drive.waitingAccount': 'Você entrou com outra conta Google, diferente da que usou ao entrar no atrium. Peça a {owner} que reenvie seu convite: você entra logo em seguida.',
   'browser.drive.notAdded': '{owner} ainda não adicionou você. Peça para adicionar seu nome de usuário: {username}',
   'browser.drive.ask': 'Pedir para entrar',

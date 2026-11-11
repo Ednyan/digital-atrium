@@ -378,7 +378,7 @@ const de: Catalogue = {
   'browser.drive.from': 'von {name}',
   'browser.drive.decline': 'Ablehnen',
   'browser.drive.step.keys': 'Deine Schlüssel werden vorbereitet…',
-  'browser.drive.waiting': 'Deine Einladung ist eine alte, aus der Zeit, bevor Einladungen ein Atrium selbst öffnen konnten. Bitte {owner}, sie erneut zu senden (Teilen, dann Einladung erneut senden): Danach kommst du sofort hinein, egal wo {owner} gerade ist.',
+  'browser.drive.waiting': 'Deine Einladung ist eine alte, aus der Zeit, bevor Einladungen ein Atrium selbst öffnen konnten. Bitte {owner}, sie erneut zu senden (Atrium-Einstellungen, Personen, dann Einladung erneut senden): Danach kommst du sofort hinein, egal wo {owner} gerade ist.',
   'browser.drive.waitingAccount': 'Du bist mit einem anderen Google-Konto angemeldet als beim Beitritt. Bitte {owner}, deine Einladung erneut zu senden: Danach kommst du sofort hinein.',
   'browser.drive.notAdded': '{owner} hat dich noch nicht hinzugefügt. Bitte darum, deinen Nutzernamen hinzuzufügen: {username}',
   'browser.drive.ask': 'Um Einlass bitten',

@@ -382,7 +382,7 @@ const ptPT: Catalogue = {
   'browser.drive.from': 'de {name}',
   'browser.drive.decline': 'Recusar',
   'browser.drive.step.keys': 'A preparar as suas chaves…',
-  'browser.drive.waiting': 'O seu convite é antigo, de antes de os convites poderem abrir um atrium sozinhos. Peça a {owner} que o reenvie (Partilhar e depois Reenviar convite): entra logo a seguir, esteja onde estiver.',
+  'browser.drive.waiting': 'O seu convite é antigo, de antes de os convites poderem abrir um atrium sozinhos. Peça a {owner} que o reenvie (Definições do Atrium, Pessoas e depois Reenviar convite): entra logo a seguir, esteja onde estiver.',
   'browser.drive.waitingAccount': 'Iniciou sessão com uma conta Google diferente da que usou quando entrou. Peça a {owner} que reenvie o seu convite: entra logo a seguir.',
   'browser.drive.notAdded': '{owner} ainda não o adicionou. Peça para adicionar o seu nome de utilizador: {username}',
   'browser.drive.ask': 'Pedir para entrar',

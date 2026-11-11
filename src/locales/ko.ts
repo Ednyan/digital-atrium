@@ -418,7 +418,7 @@ const ko: Catalogue = {
   'browser.drive.from': '{name} 님이 보냄',
   'browser.drive.decline': '거절',
   'browser.drive.step.keys': '키를 준비하는 중…',
-  'browser.drive.waiting': '이 초대는 초대만으로 Atrium을 열 수 있게 되기 전의 예전 초대예요. {owner} 님에게 다시 보내 달라고 하세요(공유 → 초대 다시 보내기). 그러면 바로 들어갈 수 있어요.',
+  'browser.drive.waiting': '이 초대는 초대만으로 Atrium을 열 수 있게 되기 전의 예전 초대예요. {owner} 님에게 다시 보내 달라고 하세요(Atrium 설정 → 사람 → 초대 다시 보내기). 그러면 바로 들어갈 수 있어요.',
   'browser.drive.waitingAccount': '참여했을 때와 다른 Google 계정으로 로그인했어요. {owner} 님에게 초대를 다시 보내 달라고 하세요. 바로 들어갈 수 있어요.',
   'browser.drive.notAdded': '{owner} 님이 아직 추가하지 않았어요. 내 사용자 이름을 추가해 달라고 하세요: {username}',
   'browser.drive.ask': '입장 요청',
