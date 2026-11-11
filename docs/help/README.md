@@ -167,7 +167,7 @@ first. Web and Desktop mean only there; no mark means both.
 | [`export`](keeping-and-moving/export.md) | **Written.** .atrium, PNG, SVG, web page; selection or whole | 2 | |
 | [`import`](keeping-and-moving/import.md) | **Written.** A new atrium or into this one; what can't come along | 2 | |
 | [`storage-and-limits`](keeping-and-moving/storage-and-limits.md) | **Written.** Usage, what counts, making room, a full Drive | 1 | |
-| `moving-atriums` | Put online, Move to my Drive, offline copy, held atriums | 2 | |
+| [`moving-atriums`](keeping-and-moving/moving-atriums.md) | **Written.** Keep in Google Drive, Move to my Drive, Put online, offline copy, atriums from the old cloud | 2 | |
 | `desktop-vault` | Desktop. The folder, changing it, Store Embeds Locally, Restore From Vault | 2 | |
 | `overlay-mode` | Desktop. On top, click-through, opacity, transparent, exit keys | 2 | Yes |
 
