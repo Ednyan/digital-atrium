@@ -1113,13 +1113,20 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
     window.addEventListener(SAVED_BY_HAND_EVENT, saved)
     return () => window.removeEventListener(SAVED_BY_HAND_EVENT, saved)
   }, [])
-  const leaveWithTransition = useCallback(() => {
+  // `kept`: what's on screen is the atrium as kept. Not so as changes are let go
+  // (leaveLettingGo) -- they're still on screen, though no longer waiting.
+  const leaveWithTransition = useCallback((kept = true) => {
     setLeaving(true)
     // For the welcome screen: what it was as it was left (lib/atriumCards).
-    if (!tutorialRef.current && !workshopRef.current && currentLobby?.name) rememberCard(useGameStore.getState().userId, lobbyId, { name: currentLobby.name, traces: useGameStore.getState().traces.length })
-    takePreview()
+    if (kept && !tutorialRef.current && !workshopRef.current && currentLobby?.name) rememberCard(useGameStore.getState().userId, lobbyId, { name: currentLobby.name, traces: useGameStore.getState().traces.length })
+    if (kept) takePreview()
     setTimeout(() => onLeaveLobby(leaveToRef.current), 210)
   }, [onLeaveLobby, isLobbyOwner, currentLobby, userId, lobbyId, viewTheme])
+  // Out, with what's waiting let go -- not written by the way out either.
+  const leaveLettingGo = () => {
+    useGameStore.getState().clearPendingChanges()
+    leaveWithTransition(false)
+  }
   const askToLeave = (to?: string) => {
     leaveToRef.current = to
     // Changes not saved: asked whether to save them first.
@@ -4990,10 +4997,7 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
   useEffect(() => {
     if (clearRequest) void saveAllChanges()
   }, [clearRequest])
-  const exitTutorial = () => {
-    useGameStore.getState().clearPendingChanges()
-    leaveWithTransition()
-  }
+  const exitTutorial = leaveLettingGo
 
   // The template editor (lib/workshop): its values for the canvas -- made and
   // linked in a trace's own panel (ValueLink ValuesSection) -- and its two ways out.
@@ -5004,11 +5008,10 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
   // Back where it was begun, all of it let go: nothing here is saved.
   const backFromWorkshop = () => {
     const from = workshopRef.current?.from
-    useGameStore.getState().clearPendingChanges()
     void endWorkshop()
     if (from) enterQuietly(from)
     leaveToRef.current = from ? `/atrium/${from}` : undefined
-    leaveWithTransition()
+    leaveLettingGo()
   }
   // A template made: counted (It's a Boy!), and, made in the editor, back to the
   // atrium the editor came from. Made from the canvas, it stays.
@@ -6726,9 +6729,8 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
               </button>
               <button
                 onClick={() => {
-                  useGameStore.getState().clearPendingChanges()
                   setShowLeaveDialog(false)
-                  leaveWithTransition()
+                  leaveLettingGo()
                 }}
                 className="w-full h-9 bg-nier-bg hover:bg-nier-strong text-nier-black font-mono text-[11px] tracking-[0.15em] uppercase transition-colors"
               >
