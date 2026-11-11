@@ -169,7 +169,7 @@ first. Web and Desktop mean only there; no mark means both.
 | [`storage-and-limits`](keeping-and-moving/storage-and-limits.md) | **Written.** Usage, what counts, making room, a full Drive | 1 | |
 | [`moving-atriums`](keeping-and-moving/moving-atriums.md) | **Written.** Keep in Google Drive, Move to my Drive, Put online, offline copy, atriums from the old cloud | 2 | |
 | [`desktop-vault`](keeping-and-moving/desktop-vault.md) | **Written.** Desktop. Where it is, Change Folder, backups, Restore From Vault, Store Embeds Locally | 2 | |
-| `overlay-mode` | Desktop. On top, click-through, opacity, transparent, exit keys | 2 | Yes |
+| [`overlay-mode`](keeping-and-moving/overlay-mode.md) | **Written.** Desktop. On top, click-through, see-through, hide menus, the ways out | 2 | Yes |
 
 ### 8. Your account and settings (`account-and-settings/`)
 
