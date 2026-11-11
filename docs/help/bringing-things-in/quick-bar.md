@@ -15,6 +15,8 @@ video: planned
 The quick bar is the column of tools on the left edge of an atrium. Pick a tool,
 then click or drag on the canvas.
 
+![The quick bar: Select, Selection, Move the view, Text, Shapes, Connect, Path, Draw, Image, Embed, Frame, Other Traces, Laser pointer, Your Pinterest Boards, and More tools](../images/quick-bar.png)
+
 ## The tools
 
 | Tool | Key | What it does |
@@ -35,6 +37,8 @@ then click or drag on the canvas.
 | **Your Pinterest Boards** | | Import pins from your boards |
 
 ## Place a trace
+
+![Press 3 for Shapes, then drag on the canvas: a rectangle of the size dragged](../images/quick-bar-place.webp)
 
 | You want | Do this |
 |---|---|

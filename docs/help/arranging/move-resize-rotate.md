@@ -26,6 +26,10 @@ together.
 | Turn it | Drag the rotate handle |
 | Turn it in clean steps | Hold **Shift** while you turn: **SNAP 5°** |
 
+![Shift held while a handle is dragged: the edge lands on the neighbour's](../images/resize-guides.webp)
+
+![Shift held while the corner's rotate handle is dragged: the angle goes in steps of 5°, and says so](../images/rotate-snap.webp)
+
 While **Shift** is held, guide lines show what the trace is lining up with. With
 no neighbour close enough on a side, the trace snaps to the canvas grid on that
 side instead.

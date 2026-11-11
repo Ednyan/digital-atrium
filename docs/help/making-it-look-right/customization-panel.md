@@ -2,8 +2,8 @@
 id: customization-panel
 title: The Customization panel
 section: 5 Making it look right
-summary: The panel that holds every setting of the trace in hand, in sections by what it is, how it looks and where it sits; a footer of buttons you choose; Batch Edit for several traces.
-keywords: customize, customization panel, settings, style, colour, color, fill, outline, border, background, shadow, light, glow, captions, size, order, lock, footer buttons, batch edit, edit several, change many traces
+summary: The panel that holds every setting of the trace in hand: its name, quick colour presets, sections by what it is, how it looks and where it sits; a footer of buttons you choose; Batch Edit for several traces.
+keywords: customize, customization panel, settings, style, presets, quick presets, layer name, rename trace, colour, color, fill, outline, border, background, shadow, light, glow, captions, size, order, lock, footer buttons, batch edit, edit several, change many traces
 where: Trace right-click menu > Customize; opens by itself on a newly placed shape; right-click with several selected > Batch Edit
 works_on: web, desktop, phone
 related: text, pictures, frames, groups-and-layers, move-resize-rotate, templates
@@ -16,15 +16,21 @@ The Customization panel holds every setting of the trace you're working on. Open
 it with right-click > **Customize**. A shape, path or frame you've just placed
 opens it by itself.
 
-The trace's name is at the top. Below it, the sections show only what that kind
-of trace has.
+![The Customization panel of a shape called Orange: Layer name, Quick presets, then Shape, Content, Fill, Outline, Light and Arrange, and the footer buttons](../images/customization-panel.png)
+
+At the top, **Layer name**: what the trace is called in the Layers panel. Below
+it, **Quick presets** give it one of the house colour schemes in one click:
+**Soft Sepia**, **Abyss** or **Markerboard**. A boxed trace takes the scheme's
+font too, and the next trace you make looks the same.
+
+Below them, the sections show only what that kind of trace has.
 
 ## The sections
 
 | Section | Holds | Shown for |
 |---|---|---|
 | **Shape** | The shape's type and its corners | Shapes |
-| **Content** | What it shows: its link, its file | Embeds, pictures, documents |
+| **Content** | What it shows or opens: its link, its file; **Clickable** for a shape | Embeds, pictures, documents, shapes |
 | **Text** | Font, size, colour, alignment, Text Sizing | Text, and shapes with words |
 | **Colour** | The picture's grading | Pictures |
 | **Stroke** | A drawing's stroke colour | Drawings |

@@ -51,7 +51,7 @@ More: [Selecting](../arranging/selecting.md), [Frames](../arranging/frames.md), 
 
 ## 4. Save
 
-Press **Save changes**, or **Ctrl+S**. Changes wait for it, and **Don't Save**
+Press the save button under the atrium's name, or **Ctrl+S**. Changes wait for it, and **Don't Save**
 takes them all back. See [Undo and saving](../arranging/undo-and-saving.md).
 
 ## 5. Share

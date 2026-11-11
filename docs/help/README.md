@@ -137,16 +137,16 @@ first. Web and Desktop mean only there; no mark means both.
 
 | Article | Covers | Order | Video |
 |---|---|---|---|
-| `connections` | Threads: making, label, line style, arrows, ends | 2 | Yes |
+| [`connections`](arranging/connections.md) | **Written.** Threads: making, label, line style, arrows, ends | 2 | Yes |
 | `clickable-traces` | Clickable, the link, the hover button to turn it off | 3 | |
 
 ### 5. Making it look right (`making-it-look-right/`)
 
 | Article | Covers | Order | Video |
 |---|---|---|---|
-| [`customization-panel`](making-it-look-right/customization-panel.md) | **Written.** Sections and switches, your own footer buttons, Batch Edit (presets still to add) | 1 | Yes |
+| [`customization-panel`](making-it-look-right/customization-panel.md) | **Written.** Sections and switches, quick presets, your own footer buttons, Batch Edit | 1 | Yes |
 | `batch-edit` | Changing many at once, mixed values | 2 | |
-| `colours-and-palette` | Your palette, I to take a colour, copy and paste style | 2 | |
+| [`colours-and-palette`](making-it-look-right/colours-and-palette.md) | **Written.** Your palette, I to take a colour, copy and paste style | 2 | |
 | `light-glow-effects` | Light, emit from, pulse, soft shadow, Colour (look) | 3 | Yes |
 | `atrium-themes` | Presets, your own, grid, particles, background picture, parallax, ground | 2 | Yes |
 
@@ -164,8 +164,8 @@ first. Web and Desktop mean only there; no mark means both.
 
 | Article | Covers | Order | Video |
 |---|---|---|---|
-| `export` | .atrium, PNG, SVG, web page; selection or whole | 2 | |
-| `import` | A new atrium or into this one; what can't come along | 2 | |
+| [`export`](keeping-and-moving/export.md) | **Written.** .atrium, PNG, SVG, web page; selection or whole | 2 | |
+| [`import`](keeping-and-moving/import.md) | **Written.** A new atrium or into this one; what can't come along | 2 | |
 | [`storage-and-limits`](keeping-and-moving/storage-and-limits.md) | **Written.** Usage, what counts, making room, a full Drive | 1 | |
 | `moving-atriums` | Put online, Move to my Drive, offline copy, held atriums | 2 | |
 | `desktop-vault` | Desktop. The folder, changing it, Store Embeds Locally, Restore From Vault | 2 | |

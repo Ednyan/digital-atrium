@@ -17,6 +17,8 @@ screen: **3 traces selected**.
 
 ## Select traces
 
+![Shift and a drag round three traces: all three selected](../images/selecting-area.webp)
+
 | You want | Do this |
 |---|---|
 | One trace | Click it with **Select** (**1**) |

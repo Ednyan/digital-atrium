@@ -20,15 +20,24 @@ An animated GIF plays.
 
 ## Crop, flip, reset
 
+![CROP, then an edge dragged in and another: the part cut away dims, and DONE keeps the rest](../images/pictures-crop.webp)
+
 | You want | Do this |
 |---|---|
 | Show only part of it | Select it, press **Crop** in the Customization panel's footer, drag the edges, then **DONE** |
+| An edge lined up with a neighbour | Hold **Shift** while you drag the crop's edge: it lands on the neighbour's edge or middle, or the grid |
 | The whole picture again | Right-click it > **Reset Cropping** |
-| A mirror image | **Flip Horizontal** or **Flip Vertical**, in the footer or the right-click menu |
+| A mirror image | **Flip Horizontal** or **Flip Vertical**, in the footer, or right-click > **Transformations** |
 | Its own proportions again | Right-click it > **Reset Aspect Ratio** |
 
 Cropping hides the rest of the picture; nothing is cut from the file. **Reset
 Cropping** brings it all back.
+
+A flip mirrors across the screen's own axes, left to right or top to bottom,
+however the picture is turned. Several selected flip as one: the whole selection
+turns over about its middle, each trace landing in its mirrored place.
+
+![A turned picture and a square, selected together and flipped horizontally: they swap sides, the picture mirrored](../images/pictures-flip.webp)
 
 ## Good to know
 

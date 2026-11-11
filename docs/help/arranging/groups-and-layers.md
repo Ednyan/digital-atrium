@@ -18,6 +18,8 @@ stacking order. What's higher in the list is drawn in front.
 
 Open it with **Layers** on the view bar.
 
+![The Layers panel: loose traces and two closed groups, Swatches and Accents, in one stack, each row with its grip, arrows and menu](../images/layers-panel.png)
+
 ## Make and undo groups
 
 | You want | Do this |

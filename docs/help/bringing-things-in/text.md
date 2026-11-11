@@ -15,6 +15,8 @@ video:
 A text trace holds words. Press **2** for **Text in a box**, click the canvas,
 and type.
 
+![Text in a box, with its border and background, beside plain text](../images/text-kinds.png)
+
 | Kind | Looks like |
 |---|---|
 | **Text in a box** | The words, with the box's border and background |

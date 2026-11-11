@@ -4,7 +4,7 @@ title: Undo and saving
 section: 4 Arranging
 summary: Changes wait for Save (Ctrl+S) unless Auto-save is on; Don't Save takes them all back; Ctrl+Z undoes up to 100 steps, before or after saving.
 keywords: save, saving, autosave, auto-save, unsaved changes, don't save, discard, revert, undo, redo, ctrl+z, ctrl+s, lost changes, not saved, retry, leave without saving
-where: Save changes, top centre of an atrium; your preferences (Auto-save, Steps you can undo)
+where: The save button, under the atrium's name; your preferences (Auto-save, Steps you can undo)
 works_on: web, desktop, phone
 related: groups-and-layers, keyboard-shortcuts, preferences, export, storage-and-limits
 video:
@@ -12,14 +12,17 @@ video:
 
 # Undo and saving
 
-What you change in an atrium waits until you save it. The button at the top
-centre shows how many changes are waiting: **Save changes (3)**.
+What you change in an atrium waits until you save it. The save button, under
+the atrium's name, shows how many changes are waiting; pointed at, it says
+**Save changes (1)**. **Don't Save** is beside it.
+
+![Under the atrium's name: the save button with one change waiting, and Don't Save](../images/save-buttons.png)
 
 ## Save, or take it back
 
 | You want | Do this |
 |---|---|
-| Keep your changes | Press **Save changes**, or **Ctrl+S** |
+| Keep your changes | Press the save button, or **Ctrl+S** |
 | Throw away everything since the last save | Press **Don't Save**, then **Confirm Discard** |
 | Undo one step | **Ctrl+Z** |
 | Redo it | **Ctrl+Shift+Z** |
