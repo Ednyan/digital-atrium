@@ -63,10 +63,12 @@ The owner and the admins see it the next time they open the atrium:
 
 The people button at the top right shows how many are in the atrium now.
 Press it for the list, and how long each has been there. The owner and the
-admins see **Kick** beside each person: it puts them out of the atrium now.
+admins see **Kick** beside each person, and are asked which:
 
-Kicking doesn't take them off the list of people. To keep them out, **Block**
-them in **People**.
+| Choose | What it does |
+|---|---|
+| **Kick** | Puts them out of the atrium now. They stay on its list of people and can come back |
+| **Kick + Blacklist** | Puts them out and blocks them, as **Block** in **People** does |
 
 ## Good to know
 
