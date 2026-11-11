@@ -55,7 +55,7 @@ first. Web and Desktop mean only there; no mark means both.
 | [`what-is-an-atrium`](getting-started/what-is-an-atrium.md) | **Written.** Atriums, traces, how the pieces fit | 1 | Yes |
 | [`first-atrium`](getting-started/first-atrium.md) | **Written.** Make one, bring things in, arrange, share | 1 | Yes |
 | [`where-atriums-live`](getting-started/where-atriums-live.md) | **Written.** This browser, the Atrium's cloud, Google Drive, the desktop vault; differences, limits | 1 | |
-| `accounts` | Email, Google, no account; username against display name | 2 | |
+| [`accounts`](getting-started/accounts.md) | **Written.** Email, Google, no account; username against display name; passwords; desktop | 2 | |
 | `atrium-browser` | Your atriums, shared, public; cards or list; join by ID; settings without going in | 2 | |
 | `web-or-desktop` | What each does, moving between them | 2 | |
 | `install-desktop` | Windows, macOS, Linux; first-launch warnings; updates | 2 | |
