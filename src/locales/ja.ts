@@ -1509,7 +1509,7 @@ const ja: Catalogue = {
   'transfer.access.admin': '管理者',
   'transfer.access.public': '公開',
   'transfer.import.title': 'Atrium を読み込む',
-  'transfer.import.intro': 'デスクトップアプリから書き出した atrium を読み込みます。ファイルは 10 MB までです。',
+  'transfer.import.intro': "ウェブまたはデスクトップアプリで書き出した .atrium ファイルを、新しい atrium として開きます。",
   'transfer.import.choose': '.atrium ファイルを選ぶ',
   'transfer.import.preview': 'プレビュー',
   'transfer.import.counts': 'trace {traces} 件 · レイヤー {layers} 件',

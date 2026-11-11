@@ -1219,6 +1219,7 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
   // Each group change is one undoable step (lib/layerUndo).
   const groupSelection = useCallback(async (traceIds: string[]) => {
     if (!supabase || !lobbyId || !canEdit || traceIds.length === 0 || layerChangeUnderWay()) return
+    play('group')
     await queueLayerChange(() => withLayerUndo('group', async () => {
       const { data } = await (supabase!.from('layers') as any).select('name').eq('lobby_id', lobbyId)
       const taken = ((data ?? []) as { name: string | null }[]).map(l => l.name)
@@ -1232,7 +1233,7 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
     queueLayerChange(() => withLayerUndo('move to group', () =>
       targetLayerId ? moveIntoGroup(traceIds, targetLayerId) : releaseFromGroups(traceIds)))
   const createGroupAndMove = (traceIds: string[], name: string) =>
-    queueLayerChange(() => withLayerUndo('new group', () => makeGroupWith(traceIds, name)))
+    (play('group'), queueLayerChange(() => withLayerUndo('new group', () => makeGroupWith(traceIds, name))))
 
   // Ungroup (the canvas menu, Ctrl+Shift+G), for what's selected: a group
   // selected whole is undone -- its traces left where it stood, the group
@@ -1251,6 +1252,7 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
       else picked.push(...members.filter(m => idSet.has(m.id)).map(m => m.id))
     }
     if (whole.length === 0 && picked.length === 0) return
+    play('ungroup')
     return queueLayerChange(() => withLayerUndo('ungroup', async () => {
       await releaseFromGroups(picked)
       for (const layerId of whole) {
@@ -3020,7 +3022,6 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
     if (made.length === 0) return
     count('threads', made.length)
     for (const link of made) putLink(link)
-    play('connect')
     pushLinksOp([], made)
   }
 

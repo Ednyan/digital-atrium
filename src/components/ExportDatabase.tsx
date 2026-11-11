@@ -1,4 +1,5 @@
 import { ATRIUM_FILE_TYPE } from '../lib/atriumFile'
+import { play } from '../lib/sounds'
 import { useState, useEffect } from 'react'
 import { localClient } from '../lib/localDb'
 import { useTranslation } from '../lib/i18n'
@@ -123,6 +124,7 @@ export default function ExportDatabase({ onClose }: ExportDatabaseProps) {
       }
 
       setStatus('done')
+      play('exported')
       setProgress(t('desktop.export.done', { name: lobby.name, traces: lobbyTraces.length, layers: layers.length, locations: locations.length, size: sizeMB }))
     } catch (e: any) {
       setError(e.message || String(e))

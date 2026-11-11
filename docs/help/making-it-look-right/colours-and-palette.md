@@ -3,7 +3,7 @@ id: colours-and-palette
 title: Colours and the palette
 section: 5 Making it look right
 summary: Your palette keeps up to 18 colours, the same in every atrium. Click one to put it on what's selected; press I to take the colour under the pointer.
-keywords: colour, color, palette, copy style, paste style, swatch, swatches, eyedropper, colour picker, pick colour, hex, copy colour, sample, colour from picture, I key, theme colour
+keywords: colour, color, palette, reorder colours, drag swatch, copy style, paste style, swatch, swatches, eyedropper, colour picker, pick colour, hex, copy colour, sample, colour from picture, I key, theme colour
 where: View bar > Palette; the I key over the canvas; every colour field's dropper
 works_on: web, desktop
 related: customization-panel, text, connections, keyboard-shortcuts
@@ -25,6 +25,7 @@ Your palette keeps colours you use often, the same in every atrium. Open it with
 | Its code, to paste elsewhere | Click it with nothing selected: it's copied, as `#cc8a4b` |
 | A different colour in its place | Right-click it, and choose one |
 | It gone | Point at it, then press the **×** on its corner |
+| It in another place | Drag it there: the colours between shift along. Open the two more rows to reach them |
 | One trace's whole look on another | Right-click it > **Copy Style**, then right-click the other > **Paste Style** (**Ctrl+Alt+C**, **Ctrl+Alt+V**) |
 
 Clicking a colour changes a shape's fill, a path's line, a text's colour and a

@@ -1467,7 +1467,7 @@ export const en = {
   'transfer.access.admin': 'Admin',
   'transfer.access.public': 'Public',
   'transfer.import.title': 'Import Atrium',
-  'transfer.import.intro': 'Import an atrium exported from the desktop app. Max file size: 10 MB.',
+  'transfer.import.intro': "Open an .atrium file as a new atrium, exported on the web or from the desktop app.",
   'transfer.import.choose': 'Choose .atrium File',
   'transfer.import.preview': 'Preview',
   'transfer.import.counts': '{traces} traces · {layers} layers',

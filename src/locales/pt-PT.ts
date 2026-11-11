@@ -1520,7 +1520,7 @@ const ptPT: Catalogue = {
   'transfer.access.admin': 'Admin',
   'transfer.access.public': 'Público',
   'transfer.import.title': 'Importar Atrium',
-  'transfer.import.intro': 'Importe um atrium exportado da aplicação de computador. Tamanho máximo: 10 MB.',
+  'transfer.import.intro': "Abre um ficheiro .atrium como um novo atrium, exportado na web ou da aplicação de computador.",
   'transfer.import.choose': 'Escolher ficheiro .atrium',
   'transfer.import.preview': 'Pré-visualização',
   'transfer.import.counts': '{traces} traces · {layers} camadas',

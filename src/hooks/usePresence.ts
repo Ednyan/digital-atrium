@@ -1,4 +1,5 @@
 import { useEffect, useRef, useCallback } from 'react'
+import { play } from '../lib/sounds'
 import { useGameStore, useGamePick } from '../store/gameStore'
 import { supabase } from '../lib/supabase'
 import { isGhostEntry } from '../lib/operatorGhost'
@@ -115,6 +116,9 @@ export function usePresence(lobbyId: string | null, onKicked?: (blacklisted: boo
     // wait -- which is what keeps entry as immediate as it was before ghost
     // mode existed.
     ghostRef.current = null
+    // Those already here are announced as joining as one comes in: a knock is for
+    // whoever comes in after, a few seconds on (lib/sounds).
+    const cameAt = Date.now()
     const ghostPromise = isGhostEntry(lobbyId)
     // Only fills in the unknown. A kick arriving before this resolves has
     // already decided the answer, and the probe must not downgrade it back.
@@ -262,6 +266,7 @@ export function usePresence(lobbyId: string | null, onKicked?: (blacklisted: boo
         if (key !== userId && newPresences && newPresences.length > 0 && isValidUserKey(key)) {
           const presence = newPresences[0] as any
           const existing = useGameStore.getState().otherUsers[key]
+          if (!existing && Date.now() - cameAt > 4000) play('join')
           updateOtherUser(key, {
             userId: key,
             username: presence.username,

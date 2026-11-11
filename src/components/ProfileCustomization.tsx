@@ -304,7 +304,7 @@ export default function ProfileCustomization({ onClose, lobbyId }: ProfileCustom
       </Section>
 
       <Section id="sound" title={t('atrium.profile.sound')}>
-        <Switch testId="ui-sounds" label={t('atrium.profile.uiSounds')} hint={t('atrium.profile.uiSoundsHint')} on={uiSounds} onChange={on => { setUiSounds(on); if (on) play('save', true) }} />
+        <Switch testId="ui-sounds" label={t('atrium.profile.uiSounds')} hint={t('atrium.profile.uiSoundsHint')} on={uiSounds} onChange={on => { setUiSounds(on); if (on) play('on', { anyway: true }) }} />
         <Switch testId="spatial-sound" label={t('atrium.profile.spatialSound')} hint={t('atrium.profile.spatialSoundHint')} on={spatialSound} onChange={setSpatialSound} />
       </Section>
 

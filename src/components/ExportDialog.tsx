@@ -4,6 +4,7 @@
 // picture as it will be. A selection's picture is that selection alone, just
 // big enough to hold it.
 
+import { play } from '../lib/sounds'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from '../lib/i18n'
 import { useGamePick } from '../store/gameStore'
@@ -114,6 +115,7 @@ export default function ExportDialog({ lobbyName, lobbyMeta, background, selecti
         if (!(await saveFile(result.blob, name, FILTERS[format]))) { setBusy(null); return }
         if (result.scale < scale) showToast(t('atrium.export.scaledDown', { scale: result.scale.toFixed(1), asked: scale }))
       }
+      play('exported')
       showToast(t('atrium.export.done'))
       onClose()
     } catch (e: any) {

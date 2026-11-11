@@ -11,7 +11,6 @@ import { showToast } from './toast'
 import { t } from './i18n'
 
 import { count } from './stats'
-import { play } from './sounds'
 
 /** The browser's own picker (Chrome, Edge): any pixel on screen. Not the desktop's:
  *  WebView2 has it, and its picker never opens -- nothing happened. */
@@ -88,9 +87,7 @@ export function takeColour(colour: string) {
   const hex = normalHex(colour)
   if (!hex) return
   if (paletteNow().includes(hex)) { showToast(t('atrium.palette.already', { hex })); return }
-  const kept = addColour(hex) !== null
-  if (kept) play('pick')
-  showToast(kept ? t('atrium.palette.added', { hex }) : t('atrium.palette.full'))
+  showToast(addColour(hex) === null ? t('atrium.palette.full') : t('atrium.palette.added', { hex }))
 }
 
 /** The colour under (x, y) into the palette (the I key, the dropper). */

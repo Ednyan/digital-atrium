@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import { play } from '../lib/sounds'
 import { downloadAtrium } from '../lib/atriumDownload'
 import { useTranslation } from '../lib/i18n'
 import type { TranslationKey } from '../locales/en'
@@ -54,6 +55,7 @@ export default function DownloadAtriumPanel({ atriums, onClose }: DownloadAtrium
     setStatus(t('transfer.download.preparing'))
     try {
       const result = await downloadAtrium(atrium.id, setStatus)
+      play('exported')
       setStatus('✓ ' + t('transfer.download.done', { name: atrium.name, traces: result.traceCount, layers: result.layerCount, locations: result.locationCount, size: result.sizeMB }))
     } catch (err: any) {
       console.error('Atrium download failed:', err)

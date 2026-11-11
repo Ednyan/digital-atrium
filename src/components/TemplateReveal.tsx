@@ -12,6 +12,8 @@ import { tCount, useTranslation } from '../lib/i18n'
 import { drawRanks } from '../lib/order'
 import { isSlot } from '../lib/frames'
 import type { ExportResult } from '../lib/exportImage'
+import { play } from '../lib/sounds'
+import { CLIMB_STEPS, stepUp } from '../lib/soundSynth'
 import type { Layer, Trace } from '../types/database'
 
 const APPEAR_MS = 320
@@ -133,6 +135,9 @@ export default function TemplateReveal({ name, picture, assembly, traces, values
       return () => clearTimeout(timer)
     }
     const area = pieces.reduce((sum, piece) => sum + piece.w * piece.h, 0) || 1
+    play('charge')
+    // Landed in turn, each a step higher than the one before.
+    const order = flights.map((f, i) => [f.at, i] as const).sort((a, b) => a[0] - b[0]).map(([, i]) => i)
     flights.forEach((f, i) => {
       const el = pieceEls.current[i]
       if (!el) return
@@ -146,6 +151,8 @@ export default function TemplateReveal({ name, picture, assembly, traces, values
         { offset: 1, transform: at(0, 0, 0, 1), opacity: 1 },
       ], { duration: total, fill: 'both' }))
       landings.current.push(window.setTimeout(() => {
+        // The same climb however many there are: the first at the foot, the last at the top.
+        play('land', { pitch: stepUp(Math.round((CLIMB_STEPS * order.indexOf(i)) / Math.max(1, order.length - 1))) })
         const r = el.getBoundingClientRect()
         const share = (pieces[i].w * pieces[i].h) / area
         // Along its seams: the more edge, the more sparks.
@@ -174,6 +181,7 @@ export default function TemplateReveal({ name, picture, assembly, traces, values
   // once, and the burst.
   useEffect(() => {
     if (!open || still) return
+    play('reward')
     landings.current.forEach(clearTimeout)
     flying.current.forEach(anim => anim.finish())
     throwSparks(innerWidth / 2, innerHeight / 2 - 40, 150, 11)

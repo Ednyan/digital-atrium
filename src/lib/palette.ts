@@ -56,6 +56,16 @@ export function addColour(colour: string): number | null {
   return free
 }
 
+/** The colour at `from` moved to `to`, those between shifting along one place, as
+ *  a list's do (PalettePanel: a swatch dragged) -- the user's, 2026-11-11. */
+export function moveColour(from: number, to: number) {
+  if (from === to || from < 0 || to < 0 || from >= PALETTE_SIZE || to >= PALETTE_SIZE) return
+  const next = [...slots]
+  const [moved] = next.splice(from, 1)
+  next.splice(to, 0, moved)
+  set(next)
+}
+
 export function setColour(index: number, colour: string | null) {
   if (index < 0 || index >= PALETTE_SIZE) return
   set(slots.map((c, i) => (i === index ? (colour === null ? null : normalHex(colour)) : c)))

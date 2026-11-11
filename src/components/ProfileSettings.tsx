@@ -26,6 +26,7 @@ import { forgetMyPicture } from '../lib/myPicture'
 import Hall from './Hall'
 import { useMenuGlide } from './MenuGlide'
 import { ColourInput } from './ColourPicker'
+import { play } from '../lib/sounds'
 
 // The same five the in-atrium panel offers, from the palette the rest of the
 // app is drawn in. The picker under them still takes anything.
@@ -78,7 +79,7 @@ function SettingRow({ id, label, value, open = false, danger = false, go = false
 
 export default function ProfileSettings({ onClose, onPinterest, pinterestOpen = false, onLogOut }: ProfileSettingsProps) {
   const { t, language, languages } = useTranslation()
-  const { userId, username, setUsername, playerColor, setPlayerColor } = useGamePick('userId', 'username', 'setUsername', 'playerColor', 'setPlayerColor')
+  const { userId, username, setUsername, playerColor, setPlayerColor, uiSounds, setUiSounds } = useGamePick('userId', 'username', 'setUsername', 'playerColor', 'setPlayerColor', 'uiSounds', 'setUiSounds')
   // The desktop's own person's profile, with no account signed in there; else the
   // account's, the same as on the web (lib/profile).
   const deskAccount = useWorkerAccount()
@@ -713,6 +714,8 @@ export default function ProfileSettings({ onClose, onPinterest, pinterestOpen = 
               {!onDevice && findable !== undefined && (
                 <SettingRow id="findable" label={t('profile.findable')} value={findable ? t('plans.yes') : t('plans.no')} onToggle={() => chooseFindable(!findable)} />
               )}
+              {/* The same setting as the atrium's (User Preferences > Sound): one, kept on this device. */}
+              <SettingRow id="sounds" label={t('atrium.profile.uiSounds')} value={uiSounds ? t('plans.yes') : t('plans.no')} onToggle={() => { setUiSounds(!uiSounds); if (!uiSounds) play('on', { anyway: true }) }} />
               <SettingRow id="undo" label={t('profile.undoLabel')} value={String(undoDepth)} open={openRow === 'undo'} onToggle={toggleRow}>
                 <input
                   type="range"

@@ -1512,7 +1512,7 @@ const zh: Catalogue = {
   'transfer.access.admin': '管理员',
   'transfer.access.public': '公开',
   'transfer.import.title': '导入 Atrium',
-  'transfer.import.intro': '导入一个从桌面应用导出的 atrium。文件最大 10 MB。',
+  'transfer.import.intro': "将在网页版或桌面应用中导出的 .atrium 文件作为新的 atrium 打开。",
   'transfer.import.choose': '选择 .atrium 文件',
   'transfer.import.preview': '预览',
   'transfer.import.counts': '{traces} 个 trace · {layers} 个图层',

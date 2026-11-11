@@ -1513,7 +1513,7 @@ const ko: Catalogue = {
   'transfer.access.admin': '관리자',
   'transfer.access.public': '공개',
   'transfer.import.title': 'Atrium 가져오기',
-  'transfer.import.intro': '데스크톱 앱에서 내보낸 atrium을 가져와요. 파일은 10 MB까지예요.',
+  'transfer.import.intro': "웹이나 데스크톱 앱에서 내보낸 .atrium 파일을 새 atrium으로 열어요.",
   'transfer.import.choose': '.atrium 파일 고르기',
   'transfer.import.preview': '미리보기',
   'transfer.import.counts': 'trace {traces}개 · 레이어 {layers}개',

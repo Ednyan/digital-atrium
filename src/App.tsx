@@ -1,4 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, lazy, Suspense } from 'react'
+import { play } from './lib/sounds'
 import NoticeCard from './components/NoticeCard'
 import AuthScreen from './components/AuthScreen'
 import ChooseUsernameScreen from './components/ChooseUsernameScreen'
@@ -1301,7 +1302,8 @@ function AppInner() {
   // Stable across renders: the hold runs its fade on a timeout keyed to this,
   // and a new function identity every render would restart that timeout every
   // render and never let it finish.
-  const handleHoldFinished = useCallback(() => setAtriumTransitionPhase('ready'), [])
+  // The entering film given way to the atrium: heard arriving (lib/sounds).
+  const handleHoldFinished = useCallback(() => { setAtriumTransitionPhase('ready'); play('arrive') }, [])
 
   // Verify lobby access when trying to access via URL
   useEffect(() => {

@@ -75,6 +75,7 @@ import { fileNameOf, saveFile } from '../lib/fileSave'
 import type { PresentationFormat } from '../lib/presentationExport'
 import QuickBar, { EmptyCanvasHint, HistoryButtons, QUICK_ORDER, ToolHint, type PlaceTool, type QuickAction, QuickBarEditor, ViewBarEditor } from './QuickBar'
 import { inTutorial, tutorialFinished } from '../lib/tutorial'
+import { play } from '../lib/sounds'
 import { count, noteToday } from '../lib/stats'
 import { beginWorkshop, endWorkshop, enterQuietly, keepWorkshop, TEMPLATE_TRACES, templateParts, useWorkshop, workshopOf } from '../lib/workshop'
 import { keepTemplate, myTemplates, templateFile, TEMPLATE_MOST_BYTES, type MyTemplate } from '../lib/myTemplates'
@@ -1340,6 +1341,13 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
 
   // Freehand drawing mode
   const [isDrawingMode, setIsDrawingMode] = useState(false)
+  // A tool taken up -- by its button or its key -- is heard (lib/sounds); put down, not.
+  const toolInHand = placeTool ?? (connectTool ? 'connect' : panTool ? 'pan' : laserActive ? 'laser' : isDrawingMode ? 'draw' : null)
+  const toolBefore = useRef(toolInHand)
+  useEffect(() => {
+    if (toolInHand && toolInHand !== toolBefore.current) play('tool')
+    toolBefore.current = toolInHand
+  }, [toolInHand])
   useEffect(() => { if (isDrawingMode || placeTool) setLaserActive(false) }, [isDrawingMode, placeTool])
   useEffect(() => { if (isDrawingMode || placeTool || laserActive) setPanTool(false) }, [isDrawingMode, placeTool, laserActive])
   // Drawing's and a shape tool's Customization panels clear the panels around
@@ -3101,7 +3109,7 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
       showToast(t('atrium.export.pageMaking'))
       const { atriumPageOf } = await import('../lib/atriumPage')
       const blob = await atriumPageOf(all, links, layers, spots, title, viewTheme?.backgroundColor || '#0a0a0f')
-      if (await saveFile(blob, `${fileNameOf(title)}.html`, { name: 'Web page', extensions: ['html'] })) showToast(t('atrium.export.done'))
+      if (await saveFile(blob, `${fileNameOf(title)}.html`, { name: 'Web page', extensions: ['html'] })) { play('exported'); showToast(t('atrium.export.done')) }
     } catch (error) {
       showToast(t('atrium.export.failed', { message: error instanceof Error ? error.message : '' }))
     }
@@ -5020,6 +5028,7 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
       return false
     }
     if (!made.editing && !mayMakeTemplate()) {
+      play('nope')
       say(t('templates.limitReached', { most: FREE_PLAN.ownTemplates }))
       return false
     }
@@ -5052,6 +5061,8 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
         revealInEditor.current = made.inEditor
         setReveal({ name, picture, assembly, traces: all.length, values: values.length })
       } else {
+        // No reveal: its reward at once (with one, at its burst: TemplateReveal).
+        play('reward')
         showToast(t('templates.saved', { name }))
         madeTemplate(made.inEditor)
       }
@@ -5085,7 +5096,7 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
   // the Templates panel (`folder`: onto one of one's folders) -- named first.
   const [naming, setNaming] = useState<{ ids: string[]; folder: string | null; name: string; busy: boolean; problem: string | null } | null>(null)
   const askTemplateName = (ids: string[], folder: string | null = null) => {
-    if (!mayMakeTemplate()) { showToast(t('templates.limitReached', { most: FREE_PLAN.ownTemplates })); return }
+    if (!mayMakeTemplate()) { play('nope'); showToast(t('templates.limitReached', { most: FREE_PLAN.ownTemplates })); return }
     const { traces, layers } = useGameStore.getState()
     const chosen = traces.filter(trace => ids.includes(trace.id))
     if (chosen.length && chosen.every(isPin)) { showToast(t('templates.onlyPins')); return }
@@ -6545,7 +6556,7 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
           <TemplatesPanel
             context={templateContext}
             onClose={() => setShowTemplates(false)}
-            onNew={!workshop ? () => (mayMakeTemplate() ? void openWorkshop() : showToast(t('templates.limitReached', { most: FREE_PLAN.ownTemplates }))) : undefined}
+            onNew={!workshop ? () => { if (mayMakeTemplate()) void openWorkshop(); else { play('nope'); showToast(t('templates.limitReached', { most: FREE_PLAN.ownTemplates })) } } : undefined}
             onEdit={!workshop ? template => void openWorkshop(template) : undefined}
             onSaveSelection={!workshop ? askTemplateName : undefined}
             onPlace={(file, screen) => {

@@ -4,11 +4,13 @@
 // selected that takes one, is copied as its code. An empty place, pressed,
 // takes a colour chosen by hand; the dropper takes one off the canvas (in
 // Chrome and Edge, off anything on screen). I, over the canvas, does the same
-// where the pointer is (LobbyScene).
+// where the pointer is (LobbyScene). A colour dragged goes to the place it's
+// let go on, those between shifting along (lib/palette moveColour).
 
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useTranslation } from '../lib/i18n'
-import { APPLY_COLOUR_EVENT, PALETTE_ROW, PALETTE_SIZE, setColour, usePalette, type ApplyColour } from '../lib/palette'
+import { APPLY_COLOUR_EVENT, PALETTE_ROW, PALETTE_SIZE, moveColour, setColour, usePalette, type ApplyColour } from '../lib/palette'
 import { hasNativePicker, pickColour, takeColour } from '../lib/eyedropper'
 import { count } from '../lib/stats'
 import { showToast } from '../lib/toast'
@@ -26,11 +28,52 @@ export default function PalettePanel({ open }: { open: boolean }) {
   // The place a colour is being chosen for, and the swatch the picker hangs from.
   const [choosing, setChoosing] = useState<{ index: number; anchor: HTMLElement } | null>(null)
   const root = useRef<HTMLDivElement>(null)
+  // A colour being dragged to another place: which, where the pointer is, and the place under it.
+  const [dragging, setDragging] = useState<{ from: number; colour: string; x: number; y: number; over: number | null } | null>(null)
+  // A drag just ended: the click it ends with isn't a click on the colour.
+  const justDragged = useRef(false)
+  // The place under (x, y), by the swatches' own boxes (the pointer's element is the one dragged).
+  const placeAt = (x: number, y: number): number | null => {
+    for (const el of root.current?.querySelectorAll<HTMLElement>('[data-palette-slot]') ?? []) {
+      // The two more rows, folded away, are clipped, not gone: only places that show.
+      if (!more && Number(el.dataset.paletteSlot) >= PALETTE_ROW) continue
+      const r = el.getBoundingClientRect()
+      if (r.width && x >= r.left - 2 && x <= r.right + 2 && y >= r.top - 2 && y <= r.bottom + 2) return Number(el.dataset.paletteSlot)
+    }
+    return null
+  }
+  // Pressed on a colour: past a few pixels it's a drag, followed on the window
+  // (pointer capture on a swatch didn't hold through the panel's re-render).
+  const press = (index: number, colour: string, event: React.PointerEvent) => {
+    if (event.button !== 0) return
+    const from = { x: event.clientX, y: event.clientY }
+    let moving = false
+    const move = (e: PointerEvent) => {
+      if (!moving && Math.hypot(e.clientX - from.x, e.clientY - from.y) < 5) return
+      moving = true
+      setDragging({ from: index, colour, x: e.clientX, y: e.clientY, over: placeAt(e.clientX, e.clientY) })
+    }
+    const up = (e: PointerEvent) => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', up)
+      window.removeEventListener('pointercancel', up)
+      if (!moving) return
+      justDragged.current = true
+      window.setTimeout(() => { justDragged.current = false }, 0)
+      const to = placeAt(e.clientX, e.clientY)
+      setDragging(null)
+      if (to !== null && to !== index) moveColour(index, to)
+    }
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', up)
+    window.addEventListener('pointercancel', up)
+  }
 
   // Closed, it's still there for its slide: out of reach of Tab and readers.
   useEffect(() => { if (root.current) root.current.inert = !open }, [open])
 
   const use = (colour: string) => {
+    if (justDragged.current) return
     const ask: ApplyColour = { colour, applied: false }
     window.dispatchEvent(new CustomEvent(APPLY_COLOUR_EVENT, { detail: ask }))
     if (ask.applied) return
@@ -62,10 +105,10 @@ export default function PalettePanel({ open }: { open: boolean }) {
           key={index}
           type="button"
           data-palette-slot={index}
-          onClick={() => choose(index)}
+          onClick={() => { if (!justDragged.current) choose(index) }}
           title={t('atrium.palette.add')}
           aria-label={t('atrium.palette.add')}
-          className="group relative w-9 h-9 border border-dashed border-nier-border/40 hover:border-nier-border/80 transition-colors"
+          className={`group relative w-9 h-9 border border-dashed transition-colors ${dragging?.over === index ? 'border-nier-strong' : 'border-nier-border/40 hover:border-nier-border/80'}`}
         >
           <svg className="absolute inset-0 w-full h-full text-nier-border/40 group-hover:opacity-0 transition-opacity" preserveAspectRatio="none" viewBox="0 0 100 100" aria-hidden="true">
             <line x1="0" y1="100" x2="100" y2="0" stroke="currentColor" strokeWidth="1" vectorEffect="non-scaling-stroke" />
@@ -80,11 +123,12 @@ export default function PalettePanel({ open }: { open: boolean }) {
           type="button"
           data-palette-colour={colour}
           data-palette-slot={index}
+          onPointerDown={event => press(index, colour, event)}
           onClick={() => use(colour)}
           onContextMenu={e => { e.preventDefault(); choose(index) }}
           title={t('atrium.palette.swatch', { hex: colour })}
           aria-label={t('atrium.palette.swatch', { hex: colour })}
-          className="block w-9 h-9 border border-nier-border/40 hover:border-nier-bg/80 p-[3px] transition-colors"
+          className={`block w-9 h-9 border p-[3px] transition-colors touch-none ${dragging?.over === index && dragging.from !== index ? 'border-nier-strong outline outline-1 outline-nier-strong' : 'border-nier-border/40 hover:border-nier-bg/80'} ${dragging?.from === index ? 'opacity-30' : ''}`}
         >
           <span className="block w-full h-full" style={{ backgroundColor: colour }} />
         </button>
@@ -150,6 +194,18 @@ export default function PalettePanel({ open }: { open: boolean }) {
           <span className={`transition-transform duration-300 ${more ? 'rotate-180' : ''}`}><MenuIcon d={MORE} size={18} /></span>
         </button>
       </div>
+      {/* The colour being dragged, under the pointer: over everything, so outside the panel. */}
+      {dragging && createPortal(
+        <div
+          aria-hidden="true"
+          data-palette-dragging=""
+          className="fixed z-[var(--layer-menu)] w-9 h-9 p-[3px] border border-nier-strong pointer-events-none shadow-2xl"
+          style={{ left: dragging.x - 18, top: dragging.y - 18, backgroundColor: 'rgb(var(--c-ground))' }}
+        >
+          <span className="block w-full h-full" style={{ backgroundColor: dragging.colour }} />
+        </div>,
+        document.body,
+      )}
       {/* The picker (ColourPicker), for an empty place, or a colour
           right-clicked to change it. */}
       {choosing && (

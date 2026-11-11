@@ -4,6 +4,7 @@
 // many come at once. In the page's top layer (a popover), over everything on it,
 // whatever opened last: no stacking order to win.
 
+import { play } from '../lib/sounds'
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
 import { useTranslation, type LanguageCode } from '../lib/i18n'
 import { ACHIEVEMENTS, FAMILY_COLOUR } from '../lib/achievements'
@@ -27,6 +28,8 @@ export default function AchievementPopup() {
   const head = queue[0]
   useEffect(() => {
     if (!head) return
+    // Heard as it's shown: each in turn, never over a template's reveal (lib/sounds).
+    play('achievement')
     const go = window.setTimeout(() => setLeaving(true), SHOWN)
     const next = window.setTimeout(() => { setLeaving(false); setQueue(waiting => waiting.slice(1)) }, SHOWN + LEAVING)
     return () => { window.clearTimeout(go); window.clearTimeout(next) }

@@ -1513,7 +1513,7 @@ const es: Catalogue = {
   'transfer.access.admin': 'Admin',
   'transfer.access.public': 'Público',
   'transfer.import.title': 'Importar Atrium',
-  'transfer.import.intro': 'Importa un atrium exportado desde la aplicación de escritorio. Tamaño máximo: 10 MB.',
+  'transfer.import.intro': "Abre un archivo .atrium como un atrium nuevo, exportado en la web o desde la aplicación de escritorio.",
   'transfer.import.choose': 'Elegir archivo .atrium',
   'transfer.import.preview': 'Vista previa',
   'transfer.import.counts': '{traces} traces · {layers} capas',

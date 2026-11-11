@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { play } from '../lib/sounds'
 import { supabase } from '../lib/supabase'
 import { useGameStore, useGamePick } from '../store/gameStore'
 import { tCount, useTranslation } from '../lib/i18n'
@@ -260,6 +261,7 @@ export default function LayerPanel({ lobbyId, onClose, selectedTraceId, multiSel
       alert('Supabase not initialized')
       return
     }
+    play('group')
     setDialogMode('create')
     setDialogInput('')
     setDialogTargetId(null)

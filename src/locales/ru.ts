@@ -1519,7 +1519,7 @@ const ru: Catalogue = {
   'transfer.access.admin': 'Админ',
   'transfer.access.public': 'Публичный',
   'transfer.import.title': 'Импорт Atrium',
-  'transfer.import.intro': 'Импортируйте atrium, экспортированный из настольного приложения. Максимум 10 МБ.',
+  'transfer.import.intro': "Откройте файл .atrium как новый atrium — экспортированный в вебе или из настольного приложения.",
   'transfer.import.choose': 'Выбрать файл .atrium',
   'transfer.import.preview': 'Предпросмотр',
   'transfer.import.counts': 'traces: {traces} · слоёв: {layers}',
