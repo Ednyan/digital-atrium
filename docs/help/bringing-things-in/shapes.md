@@ -1,7 +1,7 @@
 ---
 id: shapes
 title: Shapes
-section: 3 Bringing things in
+section: 3.2 Bringing things in > Words, shapes and drawing
 summary: Rectangles, triangles, circles, diamonds and parallelograms, drawn with Shapes (3); filled, outlined, rounded, and clickable as links.
 keywords: shape, shapes, rectangle, square, triangle, circle, ellipse, diamond, parallelogram, box, fill, outline, border, corners, rounded, colour, opacity, no fill, clickable shape, link button
 where: Quick bar > Shapes (3); the Customization panel's Shape, Fill and Outline sections

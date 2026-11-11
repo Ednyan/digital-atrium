@@ -104,7 +104,7 @@ first. Web and Desktop mean only there; no mark means both.
 |---|---|---|---|
 | `pdf-and-slides` | Paging, Extract Pages, PowerPoint | 2 | |
 | `spreadsheets-and-charts` | Reading, editing cells, charts | 2 | Yes |
-| `live-files` | Desktop. Following a file, stopping | 3 | |
+| [`live-files`](bringing-things-in/live-files.md) | **Written.** Desktop. What follows its file, seeing it, stopping | 3 | |
 
 **3.5 From elsewhere**
 

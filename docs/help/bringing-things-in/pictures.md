@@ -1,7 +1,7 @@
 ---
 id: pictures
 title: Pictures
-section: 3 Bringing things in
+section: 3.3 Bringing things in > Pictures and media
 summary: Pictures come in by dropping, pasting or the Image tool; crop them, flip them, and put them back with Reset Cropping.
 keywords: picture, pictures, image, images, photo, png, jpg, jpeg, gif, animated gif, webp, svg, avif, bmp, crop, cropping, flip, mirror, reset cropping, uncrop
 where: Quick bar > Image (6); the Customization panel's footer (Crop, Flip); trace right-click menu

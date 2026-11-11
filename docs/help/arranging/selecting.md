@@ -1,7 +1,7 @@
 ---
 id: selecting
 title: Selecting
-section: 4 Arranging
+section: 4.1 Arranging > Selecting and moving
 summary: Click to select, Shift+click to add, Ctrl+click to reach a trace inside a group or frame; the Selection tool (M) takes an area or a lasso.
 keywords: select, selecting, selection, multi-select, select several, shift click, ctrl click, direct select, area selection, box select, marquee, lasso, select all, select group, inside a group, inside a frame, deselect
 where: Quick bar (Select 1, Selection M); trace right-click menu > Select

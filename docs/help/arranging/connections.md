@@ -1,7 +1,7 @@
 ---
 id: connections
 title: Connections
-section: 4 Arranging
+section: 4.3 Arranging > Connecting
 summary: A connection is a thread drawn from one trace to another. It follows both as they move; its colour, thickness, line, arrows and label are its own.
 keywords: connection, connections, connect, thread, threads, line between traces, link traces, arrow, arrows, mind map, diagram, flowchart, relationship, label, elbow, curved line, straight line
 where: Quick bar > Connect (C); trace right-click menu > Connect to…; a selected connection's menu

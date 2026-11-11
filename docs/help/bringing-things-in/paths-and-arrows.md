@@ -1,7 +1,7 @@
 ---
 id: paths-and-arrows
 title: Paths and arrows
-section: 3 Bringing things in
+section: 3.2 Bringing things in > Words, shapes and drawing
 summary: A path is a line through points you place, straight, curved or at right angles, with an arrow or a diamond at either end; its points are edited in place.
 keywords: path, paths, line, lines, arrow, arrows, curve, curved line, polyline, elbow, right angle, draw a line, arrowhead, diamond end, points, edit points, add point, delete point, line colour, thickness, glow, snap to border
 where: Quick bar > Path (4); the Customization panel's Shape and Colour sections

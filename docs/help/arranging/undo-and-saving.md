@@ -1,7 +1,7 @@
 ---
 id: undo-and-saving
 title: Undo and saving
-section: 4 Arranging
+section: 4.1 Arranging > Selecting and moving
 summary: Changes wait for Save (Ctrl+S) unless Auto-save is on; Don't Save takes them all back; Ctrl+Z undoes up to 100 steps, before or after saving.
 keywords: save, saving, autosave, auto-save, unsaved changes, don't save, discard, revert, undo, redo, ctrl+z, ctrl+s, lost changes, not saved, retry, leave without saving
 where: The save button, under the atrium's name; your preferences (Auto-save, Steps you can undo)

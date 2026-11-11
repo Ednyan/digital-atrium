@@ -1,7 +1,7 @@
 ---
 id: groups-and-layers
 title: Groups and the Layers panel
-section: 4 Arranging
+section: 4.2 Arranging > Organizing
 summary: A group ties traces together so they move as one; the Layers panel lists groups and traces in stacking order, top of the list in front.
 keywords: group, groups, ungroup, layers, layer panel, stacking order, bring to front, send to back, move to top, move to bottom, z-order, lock, unlock, hide, go to trace, duplicate group, empty group, delete group
 where: View bar > Layers; trace right-click menu > New Group…, Move to Group, Ungroup; Ctrl+G, Ctrl+Shift+G

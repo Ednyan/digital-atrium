@@ -1,7 +1,7 @@
 ---
 id: move-resize-rotate
 title: Move, resize and rotate
-section: 4 Arranging
+section: 4.1 Arranging > Selecting and moving
 summary: Drag a trace to move it, its handles to resize or rotate it; hold Shift to line it up with its neighbours or the grid, or to turn it in 5° steps.
 keywords: move, drag, resize, scale, bigger, smaller, rotate, turn, angle, snap, align, alignment guides, grid, line up, reset rotation, reset aspect ratio, stretched, distorted
 where: A selected trace's handles; trace right-click menu > Reset Rotation, Reset Aspect Ratio

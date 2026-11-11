@@ -1,7 +1,7 @@
 ---
 id: text
 title: Text
-section: 3 Bringing things in
+section: 3.2 Bringing things in > Words, shapes and drawing
 summary: Text in a box or plain text, edited in place with a double-click; Text Sizing decides whether the words fill the box, scale with it or keep their size.
 keywords: text, write, type, note, label, caption, text box, plain text, font, font size, typeface, edit text, double click, alignment, align, center, colour, text color, fills box, fixed size, scales with box, new line
 where: Quick bar > Text in a box (2) or Plain text; the Customization panel

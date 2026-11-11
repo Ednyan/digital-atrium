@@ -1,7 +1,7 @@
 ---
 id: drawing
 title: Drawing
-section: 3 Bringing things in
+section: 3.2 Bringing things in > Words, shapes and drawing
 summary: Draw (5) draws freehand with a pen, pencil, marker, airbrush or calligraphy brush, or one of your own; a session's strokes are one drawing trace, edited again or split into strokes.
 keywords: draw, drawing, freehand, sketch, pen, pencil, marker, airbrush, calligraphy, brush, custom brush, import brush, eraser, stroke, strokes, split into strokes, edit drawing, rasterize, pressure
 where: Quick bar > Draw (5); trace right-click menu > Edit Drawing, Split into Strokes, Rasterize

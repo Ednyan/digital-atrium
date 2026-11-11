@@ -1,7 +1,7 @@
 ---
 id: embeds-and-links
 title: Embeds and links
-section: 3 Bringing things in
+section: 3.3 Bringing things in > Pictures and media
 summary: An embed shows a video, web page or picture from a link, live on the canvas; turn interaction on to use it in place.
 keywords: embed, embeds, link, links, url, youtube, video, web page, website, iframe, embed code, paste link, several links, interaction, enable interaction, play video, scroll, blank embed, not showing, convert to image, store embeds locally, copy embed link
 where: Quick bar > Embed (7); canvas right-click menu > Paste as Embed; trace right-click menu
