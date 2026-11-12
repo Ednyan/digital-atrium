@@ -31,7 +31,7 @@ video:
 
 - Type in **Search atriums by name** to narrow the lists.
 - Switch between cards and a list with the two buttons beside **Tutorial**.
-- Press **Enter** on its card.
+- Press **Enter** on its card, or double-click the card.
 
 ## A card
 
