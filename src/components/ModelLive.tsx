@@ -20,6 +20,8 @@ import type { Trace } from '../types/database'
 import { DEFAULT_LOOK, DEFAULT_VIEW, makeStage, parseModel, sameView, stillSize, STILL_SIDE, texturesOn, type ModelPose, type ModelView, type Stage } from '../lib/model3d'
 import { fetchMedia } from '../lib/exportImage'
 import { useTranslation } from '../lib/i18n'
+import { chainOf, reach } from '../lib/modelIk'
+import { FIGURE_MARK, FIGURE_POSES, type FigurePoseName } from '../lib/modelStarters'
 import type { TranslationKey } from '../locales/en'
 
 // Its drawing's longer side at most, in pixels, however near the atrium is.
@@ -58,7 +60,8 @@ const TOOL_WORD: Record<Tool, TranslationKey> = { multi: 'atrium.model.toolMulti
 
 interface Gizmo { mode: GizmoMode; object?: Object3D; attach(o: Object3D): void; detach(): void; dragging: boolean; axis: string | null; enabled: boolean; dispose(): void; setSize(size: number): void; getHelper(): Object3D }
 // What posing shows over the model: its skeleton, a dot at each joint, the gizmos.
-interface Posing { shown: Object3D[]; gizmos: Gizmo[]; pick: (event: PointerEvent) => void; placeDots: () => void }
+// `goal`: where a joint moved by reach (IK) is wanted -- the Move gizmo's, with IK on.
+interface Posing { shown: Object3D[]; gizmos: Gizmo[]; pick: (event: PointerEvent) => void; placeDots: () => void; goal: Object3D }
 
 export default function ModelLive({ trace, scale, editable, style, onReady, onDone, onSnapshot }: {
   trace: Trace
@@ -105,6 +108,13 @@ export default function ModelLive({ trace, scale, editable, style, onReady, onDo
   const [posing, setPosing] = useState(false)
   const [chosen, setChosen] = useState<number | null>(null)
   const [tool, setTool] = useState<Tool>('rotate')
+  // Moved by reach (IK): a joint moved, the bones above it -- so many -- turn for it.
+  const [ik, setIk] = useState(true)
+  const [ikLength, setIkLength] = useState(2)
+  const ikRef = useRef({ on: ik, length: ikLength })
+  ikRef.current = { on: ik, length: ikLength }
+  // One of the Atrium's own figures (lib/modelStarters): its poses fit it.
+  const [figure, setFigure] = useState(false)
   const [whole, setWhole] = useState(false)
   const posingTools = useRef<Posing | null>(null)
   const overlay = useRef<HTMLDivElement>(null)
@@ -185,6 +195,9 @@ export default function ModelLive({ trace, scale, editable, style, onReady, onDo
         orbit = turning
         controls.current = turning
         setBones(made.bones.map((bone, i) => bone.name || `${i + 1}`))
+        let marked = false
+        made.object.traverse(part => { if (part.userData?.[FIGURE_MARK]) marked = true })
+        setFigure(marked)
         drawRef.current()
         setStatus('ready')
         onReady()
@@ -221,13 +234,17 @@ export default function ModelLive({ trace, scale, editable, style, onReady, onDo
 
   // What posing shows, as it's asked: the skeleton and dots while posing, and the
   // tool's gizmos on the joint chosen.
-  const showPosing = (on: boolean, joint: number | null, using: Tool) => {
+  const showPosing = (on: boolean, joint: number | null, using: Tool, reaching = ikRef.current) => {
     const tools = posingTools.current, at = stage.current
     if (!tools || !at) return
     tools.shown.forEach(part => { part.visible = on })
     for (const gizmo of tools.gizmos) {
       const wanted = on && joint !== null && GIZMOS[using].includes(gizmo.mode)
-      if (wanted) gizmo.attach(at.bones[joint!])
+      const bone = joint === null ? null : at.bones[joint]
+      // Moved by reach where it has bones above it to turn: the gizmo on its goal, there.
+      const byReach = gizmo.mode === 'translate' && !!bone && reaching.on && chainOf(bone, reaching.length).length > 0
+      if (byReach) bone!.getWorldPosition(tools.goal.position)
+      if (wanted) gizmo.attach(byReach ? tools.goal : bone!)
       else gizmo.detach()
       // Move and turn together: the rings inside the arrows.
       gizmo.setSize(using === 'multi' && gizmo.mode === 'rotate' ? 0.6 : 0.85)
@@ -236,9 +253,33 @@ export default function ModelLive({ trace, scale, editable, style, onReady, onDo
   }
   const showRef = useRef(showPosing)
   showRef.current = showPosing
+  const chosenRef = useRef(chosen)
+  chosenRef.current = chosen
   const choose = (joint: number | null) => {
     setChosen(joint)
+    chosenRef.current = joint
     showPosing(posing, joint, tool)
+  }
+  const reachBy = (on: boolean, length = ikLength) => {
+    setIk(on)
+    setIkLength(length)
+    showPosing(posing, chosen, tool, { on, length })
+  }
+  // One of a figure's poses (lib/modelStarters): turned from standing.
+  const takePose = async (name: FigurePoseName) => {
+    const at = stage.current
+    if (!at) return
+    const { Euler, Quaternion, MathUtils } = await import('three')
+    const wanted = FIGURE_POSES[name] as { turns: Record<string, [number, number, number]>; hips?: [number, number, number] }
+    at.setPose(undefined)
+    for (const bone of at.bones) {
+      const turn = wanted.turns[bone.name]
+      if (turn) bone.quaternion.multiply(new Quaternion().setFromEuler(new Euler(...turn.map(MathUtils.degToRad) as [number, number, number], 'XYZ')))
+      if (bone.name === 'Hips' && wanted.hips) bone.position.set(bone.position.x + wanted.hips[0], bone.position.y + wanted.hips[1], bone.position.z + wanted.hips[2])
+    }
+    at.object.updateMatrixWorld(true)
+    showPosing(posing, chosen, tool)
+    remember()
   }
   const chooseRef = useRef(choose)
   chooseRef.current = choose
@@ -247,7 +288,7 @@ export default function ModelLive({ trace, scale, editable, style, onReady, onDo
   const makePosing = async () => {
     const at = stage.current
     if (!at || posingTools.current) return
-    const { SkeletonHelper, Mesh, SphereGeometry, MeshBasicMaterial, Raycaster, Vector2, Box3, Sphere } = await import('three')
+    const { SkeletonHelper, Mesh, SphereGeometry, MeshBasicMaterial, Raycaster, Vector2, Box3, Sphere, Object3D } = await import('three')
     const { TransformControls } = await import('three/examples/jsm/controls/TransformControls.js')
     if (posingTools.current || stage.current !== at) return
     const size = new Box3().setFromObject(at.object).getBoundingSphere(new Sphere()).radius * 0.025 || 0.02
@@ -272,6 +313,21 @@ export default function ModelLive({ trace, scale, editable, style, onReady, onDo
       gizmo.setSpace('local')
       return gizmo
     })
+    // Where a joint moved by reach is wanted: moved by the Move gizmo, followed by its chain.
+    const goal = new Object3D()
+    at.scene.add(goal)
+    const [moving] = gizmos
+    moving.addEventListener('objectChange', () => {
+      const joint = chosenRef.current
+      if (moving.object !== goal || joint === null) return
+      const bone = at.bones[joint]
+      reach(chainOf(bone, ikRef.current.length), bone, goal.position)
+    })
+    // Let go: its goal back where the joint got to (as near as it could).
+    moving.addEventListener('mouseUp', () => {
+      const joint = chosenRef.current
+      if (moving.object === goal && joint !== null) at.bones[joint].getWorldPosition(goal.position)
+    })
     for (const gizmo of gizmos) {
       gizmo.addEventListener('change', () => drawRef.current())
       gizmo.addEventListener('dragging-changed', event => { if (controls.current) controls.current.enabled = !event.value })
@@ -295,7 +351,7 @@ export default function ModelLive({ trace, scale, editable, style, onReady, onDo
       chooseRef.current(hit.object.userData.bone as number)
     }
     canvas.addEventListener('pointerdown', pick, { capture: true })
-    posingTools.current = { shown: [skeleton, ...markers], gizmos: gizmos as unknown as Gizmo[], pick, placeDots }
+    posingTools.current = { shown: [skeleton, ...markers], gizmos: gizmos as unknown as Gizmo[], pick, placeDots, goal }
   }
   const pose = async (on: boolean) => {
     setPosing(on)
@@ -303,6 +359,7 @@ export default function ModelLive({ trace, scale, editable, style, onReady, onDo
     // The joint chosen before is chosen again; the first time, its root, so a gizmo shows at once.
     const joint = chosen ?? (on && bones.length ? 0 : null)
     setChosen(joint)
+    chosenRef.current = joint
     showRef.current(on, joint, tool)
   }
   const useTool = (next: Tool) => {
@@ -509,6 +566,20 @@ export default function ModelLive({ trace, scale, editable, style, onReady, onDo
                   <option value="">{t('atrium.model.bone')}</option>
                   {bones.map((name, i) => <option key={i} value={i}>{name}</option>)}
                 </select>
+                <button type="button" data-model-ik="" aria-pressed={ik} title={t('atrium.model.ikHint')} onClick={() => reachBy(!ik)} className={ik ? ON : QUIET}>{t('atrium.model.ik')}</button>
+                {ik && (
+                  <select data-model-ik-length="" aria-label={t('atrium.model.chain')} title={t('atrium.model.chain')} value={ikLength} onChange={e => reachBy(true, Number(e.target.value))}
+                    className="pointer-events-auto h-7 bg-nier-black/90 text-nier-strong border border-nier-border/50 px-1.5 text-[11px]">
+                    {[1, 2, 3, 4].map(length => <option key={length} value={length}>{t('atrium.model.chainOf', { n: length })}</option>)}
+                  </select>
+                )}
+                {figure && (
+                  <select data-model-poses="" aria-label={t('atrium.model.poses')} value="" onChange={e => { if (e.target.value) void takePose(e.target.value as FigurePoseName) }}
+                    className="pointer-events-auto h-7 bg-nier-black/90 text-nier-strong border border-nier-border/50 px-1.5 text-[11px]">
+                    <option value="">{t('atrium.model.poses')}</option>
+                    {(Object.keys(FIGURE_POSES) as FigurePoseName[]).map(name => <option key={name} value={name}>{t(`atrium.model.pose.${name}` as TranslationKey)}</option>)}
+                  </select>
+                )}
                 <button type="button" data-model-reset-pose="" onClick={resetPose} className={QUIET}>{t('atrium.model.resetPose')}</button>
               </>
             )}

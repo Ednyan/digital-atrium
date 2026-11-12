@@ -25,12 +25,22 @@ its calendar.
 | To change it | Click it, change it, **Save** |
 | To take it away | Click it, **Delete** |
 | One that repeats | **Repeats**: every day, week, month or year |
+| A colour for it | Pick one of its **Colour** swatches: its words turn black or white, whichever reads |
 
 Each change is one step: **Ctrl+Z** takes it back. Changing an event that
 repeats changes every repeat.
 
 To put a calendar file's events in its place: Customize it, then the **Calendar**
 section > **Choose an .ics file…**.
+
+## Its look
+
+Customize it, then **Calendar** > **Look**: **Auto** (light or dark, as you have
+the atrium; new calendars are), **Light**, **Dark**, or **Its colours** (its
+Background and text colour).
+
+Weeks are numbered as calendars in Europe number them: beside a week's dates
+(**CW46**), and down the left of a month.
 
 Google Calendar, Outlook and Apple Calendar all export one: look for
 **Export** or **Download** in the calendar's settings.

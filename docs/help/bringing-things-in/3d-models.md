@@ -19,6 +19,10 @@ file…** in its Customization panel puts your model in its place.
 It shows as a still picture of the model with nothing behind it, and keeps the
 model file so you can turn it.
 
+**Start from** in its 3D model section swaps it for one of the Atrium's own: a
+**Cube**, **Sphere**, **Cylinder** or **Cone**, or a wooden **Mannequin** (man or
+woman) to pose, with ready-made poses.
+
 Files: **.glb**, **.gltf**, **.fbx**, **.obj**, **.stl**.
 
 **Its textures:** drop them with it, all at once (select the model and its
@@ -62,6 +66,12 @@ of tools shows down its left: **Move and rotate**, **Move**, **Rotate**, **Scale
 | Move it | **Move**, then drag the arrows (one axis), a square (a plane) or the middle (freely) |
 | Make it bigger or smaller | **Scale**, then drag its handles |
 | Move and turn at once | **Move and rotate**: the arrows outside, the rings inside |
+| A ready-made pose (mannequins) | **Poses**: standing, relaxed, T-pose, A-pose, walking, running, sitting, kneeling, thinking, waving, reaching up |
+
+**IK** (on at first): moving a joint turns the bones above it, so it can get
+there; a hand dragged bends the elbow and the shoulder, and nothing comes
+apart. How many bones follow: the list beside it (**2 above** by default). With
+IK off, **Move** moves the joint alone.
 | Your last turn back, or on again | **Ctrl+Z**, **Ctrl+Shift+Z** |
 | Back to its rest pose | **Reset pose** |
 

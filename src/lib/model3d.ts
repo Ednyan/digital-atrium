@@ -519,7 +519,7 @@ export async function renderStill(file: Blob, record: ModelRecord, aspect: numbe
 
 // A model read with files from beside it, made one .glb holding them all: what's
 // kept needs nothing beside it ever again.
-async function asOneFile(object: Object3D): Promise<ArrayBuffer> {
+export async function asOneFile(object: Object3D): Promise<ArrayBuffer> {
   const { GLTFExporter } = await import('three/examples/jsm/exporters/GLTFExporter.js')
   return await new GLTFExporter().parseAsync(object, { binary: true }) as ArrayBuffer
 }

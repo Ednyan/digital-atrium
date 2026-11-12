@@ -10316,6 +10316,11 @@ return (
                   onLook={look => void restyleModel(editingTrace.id, look)}
                   // Files from the computer, where an atrium takes them (as a drop does).
                   onReplace={isLocalData && canEdit ? files => void replaceModel(editingTrace.id, files) : undefined}
+                  // The Atrium's own, made here: any atrium.
+                  onStarter={canEdit ? kind => void (async () => {
+                    const { starterFile } = await import('../lib/modelStarters')
+                    await replaceModel(editingTrace.id, [await starterFile(kind, t(`atrium.model.starter.${kind}` as TranslationKey))])
+                  })() : undefined}
                 />
               </Section>
             )}

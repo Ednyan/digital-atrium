@@ -9,6 +9,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { DEFAULT_LOOK, MODEL_ACCEPT, MODEL_LIGHTS, texturesOn, type ModelLight, type ModelLook, type ModelRecord } from '../lib/model3d'
+import { STARTERS, type Starter } from '../lib/modelStarters'
 import { Choices, Row } from './Customization'
 import { Check, ColourField } from './ShapeStyleControls'
 import { useTranslation } from '../lib/i18n'
@@ -18,12 +19,14 @@ import type { TranslationKey } from '../locales/en'
 const PLAIN = '#bdbdbd'
 const BUTTON = 'w-full h-8 border border-nier-border/40 text-nier-bg text-xs tracking-[0.1em] uppercase hover:border-nier-border/80 disabled:opacity-40'
 
-export default function ModelLookSection({ record, busy, onLook, onReplace }: {
+export default function ModelLookSection({ record, busy, onLook, onReplace, onStarter }: {
   record: ModelRecord
   busy: boolean
   onLook: (look: ModelLook) => void
   // Another model file, with what it needs beside it, in this one's place.
   onReplace?: (files: File[]) => void
+  // One of the Atrium's own in its place: a shape, or a figure to pose.
+  onStarter?: (kind: Starter) => void
 }) {
   const { t } = useTranslation()
   const look = record.look ?? DEFAULT_LOOK
@@ -78,6 +81,20 @@ export default function ModelLookSection({ record, busy, onLook, onReplace }: {
         />
       )}
       {busy && <p data-model-busy="" className="mt-2 text-[11px] tracking-[0.1em] uppercase text-nier-bg/70">{t('atrium.model.rendering')}</p>}
+      {onStarter && (
+        <Row label={t('atrium.model.startFrom')}>
+          <select
+            data-model-starter=""
+            value=""
+            disabled={busy}
+            onChange={e => { if (e.target.value) onStarter(e.target.value as Starter) }}
+            className="w-full h-8 bg-nier-black text-nier-bg border border-nier-border/30 px-2 font-mono text-xs focus:outline-none focus:border-nier-border/60"
+          >
+            <option value="">{t('atrium.model.startFromPick')}</option>
+            {STARTERS.map(kind => <option key={kind} value={kind}>{t(`atrium.model.starter.${kind}` as TranslationKey)}</option>)}
+          </select>
+        </Row>
+      )}
       {onReplace && (
         <div className="mt-3">
           <input
