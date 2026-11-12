@@ -88,3 +88,28 @@ test('a calendar address, known as one and read as one', async () => {
   assert.deepEqual(asCalendarSettings({ view: 'week', link: 'https://e.org/c.ics' }), { view: 'week', link: 'https://e.org/c.ics' })
   assert.deepEqual(asCalendarSettings({ view: 'month', link: 'javascript:alert(1)' }), { view: 'month' })
 })
+
+test('events made, changed and taken away in the atrium, written as a calendar file', async () => {
+  const { emptyCalendarFile, withEvent, withoutEvent, dayKey } = await import('../src/lib/calendar.ts')
+  const empty = await emptyCalendarFile('Mine').text()
+  assert.equal((await readCalendar(empty)).name, 'Mine')
+  const made = await withEvent(empty, { title: 'Crit', date: '2026-11-12', allDay: false, from: '14:00', to: '15:30', repeat: 'weekly' })
+  const calendar = await readCalendar(made)
+  const crits = calendar.between(new Date(2026, 10, 1), new Date(2026, 11, 1))
+  assert.deepEqual(crits.map(e => dayKey(e.start)), ['2026-11-12', '2026-11-19', '2026-11-26'])
+  assert.equal(crits[0].start.getHours(), 14)
+  assert.equal(crits[0].end.getMinutes(), 30)
+  assert.equal(crits[0].repeat, 'weekly')
+  const uid = crits[0].uid!
+  assert.ok(uid)
+  const moved = await readCalendar(await withEvent(made, { title: 'Crit (moved)', date: '2026-11-13', allDay: true, from: '', to: '', repeat: 'none' }, uid))
+  const now = moved.between(new Date(2026, 10, 1), new Date(2026, 11, 1))
+  assert.equal(now.length, 1)
+  assert.equal(now[0].title, 'Crit (moved)')
+  assert.equal(now[0].allDay, true)
+  assert.equal(dayKey(now[0].start), '2026-11-13')
+  assert.equal((await readCalendar(await withoutEvent(made, uid))).between(new Date(2026, 0, 1), new Date(2027, 0, 1)).length, 0)
+  // An end before its start is an hour after it.
+  const backwards = (await readCalendar(await withEvent(empty, { title: 'x', date: '2026-11-12', allDay: false, from: '10:00', to: '09:00', repeat: 'none' }))).between(new Date(2026, 10, 12), new Date(2026, 10, 13))[0]
+  assert.equal(backwards.end.getHours(), 11)
+})

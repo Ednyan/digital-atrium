@@ -2,7 +2,7 @@
 id: calendars
 title: Calendars
 section: 3.4 Bringing things in > Documents and data
-summary: Drop an .ics file, or paste a calendar's iCal address to follow it, to place a calendar: a month or a week of its events, paged with its arrows, back to today with Today.
+summary: Make a calendar and add its events in the atrium, drop an .ics file, or paste a calendar's iCal address to follow it: a month or a week of its events, paged with its arrows, back to today with Today.
 keywords: calendar, calendars, ics, ical, ical link, ical address, secret address, webcal, follow, subscribe, sync, refresh, icalendar, google calendar, outlook, apple calendar, events, schedule, agenda, month, week, planner, dates, appointments
 where: Drop an .ics file on the canvas, or the quick bar's Other > Calendar, or right-click the canvas > Calendar; paste an iCal address on the canvas; Customization panel > Calendar
 works_on: web, desktop
@@ -12,9 +12,25 @@ video:
 
 # Calendars
 
-Drop an **.ics** file on the canvas, or pick one with **Other** > **Calendar** on
-the quick bar. It's placed as a calendar of this month, named after the
-calendar inside the file.
+Press **Other** > **Calendar** on the quick bar (or right-click the canvas >
+**Calendar**): an empty calendar of this month is placed, to fill in here. Or drop
+an **.ics** file on the canvas: it's placed with that file's events, named after
+its calendar.
+
+## Your own events
+
+| You want | Do this |
+|---|---|
+| An event | Double-click its day (in **Week**, its hour) |
+| To change it | Click it, change it, **Save** |
+| To take it away | Click it, **Delete** |
+| One that repeats | **Repeats**: every day, week, month or year |
+
+Each change is one step: **Ctrl+Z** takes it back. Changing an event that
+repeats changes every repeat.
+
+To put a calendar file's events in its place: Customize it, then the **Calendar**
+section > **Choose an .ics file…**.
 
 Google Calendar, Outlook and Apple Calendar all export one: look for
 **Export** or **Download** in the calendar's settings.
@@ -57,6 +73,7 @@ it keeps the events it last showed.
 - Times are shown in your computer's time zone.
 - A day with more events than fit says **+N**; switch to **Week** to see them all.
 - A dropped file shows the calendar as it was: drop the new file, or follow its address, to bring changes in.
+- A calendar that follows an address shows only that calendar's events: change them in its calendar app.
 - An export of the atrium (PNG, SVG) shows the calendar's month or week of today.
 
 ## Related

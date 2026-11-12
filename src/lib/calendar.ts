@@ -11,7 +11,10 @@ import type { Trace } from '../types/database'
 export type CalendarView = 'month' | 'week'
 // `link`: an iCal address it follows (lib/calendarLink), read again as it's shown.
 export interface CalendarSettings { view: CalendarView; link?: string }
-export interface Occurrence { title: string; start: Date; end: Date; allDay: boolean }
+// `uid` is its event's; a repeat's `series` is when its event began (its first),
+// and `repeat` how it repeats, where that's plain enough to say ('custom' if not).
+export type Repeat = 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom'
+export interface Occurrence { title: string; start: Date; end: Date; allDay: boolean; uid?: string; series?: { start: Date; end: Date }; repeat?: Repeat }
 export interface Calendar { name: string | null; between(from: Date, to: Date): Occurrence[] }
 
 export const CALENDAR_SIZE = { width: 720, height: 540 }
@@ -70,21 +73,24 @@ export async function readCalendar(text: string): Promise<Calendar> {
     name: typeof name === 'string' && name.trim() ? name.trim() : null,
     between(from, to) {
       const out: Occurrence[] = []
-      const add = (title: string, start: InstanceType<typeof ICAL.Time>, end: InstanceType<typeof ICAL.Time> | null) => {
-        const s = start.toJSDate()
+      const endOf = (start: InstanceType<typeof ICAL.Time>, end: InstanceType<typeof ICAL.Time> | null) =>
         // No end: a day, for a whole day's; for a time, the moment itself.
-        const e = end ? end.toJSDate() : new Date(s.getTime() + (start.isDate ? 86_400_000 : 0))
-        if (e > from && s < to || (e.getTime() === s.getTime() && s >= from && s < to)) out.push({ title: title || '—', start: s, end: e, allDay: start.isDate, })
+        end ? end.toJSDate() : new Date(start.toJSDate().getTime() + (start.isDate ? 86_400_000 : 0))
+      const add = (title: string, start: InstanceType<typeof ICAL.Time>, end: InstanceType<typeof ICAL.Time> | null, more: Partial<Occurrence>) => {
+        const s = start.toJSDate(), e = endOf(start, end)
+        if (e > from && s < to || (e.getTime() === s.getTime() && s >= from && s < to)) out.push({ title: title || '—', start: s, end: e, allDay: start.isDate, ...more })
       }
       for (const event of own) {
         if (!event.startDate || cancelled(event)) continue
-        if (!event.isRecurring()) { add(event.summary, event.startDate, event.endDate); continue }
+        if (!event.isRecurring()) { add(event.summary, event.startDate, event.endDate, { uid: event.uid, repeat: 'none' }); continue }
+        const series = { start: event.startDate.toJSDate(), end: endOf(event.startDate, event.endDate) }
+        const repeat = repeatOf(event.component.getFirstPropertyValue('rrule'))
         const repeats = event.iterator()
         for (let i = 0, next = repeats.next(); next && i < MOST_REPEATS; i++, next = repeats.next()) {
           if (next.toJSDate() >= to) break
           const one = event.getOccurrenceDetails(next)
           if (cancelled(one.item)) continue
-          add(one.item.summary, one.startDate, one.endDate)
+          add(one.item.summary, one.startDate, one.endDate, { uid: event.uid, series, repeat })
         }
       }
       return out.sort((a, b) => +a.start - +b.start || (a.allDay === b.allDay ? 0 : a.allDay ? -1 : 1))
@@ -92,24 +98,92 @@ export async function readCalendar(text: string): Promise<Calendar> {
   }
 }
 
-// One read a file, shared by every drawing of it; a file that can't be read is
-// tried again next time it's asked for.
+// A repeat as plain as a person says it: every day, week, month, year -- or custom.
+function repeatOf(rule: unknown): Repeat {
+  const recur = rule as { freq?: string; interval?: number; parts?: Record<string, unknown> } | null
+  if (!recur?.freq) return 'none'
+  if ((recur.interval ?? 1) !== 1 || Object.keys(recur.parts ?? {}).length) return 'custom'
+  return ({ DAILY: 'daily', WEEKLY: 'weekly', MONTHLY: 'monthly', YEARLY: 'yearly' } as Record<string, Repeat>)[recur.freq] ?? 'custom'
+}
+
+// One read a file -- its text, and the calendar in it -- shared by every drawing
+// of it; a file that can't be read is tried again next time it's asked for.
+const texts = new Map<string, Promise<string | null>>()
 const files = new Map<string, Promise<Calendar | null>>()
+/** A calendar file's text, as kept: what an event is added to or taken from. */
+export function calendarText(url: string): Promise<string | null> {
+  let text = texts.get(url)
+  if (!text) {
+    text = (async () => {
+      const { fetchMedia } = await import('./exportImage')
+      const blob = await fetchMedia(url)
+      return blob ? blob.text() : null
+    })().catch(() => null)
+    texts.set(url, text)
+    void text.then(read => { if (read === null) texts.delete(url) })
+  }
+  return text
+}
 export function calendarFile(url: string): Promise<Calendar | null> {
   let file = files.get(url)
   if (!file) {
-    file = (async () => {
-      const { fetchMedia } = await import('./exportImage')
-      const blob = await fetchMedia(url)
-      return blob ? readCalendar(await blob.text()) : null
-    })().catch(() => null)
+    file = calendarText(url).then(text => (text === null ? null : readCalendar(text))).catch(() => null)
     files.set(url, file)
     void file.then(read => { if (!read) files.delete(url) })
   }
   return file
 }
-/** A file just placed, read from what was dropped: its vault copy may still be on its way. */
-export const keepCalendarFile = (url: string, text: string) => { files.set(url, readCalendar(text).catch(() => null)) }
+/** A file just placed or written, from its text: its vault copy may still be on its way. */
+export const keepCalendarFile = (url: string, text: string) => {
+  texts.set(url, Promise.resolve(text))
+  files.set(url, readCalendar(text).catch(() => null))
+}
+
+// ---- Making its events ---------------------------------------------------------------
+
+/** An event as it's made or changed in the atrium: a day (YYYY-MM-DD), the whole
+ *  of it or from a time to a time (HH:MM), and how it repeats ('custom' keeps a
+ *  rule the atrium can't say). */
+export interface EventDraft { title: string; date: string; allDay: boolean; from: string; to: string; repeat: Repeat }
+
+const pad2 = (n: number) => String(n).padStart(2, '0')
+export const dayKey = (date: Date) => `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`
+export const timeKey = (date: Date) => `${pad2(date.getHours())}:${pad2(date.getMinutes())}`
+
+/** The calendar file's text with this event made -- or, by its uid, made anew. */
+export async function withEvent(text: string, draft: EventDraft, uid?: string): Promise<string> {
+  const { default: ICAL } = await import('ical.js')
+  const root = new ICAL.Component(ICAL.parse(text))
+  const [y, m, d] = draft.date.split('-').map(Number)
+  const at = (time: string) => { const [h, min] = time.split(':').map(Number); return new Date(y, m - 1, d, h || 0, min || 0) }
+  const start = draft.allDay ? ICAL.Time.fromData({ year: y, month: m, day: d, isDate: true }) : ICAL.Time.fromJSDate(at(draft.from), true)
+  const endDate = draft.allDay ? new Date(y, m - 1, d + 1) : at(draft.to) > at(draft.from) ? at(draft.to) : new Date(at(draft.from).getTime() + 3_600_000)
+  const end = draft.allDay ? ICAL.Time.fromData({ year: endDate.getFullYear(), month: endDate.getMonth() + 1, day: endDate.getDate(), isDate: true }) : ICAL.Time.fromJSDate(endDate, true)
+  let event = uid ? root.getAllSubcomponents('vevent').find(part => part.getFirstPropertyValue('uid') === uid && !part.hasProperty('recurrence-id')) : undefined
+  if (!event) {
+    event = new ICAL.Component('vevent')
+    event.addPropertyWithValue('uid', uid ?? `${crypto.randomUUID()}@digitalatrium.org`)
+    event.addPropertyWithValue('dtstamp', ICAL.Time.now())
+    root.addSubcomponent(event)
+  }
+  event.updatePropertyWithValue('summary', draft.title.trim() || '—')
+  event.updatePropertyWithValue('dtstart', start)
+  event.removeAllProperties('duration')
+  event.updatePropertyWithValue('dtend', end)
+  if (draft.repeat !== 'custom') {
+    event.removeAllProperties('rrule')
+    if (draft.repeat !== 'none') event.addPropertyWithValue('rrule', new ICAL.Recur({ freq: draft.repeat.toUpperCase() as 'DAILY' }))
+  }
+  return root.toString()
+}
+
+/** The calendar file's text without this event: every repeat of it, and every change to one. */
+export async function withoutEvent(text: string, uid: string): Promise<string> {
+  const { default: ICAL } = await import('ical.js')
+  const root = new ICAL.Component(ICAL.parse(text))
+  for (const part of root.getAllSubcomponents('vevent')) if (part.getFirstPropertyValue('uid') === uid) root.removeSubcomponent(part)
+  return root.toString()
+}
 
 // ---- Days ------------------------------------------------------------------------
 
@@ -159,6 +233,9 @@ const fit = (text: string, width: number, size: number) => {
   return text.length <= most ? text : most <= 1 ? '' : `${text.slice(0, most - 1)}…`
 }
 
+// An event drawn: which it is, and when this repeat of it begins, for a press on it.
+const eventMark = (e: Occurrence) => (e.uid ? ` data-event="${esc(e.uid)}" data-at="${e.start.getTime()}"` : '')
+
 /** The header's height: where a calendar's own buttons go (CalendarTrace). */
 export const HEADER = 48
 const PAD = 14
@@ -192,6 +269,8 @@ export function calendarSvg(events: Occurrence[], view: CalendarView, anchor: Da
     const lineH = 15, room = Math.max(0, Math.floor((cellH - 24) / lineH))
     for (let i = 0; i < weeks * 7; i++) {
       const day = addDays(from, i), x = left + (i % 7) * cellW, y = gridTop + Math.floor(i / 7) * cellH
+      // Where a press means this day (CalendarTrace).
+      out.push(`<rect data-day="${dayKey(day)}" x="${n(x)}" y="${n(y)}" width="${n(cellW)}" height="${n(cellH)}" fill="transparent" pointer-events="all"/>`)
       const inMonth = day.getMonth() === anchor.getMonth()
       if (sameDay(day, today)) out.push(`<circle cx="${n(x + 13)}" cy="${n(y + 12)}" r="9.5" fill="${look.accent}"/>`)
       out.push(`<text x="${n(x + 13)}" y="${n(y + 16)}" font-size="11" text-anchor="middle" fill="${sameDay(day, today) ? (look.surface ?? '#191919') : inMonth ? ink : quiet}">${day.getDate()}</text>`)
@@ -201,8 +280,10 @@ export function calendarSvg(events: Occurrence[], view: CalendarView, anchor: Da
       todays.slice(0, shown).forEach((e, k) => {
         const ly = y + 22 + k * lineH
         const words = e.allDay ? e.title : `${shortTime(e.start)} ${e.title}`
-        if (e.allDay) out.push(`<rect x="${n(x + 3)}" y="${n(ly)}" width="${n(cellW - 6)}" height="${lineH - 2}" rx="2" fill="${look.accent}" fill-opacity="0.22"/>`)
+        out.push(`<g${eventMark(e)}>`)
+        out.push(`<rect x="${n(x + 3)}" y="${n(ly)}" width="${n(cellW - 6)}" height="${lineH - 2}" rx="2" fill="${look.accent}" fill-opacity="${e.allDay ? 0.22 : 0}" pointer-events="all"/>`)
         out.push(`<text x="${n(x + 6)}" y="${n(ly + 10.5)}" font-size="10" fill="${inMonth ? ink : quiet}">${esc(fit(words, cellW - 10, 10))}</text>`)
+        out.push('</g>')
       })
       if (todays.length > shown) out.push(`<text x="${n(x + 6)}" y="${n(y + 22 + shown * lineH + 10.5)}" font-size="10" fill="${quiet}">+${todays.length - shown}</text>`)
     }
@@ -220,13 +301,18 @@ export function calendarSvg(events: Occurrence[], view: CalendarView, anchor: Da
     for (let d = 0; d < 7; d++) {
       const day = addDays(from, d), x = left + gutter + d * colW
       const isToday = sameDay(day, today)
+      // Where a press means this day, at this hour (CalendarTrace); its strip, the whole day.
+      out.push(`<rect data-day="${dayKey(day)}" x="${n(x)}" y="${n(top)}" width="${n(colW)}" height="${n(namesH + stripH)}" fill="transparent" pointer-events="all"/>`)
+      for (let h = firstHour; h < lastHour; h++) out.push(`<rect data-day="${dayKey(day)}" data-hour="${h}" x="${n(x)}" y="${n(gridTop + (h - firstHour) * hourH)}" width="${n(colW)}" height="${n(hourH)}" fill="transparent" pointer-events="all"/>`)
       out.push(`<text x="${n(x + 6)}" y="${n(top + 12)}" font-size="10" fill="${quiet}" letter-spacing="1">${esc(dayNames[d].toUpperCase())}</text>`)
       if (isToday) out.push(`<rect x="${n(x + 4)}" y="${n(top + 15)}" width="24" height="17" rx="2" fill="${look.accent}"/>`)
       out.push(`<text x="${n(x + 16)}" y="${n(top + 28)}" font-size="12" text-anchor="middle" fill="${isToday ? (look.surface ?? '#191919') : ink}">${day.getDate()}</text>`)
       allDay.filter(e => e.start < addDays(day, 1) && e.end > day).slice(0, lanesAllDay).forEach((e, k) => {
         const y = top + namesH + 2 + k * 16
+        out.push(`<g${eventMark(e)}>`)
         out.push(`<rect x="${n(x + 2)}" y="${n(y)}" width="${n(colW - 4)}" height="14" rx="2" fill="${look.accent}" fill-opacity="0.22"/>`)
         out.push(`<text x="${n(x + 6)}" y="${n(y + 10)}" font-size="10" fill="${ink}">${esc(fit(e.title, colW - 10, 10))}</text>`)
+        out.push('</g>')
       })
       // Its timed events, side by side where they meet.
       const dayEvents = timed.filter(e => e.start < addDays(day, 1) && e.end > day).map(e => ({
@@ -242,9 +328,11 @@ export function calendarSvg(events: Occurrence[], view: CalendarView, anchor: Da
       const laneW = (colW - 4) / Math.max(1, laneEnds.length)
       for (const one of placed) {
         const y = gridTop + (one.from - firstHour) * hourH, h = Math.max(12, (one.to - one.from) * hourH - 1), x0 = x + 2 + one.lane * laneW
+        out.push(`<g${eventMark(one.e)}>`)
         out.push(`<rect x="${n(x0)}" y="${n(y)}" width="${n(laneW - 2)}" height="${n(h)}" rx="2" fill="${look.accent}" fill-opacity="0.3" stroke="${look.accent}" stroke-opacity="0.7"/>`)
         out.push(`<text x="${n(x0 + 4)}" y="${n(y + 11)}" font-size="10" fill="${ink}">${esc(fit(one.e.title, laneW - 8, 10))}</text>`)
         if (h > 26) out.push(`<text x="${n(x0 + 4)}" y="${n(y + 23)}" font-size="9" fill="${quiet}">${esc(fit(time.format(one.e.start), laneW - 8, 9))}</text>`)
+        out.push('</g>')
       }
     }
     const lines: string[] = []
@@ -267,4 +355,10 @@ export function calendarSvg(events: Occurrence[], view: CalendarView, anchor: Da
 function formatRange(language: string, a: Date, b: Date) {
   const format = new Intl.DateTimeFormat(language, { day: 'numeric', month: 'short', year: 'numeric' }) as Intl.DateTimeFormat & { formatRange?: (a: Date, b: Date) => string }
   return format.formatRange ? format.formatRange(a, b) : `${format.format(a)} – ${format.format(b)}`
+}
+
+/** An empty calendar, a new calendar trace's file before it's given events or a file of its own. */
+export function emptyCalendarFile(name: string): File {
+  const text = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//The Digital Atrium//Calendar//EN', `X-WR-CALNAME:${name.replace(/[\r\n]+/g, ' ')}`, 'END:VCALENDAR', ''].join('\r\n')
+  return new File([text], `${name}.ics`, { type: 'text/calendar' })
 }

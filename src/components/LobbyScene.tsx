@@ -59,8 +59,8 @@ import { nextShapeStyle, previewFrameColour, rememberShapeStyle, shapePaint, sha
 import { defaultEmbedBox, embedSourcesIn } from '../lib/embedUrl'
 import { hasTransparency } from '../lib/imageAlpha'
 import { exrOrigin, isExr, withExrAsPng } from '../lib/exr'
-import { isModelFile, MODEL_ACCEPT, modelOrigin, withModelsAsPng } from '../lib/model3d'
-import { isCalendarFile, keepCalendarFile, readCalendar } from '../lib/calendar'
+import { defaultCubeFile, isModelFile, modelOrigin, withModelsAsPng } from '../lib/model3d'
+import { emptyCalendarFile, isCalendarFile, keepCalendarFile, readCalendar } from '../lib/calendar'
 import { asCalendarLink, fetchCalendarText, keepLinkedCalendar, looksLikeCalendarLink } from '../lib/calendarLink'
 import { asStrokeData, BUILTIN_BRUSHES, customBrushKey, drawingOf, drawPlacedPicture, drawStroke, erasePicture, eraseStrokeData, fitBox, localToWorldDelta, strokeToLocal, isCustomBrush, makeBrushTip, newStrokeSeed, rasterizeStroke, registerCustomBrush, type CustomBrush, type Piece, type Stroke, type StrokeData, type StrokePoint } from '../lib/brushes'
 import { createWheelGestures } from '../lib/canvasGestures'
@@ -184,7 +184,7 @@ function DrawSlider({ label, value, min, max, unit = '', onChange }: {
 }
 
 // What the quick bar's file buttons pick from.
-const TRACE_FILE_ACCEPT = { model: MODEL_ACCEPT, calendar: '.ics,text/calendar', image: 'image/*,.exr', audio: 'audio/*', sound: 'audio/*', video: 'video/*', document: '.pdf,application/pdf,.pptx' } as const
+const TRACE_FILE_ACCEPT = { image: 'image/*,.exr', audio: 'audio/*', sound: 'audio/*', video: 'video/*', document: '.pdf,application/pdf,.pptx' } as const
 
 // Any colour at all: the palette's hues round a wheel.
 const ANY_COLOUR = 'conic-gradient(#e87a6d, #e8c15a, #7fd1a6, #9ad4c4, #a8b6d9, #c77dff, #e87a6d)'
@@ -2707,7 +2707,12 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
       toggleDrawing()
     } else if (action === 'pinterest') {
       openPinterestImport(centre)
-    } else if (action === 'image' || action === 'sound' || action === 'video' || action === 'document' || action === 'sheet' || action === 'model' || action === 'calendar') {
+    } else if (action === 'model' || action === 'calendar') {
+      // Made at once, no file asked for: a cube, an empty calendar of this month. A
+      // file of their own is chosen after, in their panels -- or a calendar's events
+      // made there in the atrium.
+      void placeStarter(action, centre)
+    } else if (action === 'image' || action === 'sound' || action === 'video' || action === 'document' || action === 'sheet') {
       // A file: picked, then placed in the middle of the view as a drop would
       // be (placeFilesAsTraces; a spreadsheet as its sheets). The web app
       // can't take files from the computer yet: said, as a dropped file has it.
@@ -4521,6 +4526,13 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
   // a point. Shared by the drop handler and the Create Trace panel's file
   // picker, so selecting six images in the picker lands them exactly as
   // dragging the same six in would.
+  // A new 3D trace or calendar, before any file: a cube, an empty calendar.
+  const placeStarter = async (kind: 'model' | 'calendar', at: { x: number; y: number }) => {
+    if (!ensureLobbyHasSpace()) return
+    const file = kind === 'model' ? await defaultCubeFile(t('atrium.model.cube')) : emptyCalendarFile(t('atrium.trace.type.calendar'))
+    await placeFilesAsTraces([file], at.x, at.y)
+  }
+
   // A calendar from its iCal address: read now, placed with what it reads as its
   // file (shown when the address can't be read), and following the address after.
   const placeLinkedCalendar = async (text: string, at: { x: number; y: number }) => {
@@ -6454,6 +6466,11 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
                   // opened, taking in what lies loose there (TraceOverlay).
                   if (item.type === 'frame') {
                     setFrameRequest({ x: anchor.x, y: anchor.y })
+                    return
+                  }
+                  // A cube or an empty calendar, made there at once.
+                  if (item.type === 'model' || item.type === 'calendar') {
+                    void placeStarter(item.type, anchor)
                     return
                   }
                   // A spreadsheet: picked, then placed where the menu was opened.

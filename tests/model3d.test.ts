@@ -54,9 +54,12 @@ test('its pan and look are read only as they can be', () => {
   assert.ok(!sameView({ ...DEFAULT_VIEW, pan: [0.3, 0, 0] }, DEFAULT_VIEW))
 })
 
-test('a pose is read only as bones turned: whole quaternions, by place', () => {
-  const read = asModelRecord({ format: 'glb', view: DEFAULT_VIEW, pose: { 0: [0, 0, 0, 2], 3: [0, 0.7071, 0, 0.7071], bad: [0, 0, 0, 1], 4: [0, 0, 0], 5: [0, 0, 0, 0] } })!
-  assert.deepEqual(Object.keys(read.pose!), ['0', '3'])
-  assert.deepEqual(read.pose!['0'], [0, 0, 0, 1])
+test('a pose is read only as bones moved: whole quaternions, moves and scales, by place', () => {
+  const read = asModelRecord({ format: 'glb', view: DEFAULT_VIEW, pose: { 0: [0, 0, 0, 2], 3: { r: [0, 0.7071, 0, 0.7071], t: [0, 1, 0], s: [2, 2, 2] }, 6: { r: [0, 0, 0, 1], t: [1, 'x', 0], s: [0, 1, 1] }, bad: [0, 0, 0, 1], 4: [0, 0, 0], 5: [0, 0, 0, 0] } })!
+  assert.deepEqual(Object.keys(read.pose!), ['0', '3', '6'])
+  assert.deepEqual(read.pose!['0'], { r: [0, 0, 0, 1] }, 'a turn alone, as first kept')
+  assert.deepEqual(read.pose!['3'].t, [0, 1, 0])
+  assert.deepEqual(read.pose!['3'].s, [2, 2, 2])
+  assert.deepEqual(read.pose!['6'], { r: [0, 0, 0, 1] }, 'a broken move and a zero scale are left out')
   assert.equal(asModelRecord({ format: 'glb', pose: { x: 1 } })!.pose, undefined)
 })

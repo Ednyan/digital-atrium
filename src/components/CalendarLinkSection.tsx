@@ -1,16 +1,23 @@
-// A calendar trace's iCal address, in its Customization panel: followed --
-// read again as the calendar's shown (lib/calendarLink) -- or let go of. An
-// address is read before it's kept, so a wrong one is said so at once.
+// A calendar trace's own events and where they come from, in its Customization
+// panel: an .ics file chosen in its place, or an iCal address followed -- read
+// again as the calendar's shown (lib/calendarLink) -- or let go of. An address is
+// read before it's kept, so a wrong one is said so at once.
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { asCalendarLink, fetchCalendarText } from '../lib/calendarLink'
 import { readCalendar, type CalendarSettings } from '../lib/calendar'
 import { useTranslation } from '../lib/i18n'
 
 const BUTTON = 'px-3 h-8 border border-nier-border/40 text-nier-bg text-xs tracking-[0.1em] uppercase hover:border-nier-border/80 disabled:opacity-40'
 
-export default function CalendarLinkSection({ settings, onChange }: { settings: CalendarSettings; onChange: (settings: CalendarSettings) => void }) {
+export default function CalendarLinkSection({ settings, onChange, onFile }: {
+  settings: CalendarSettings
+  onChange: (settings: CalendarSettings) => void
+  // An .ics file in its place, where an atrium takes files from the computer.
+  onFile?: (file: File) => void
+}) {
   const { t } = useTranslation()
+  const file = useRef<HTMLInputElement>(null)
   const [typed, setTyped] = useState('')
   const [status, setStatus] = useState<'idle' | 'reading' | 'wrong'>('idle')
   const follow = async () => {
@@ -38,6 +45,13 @@ export default function CalendarLinkSection({ settings, onChange }: { settings: 
   }
   return (
     <div data-calendar-link="">
+      <p className="mb-2 text-[11px] text-nier-bg/70">{t('atrium.calendar.addHint')}</p>
+      {onFile && (
+        <>
+          <input ref={file} type="file" hidden accept=".ics,text/calendar" data-calendar-file="" onChange={e => { const chosen = e.target.files?.[0]; e.target.value = ''; if (chosen) onFile(chosen) }} />
+          <button type="button" data-calendar-choose="" className={`${BUTTON} w-full mb-3`} onClick={() => file.current?.click()}>{t('atrium.calendar.chooseFile')}</button>
+        </>
+      )}
       <div className="flex gap-2">
         <input
           value={typed}

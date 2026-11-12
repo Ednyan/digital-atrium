@@ -4,7 +4,7 @@ title: 3D models
 section: 3.3 Bringing things in > Pictures and media
 summary: Drop a GLB, glTF, FBX, OBJ or STL file (with its textures) to place a 3D model; double-click it to turn, move and zoom it, pose its skeleton, light it, colour it, take a snapshot, and keep the view you like.
 keywords: 3d, 3d model, model, glb, gltf, fbx, obj, mtl, stl, mesh, blender, sculpt, turn, rotate, orbit, spin, pan, move, zoom, snapshot, render, transparent, reference, figure, prop, texture, textures, light, lighting, exposure, colour, color, pose, posing, rig, rigged, skeleton, bone, bones, joint, armature
-where: Drop a model file on the canvas, or the quick bar's Other > 3D model; double-click it, its Turn in 3D button, or right-click > Turn in 3D; Customization panel > 3D model
+where: Drop a model file on the canvas, or the quick bar's Other > 3D model (a cube, then Choose a model file…); double-click it, its Turn in 3D button, or right-click > Turn in 3D; Customization panel > 3D model
 works_on: web, desktop
 related: pictures, drop-and-paste, exr-grading, customization-panel
 video: planned
@@ -12,9 +12,12 @@ video: planned
 
 # 3D models
 
-Drop a 3D model on the canvas, or pick one with **Other** > **3D model** on the quick
-bar. It arrives as a still picture of the model with nothing behind it, and
-keeps the model file so you can turn it.
+Drop a 3D model on the canvas. Or press **Other** > **3D model** on the quick bar
+(or right-click the canvas > **3D model**): a cube is placed, and **Choose a model
+file…** in its Customization panel puts your model in its place.
+
+It shows as a still picture of the model with nothing behind it, and keeps the
+model file so you can turn it.
 
 Files: **.glb**, **.gltf**, **.fbx**, **.obj**, **.stl**.
 
@@ -43,15 +46,22 @@ it > **Turn in 3D**.
 Done, the model's picture becomes the new view: one step, **Ctrl+Z** takes it
 back. Only one model turns at a time.
 
+**Full screen** takes it out of its box onto the whole window, to work on it
+there; **Back to the trace**, **Escape** or a click beside it puts it back.
+
 ## Pose it
 
 A model with a skeleton (a rigged character, an armature) shows **Pose** while
-it's turning. Press it: its joints show as dots.
+it's turning. Press it: its joints show as dots, its root is chosen, and a strip
+of tools shows down its left: **Move and rotate**, **Move**, **Rotate**, **Scale**.
 
 | You want | Do this |
 |---|---|
-| A joint to turn | Click its dot, or pick its bone from the list |
-| Turn it | Drag the gizmo's rings (each turns about one axis; the middle turns freely) |
+| Another joint | Click its dot, or pick its bone from the list |
+| Turn it | **Rotate**, then drag the rings (each turns about one axis; the middle turns freely) |
+| Move it | **Move**, then drag the arrows (one axis), a square (a plane) or the middle (freely) |
+| Make it bigger or smaller | **Scale**, then drag its handles |
+| Move and turn at once | **Move and rotate**: the arrows outside, the rings inside |
 | Your last turn back, or on again | **Ctrl+Z**, **Ctrl+Shift+Z** |
 | Back to its rest pose | **Reset pose** |
 
@@ -66,7 +76,9 @@ Customize it, then the **3D model** section:
 |---|---|
 | **Light** | **Studio**, **Soft**, **Sun** or **Night** (a cold light from behind it) |
 | **Exposure** | Brighter or darker; kept when you let go |
-| **Colour** | The colour of its parts without a texture; **Reset** gives them theirs back |
+| **Textures** | On, the pictures on its surfaces show; off, it's all one material. On by default when it came with textures |
+| **Colour** | With its textures off: its colour. **Reset** gives its parts their own back |
+| **Choose a model file…** | Another model in its place (with its textures, chosen together) |
 
 Each change makes its picture again: one step, **Ctrl+Z** takes it back. While
 it's turning, you see the change there too.
@@ -75,7 +87,7 @@ it's turning, you see the change there too.
 
 - A .gltf missing its .bin can't be read: drop the .bin with it, or export it as **.glb**, one file.
 - A Draco-compressed model can't be read yet.
-- An .obj without its .mtl, or a model without textures, is grey: give it a **Colour**.
+- An .obj without its .mtl, an .stl, or any model without textures is grey, its textures off: give it a **Colour**.
 - Animations don't play: a model shows its rest pose, or the pose you give it.
 - Everything else a picture can do (crop, flip, export) works on it, from its picture. See [Pictures](pictures.md).
 

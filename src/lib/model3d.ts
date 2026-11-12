@@ -21,15 +21,24 @@ export type ModelFormat = typeof MODEL_FORMATS[number]
  *  radians, how far away, as a share of the distance its whole sphere fits at,
  *  and what it turns about, moved from its middle (pan, in its sphere's radii). */
 export interface ModelView { yaw: number; pitch: number; distance: number; pan?: [number, number, number] }
-/** How it's lit: a kind of light, how bright, and a colour for its parts that have no picture on them. */
+/** How it's lit: a kind of light and how bright; whether its textures show; and,
+ *  with them off, a colour for all of it. */
 export const MODEL_LIGHTS = ['studio', 'soft', 'sun', 'night'] as const
 export type ModelLight = typeof MODEL_LIGHTS[number]
-export interface ModelLook { light: ModelLight; exposure: number; colour?: string }
+export interface ModelLook { light: ModelLight; exposure: number; textures?: boolean; colour?: string }
 export const DEFAULT_LOOK: ModelLook = { light: 'studio', exposure: 1 }
-/** How it's posed: each bone turned from its rest, by its place among the model's
- *  bones (as they're met, in the file's order), as a quaternion [x, y, z, w]. */
-export type ModelPose = Record<string, [number, number, number, number]>
-export interface ModelRecord { format: ModelFormat; view: ModelView; look?: ModelLook; pose?: ModelPose }
+/** How it's posed: each bone moved from its rest, by its place among the model's
+ *  bones (as they're met, in the file's order) -- its turn (r, a quaternion
+ *  [x, y, z, w]), and where it's moved (t) and how it's scaled (s), in its parent's units. */
+export interface BonePose { r: [number, number, number, number]; t?: [number, number, number]; s?: [number, number, number] }
+export type ModelPose = Record<string, BonePose>
+// `textured`: whether it came with textures (pictures on its surfaces).
+export interface ModelRecord { format: ModelFormat; view: ModelView; look?: ModelLook; pose?: ModelPose; textured?: boolean }
+
+/** Whether its textures show: as its look says, else whether it has any to show. A
+ *  model kept before that was known: an STL or a plain OBJ never had them. */
+export const texturesOn = (record: Pick<ModelRecord, 'look' | 'textured' | 'format'>) =>
+  record.look?.textures ?? record.textured ?? !(record.format === 'stl' || record.format === 'obj')
 
 export const MODEL_ACCEPT = MODEL_FORMATS.map(format => `.${format}`).join(',')
 export const DEFAULT_VIEW: ModelView = { yaw: Math.PI / 5, pitch: 0.32, distance: 1 }
@@ -73,22 +82,32 @@ export function asModelRecord(raw: unknown): ModelRecord | undefined {
       look: {
         light: light ?? DEFAULT_LOOK.light,
         exposure: number(look.exposure, 0.1, 8, DEFAULT_LOOK.exposure),
+        ...(typeof look.textures === 'boolean' ? { textures: look.textures } : {}),
         ...(typeof look.colour === 'string' && /^#[0-9a-f]{6}$/i.test(look.colour) ? { colour: look.colour } : {}),
       },
     } : {}),
     ...(pose ? { pose } : {}),
+    ...(typeof (value as { textured?: unknown }).textured === 'boolean' ? { textured: (value as { textured: boolean }).textured } : {}),
   }
 }
 
-// Each turn a bone's, by a place it could have, its quaternion made whole (length 1).
+// Each bone's, by a place it could have: its quaternion made whole (length 1), its
+// move and scale numbers -- or none. A turn alone, as first kept, is read as one.
+const numbers = (value: unknown, count: number) => Array.isArray(value) && value.length === count && value.every(v => typeof v === 'number' && Number.isFinite(v))
 function asPose(raw: unknown): ModelPose | undefined {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined
   const pose: ModelPose = {}
-  for (const [key, turn] of Object.entries(raw as Record<string, unknown>)) {
-    if (!/^\d{1,4}$/.test(key) || !Array.isArray(turn) || turn.length !== 4 || !turn.every(v => typeof v === 'number' && Number.isFinite(v))) continue
-    const length = Math.hypot(...(turn as number[]))
+  for (const [key, kept] of Object.entries(raw as Record<string, unknown>)) {
+    if (!/^\d{1,4}$/.test(key)) continue
+    const bone = (Array.isArray(kept) ? { r: kept } : kept ?? {}) as { r?: unknown; t?: unknown; s?: unknown }
+    if (!numbers(bone.r, 4)) continue
+    const length = Math.hypot(...(bone.r as number[]))
     if (length < 1e-6) continue
-    pose[key] = (turn as number[]).map(v => v / length) as [number, number, number, number]
+    pose[key] = {
+      r: (bone.r as number[]).map(v => v / length) as BonePose['r'],
+      ...(numbers(bone.t, 3) ? { t: bone.t as BonePose['t'] } : {}),
+      ...(numbers(bone.s, 3) && (bone.s as number[]).every(v => Math.abs(v) > 1e-4) ? { s: bone.s as BonePose['s'] } : {}),
+    }
   }
   return Object.keys(pose).length ? pose : undefined
 }
@@ -227,7 +246,7 @@ const LIGHTS: Record<ModelLight, { room: number; sky: number; lamp: number; colo
   // From beyond it, cold: a rim of light, the rest in shadow.
   night: { room: 0.12, sky: 0.08, lamp: 1.6, colour: 0xa9c1ff, at: [-1.2, 1, -2.2] },
 }
-type Colourful = { color: { getHex(): number; setHex(hex: number): void; set(value: string): void } }
+type Colourful = { color: { getHex(): number; setHex(hex: number): void; set(value: string): void }; map?: unknown; vertexColors?: boolean; needsUpdate?: boolean }
 
 export interface Stage {
   readonly canvas: HTMLCanvasElement
@@ -235,8 +254,10 @@ export interface Stage {
   readonly center: Vector3
   /** What it turns about: its middle, moved by the view's pan (OrbitControls takes this one). */
   readonly target: Vector3
-  /** Lit as the look says, its parts with no picture in its colour (or their own again). */
-  setLook(look: ModelLook): void
+  /** Lit as the look says; its textures shown or not -- off, in the look's colour, or their own. */
+  setLook(look: ModelLook, textures?: boolean): void
+  /** Whether any of it has a texture. */
+  readonly textured: boolean
   /** What's drawn: the model and, for posing, what's shown with it. */
   readonly scene: Scene
   readonly object: Object3D
@@ -325,12 +346,17 @@ export async function makeStage(object: Object3D, canvas: HTMLCanvasElement = do
     camera.updateMatrixWorld()
     return answer
   }
-  // Each part's own colour, kept the first time another is given, to go back to.
-  const own = new Map<Colourful, number>()
+  // Each part's own colour and texture, kept the first time it's changed, to go back to.
+  const own = new Map<Colourful, { colour: number; map: unknown; vertexColors: boolean }>()
+  const materials: Colourful[] = []
+  object.traverse(part => {
+    for (const material of [(part as { material?: unknown }).material].flat() as (Colourful | undefined)[]) if (material?.color) materials.push(material)
+  })
+  const textured = materials.some(material => !!material.map)
   // Its bones, and how each is at rest, to pose from and go back to.
   const bones: Bone[] = []
   object.traverse(part => { if ((part as Bone).isBone) bones.push(part as Bone) })
-  const rest = bones.map(bone => bone.quaternion.clone())
+  const rest = bones.map(bone => ({ r: bone.quaternion.clone(), t: bone.position.clone(), s: bone.scale.clone() }))
 
   const stage: Stage = {
     canvas,
@@ -344,16 +370,28 @@ export async function makeStage(object: Object3D, canvas: HTMLCanvasElement = do
     place,
     setPose: pose => {
       bones.forEach((bone, i) => {
-        const turn = pose?.[i]
-        if (turn) bone.quaternion.set(turn[0], turn[1], turn[2], turn[3])
-        else bone.quaternion.copy(rest[i])
+        const kept = pose?.[i]
+        if (kept) bone.quaternion.set(kept.r[0], kept.r[1], kept.r[2], kept.r[3])
+        else bone.quaternion.copy(rest[i].r)
+        if (kept?.t) bone.position.set(kept.t[0], kept.t[1], kept.t[2])
+        else bone.position.copy(rest[i].t)
+        if (kept?.s) bone.scale.set(kept.s[0], kept.s[1], kept.s[2])
+        else bone.scale.copy(rest[i].s)
       })
       object.updateMatrixWorld(true)
     },
     poseNow: () => {
       const pose: ModelPose = {}
       bones.forEach((bone, i) => {
-        if (bone.quaternion.angleTo(rest[i]) > 1e-4) pose[i] = [bone.quaternion.x, bone.quaternion.y, bone.quaternion.z, bone.quaternion.w]
+        const turned = bone.quaternion.angleTo(rest[i].r) > 1e-4
+        const moved = bone.position.distanceTo(rest[i].t) > 1e-6 * (radius || 1)
+        const scaled = bone.scale.distanceTo(rest[i].s) > 1e-5
+        if (!turned && !moved && !scaled) return
+        pose[i] = {
+          r: [bone.quaternion.x, bone.quaternion.y, bone.quaternion.z, bone.quaternion.w],
+          ...(moved ? { t: [bone.position.x, bone.position.y, bone.position.z] as [number, number, number] } : {}),
+          ...(scaled ? { s: [bone.scale.x, bone.scale.y, bone.scale.z] as [number, number, number] } : {}),
+        }
       })
       return Object.keys(pose).length ? pose : undefined
     },
@@ -366,7 +404,7 @@ export async function makeStage(object: Object3D, canvas: HTMLCanvasElement = do
         ...(pan.lengthSq() > 1e-8 ? { pan: [pan.x, pan.y, pan.z] as [number, number, number] } : {}),
       }
     },
-    setLook: look => {
+    setLook: (look, textures) => {
       const light = LIGHTS[look.light] ?? LIGHTS.studio
       scene.environmentIntensity = light.room
       sky.intensity = light.sky
@@ -374,15 +412,22 @@ export async function makeStage(object: Object3D, canvas: HTMLCanvasElement = do
       lamp.color.setHex(light.colour)
       lamp.position.set(light.at[0] * radius, light.at[1] * radius, light.at[2] * radius)
       renderer.toneMappingExposure = look.exposure
-      object.traverse(part => {
-        for (const material of [(part as { material?: unknown }).material].flat() as ((Colourful & { map?: unknown }) | undefined)[]) {
-          if (!material?.color || material.map) continue
-          if (!own.has(material)) own.set(material, material.color.getHex())
-          if (look.colour) material.color.set(look.colour)
-          else material.color.setHex(own.get(material)!)
+      const showing = textures ?? look.textures ?? textured
+      for (const material of materials) {
+        if (!own.has(material)) own.set(material, { colour: material.color.getHex(), map: material.map ?? null, vertexColors: !!material.vertexColors })
+        const its = own.get(material)!
+        const map = showing ? its.map : null, vertexColors = showing && its.vertexColors
+        if (material.map !== map || material.vertexColors !== vertexColors) {
+          material.map = map
+          material.vertexColors = vertexColors
+          material.needsUpdate = true
         }
-      })
+        // A colour of its own only with its textures off.
+        if (!showing && look.colour) material.color.set(look.colour)
+        else material.color.setHex(its.colour)
+      }
     },
+    textured,
     framed: view => {
       // As near as it can be with every corner of its box in the frame, a margin
       // round it: found by halving, the whole sphere's distance being always far enough.
@@ -443,15 +488,15 @@ export async function makeStage(object: Object3D, canvas: HTMLCanvasElement = do
 // ---- Files -----------------------------------------------------------------------
 
 /** A model's still, framed from the usual angle, and the view it's kept with. */
-async function firstStill(object: Object3D): Promise<{ png: Blob; view: ModelView }> {
+async function firstStill(object: Object3D): Promise<{ png: Blob; view: ModelView; textured: boolean }> {
   const stage = await makeStage(object)
   try {
-    stage.setLook(DEFAULT_LOOK)
+    stage.setLook(DEFAULT_LOOK, stage.textured)
     const { width, height } = stillSize(stage.silhouette(DEFAULT_VIEW))
     stage.setSize(width, height)
     const view = stage.framed(DEFAULT_VIEW)
     stage.place(view)
-    return { png: await stage.picture(width, height), view }
+    return { png: await stage.picture(width, height), view, textured: stage.textured }
   } finally {
     stage.dispose()
   }
@@ -461,7 +506,7 @@ async function firstStill(object: Object3D): Promise<{ png: Blob; view: ModelVie
 export async function renderStill(file: Blob, record: ModelRecord, aspect: number): Promise<Blob> {
   const stage = await makeStage(await parseModel(await file.arrayBuffer(), record.format))
   try {
-    stage.setLook(record.look ?? DEFAULT_LOOK)
+    stage.setLook(record.look ?? DEFAULT_LOOK, texturesOn(record))
     stage.setPose(record.pose)
     const { width, height } = stillSize(aspect)
     stage.setSize(width, height)
@@ -499,13 +544,21 @@ export async function withModelsAsPng(files: File[], onUnreadable: (file: File, 
       const object = await parseModel(await file.arrayBuffer(), format, sides, used)
       const bundled = used.size > before && format !== 'glb'
       const source = bundled ? new File([await asOneFile(object)], file.name.replace(/\.[^.]+$/, '.glb'), { type: 'model/gltf-binary' }) : file
-      const { png, view } = await firstStill(object)
+      const { png, view, textured } = await firstStill(object)
       const still = new File([png], file.name.replace(/\.[^.]+$/, '.png'), { type: 'image/png' })
-      origins.set(still, { source, record: { format: bundled ? 'glb' : format, view } })
+      origins.set(still, { source, record: { format: bundled ? 'glb' : format, view, textured } })
       out.push(still)
     } catch (error) {
       onUnreadable(file, error)
     }
   }
   return out.filter(file => !used.has(file.name.toLowerCase()))
+}
+
+/** A cube, the model a new 3D trace starts as, before a file of its own is chosen. */
+export async function defaultCubeFile(name = 'Cube'): Promise<File> {
+  const { BoxGeometry, Group, Mesh, MeshStandardMaterial } = await import('three')
+  const cube = new Group()
+  cube.add(new Mesh(new BoxGeometry(1, 1, 1), new MeshStandardMaterial({ color: 0xbdbdbd, roughness: 0.55, metalness: 0.05 })))
+  return new File([await asOneFile(cube)], `${name}.glb`, { type: 'model/gltf-binary' })
 }

@@ -10,7 +10,7 @@ import { hexToRgb } from '../lib/cursorLook'
 import { dashProps } from '../lib/strokeStyle'
 import { TRACES_PLACED_EVENT, UNSUPPORTED } from '../lib/atriumFile'
 import React, { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo, useSyncExternalStore, lazy, Suspense } from 'react'
-import { DEFAULT_LOOK, isModelTrace, renderStill, type ModelLook, type ModelPose, type ModelView } from '../lib/model3d'
+import { DEFAULT_LOOK, isModelTrace, modelOrigin, renderStill, withModelsAsPng, type ModelLook, type ModelPose, type ModelView } from '../lib/model3d'
 import ModelLookSection from './ModelLookSection'
 import WiggleFilter from './WiggleFilter'
 import { uploadTraceFile } from '../lib/traceUpload'
@@ -96,6 +96,7 @@ import { firstFreeName } from '../lib/traceNames'
 import SheetTrace from './SheetTrace'
 import CalendarTrace from './CalendarTrace'
 import CalendarLinkSection from './CalendarLinkSection'
+import { keepCalendarFile, readCalendar } from '../lib/calendar'
 import ExrGradePanel from './ExrGradePanel'
 import LookFilter, { LookControls } from './LookFilter'
 import { isNeutral, NEUTRAL_LOOK, takesLook, takesWiggle, DEFAULT_WIGGLE } from '../lib/traceLook'
@@ -6803,6 +6804,47 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
       setModelBusy(null)
     }
   }
+  // Another model in its place (its panel's Choose a model file): read as a drop is
+  // -- its textures with it -- its file and still kept, framed anew, lit as it was.
+  // One step of undo.
+  const replaceModel = async (traceId: string, files: File[]) => {
+    const trace = useGameStore.getState().traces.find(tr => tr.id === traceId)
+    if (!trace?.model || !lobbyId) return
+    setModelBusy(traceId)
+    try {
+      const [still] = (await withModelsAsPng(files, (file, error) => {
+        showToast(t('atrium.error.modelUnreadable', { name: file.name, reason: error instanceof Error ? error.message : String(error) }))
+      })).filter(file => modelOrigin(file))
+      const origin = still && modelOrigin(still)
+      if (!still || !origin) return
+      const [modelUrl, stillUrl] = await Promise.all([uploadTraceFile(origin.source, lobbyId, userId), uploadTraceFile(still, lobbyId, userId)])
+      const { light, exposure } = trace.model.look ?? DEFAULT_LOOK
+      updateTraceCustomization(traceId, {
+        imageUrl: modelUrl,
+        mediaUrl: stillUrl,
+        content: origin.source.name.replace(/\.[^.]+$/, '') || trace.content,
+        model: { ...origin.record, look: { light, exposure } },
+      })
+    } catch (error) {
+      console.error('3D model not replaced:', error)
+      showToast(t('atrium.model.notSaved'))
+    } finally {
+      setModelBusy(null)
+    }
+  }
+  // A calendar's file anew -- an event made, changed or deleted on it, or another
+  // file chosen in its place: kept as its file, one step of undo.
+  const saveCalendar = async (traceId: string, text: string, name?: string | null) => {
+    if (!lobbyId) return
+    try {
+      const url = await uploadTraceFile(new File([text], 'calendar.ics', { type: 'text/calendar' }), lobbyId, userId)
+      keepCalendarFile(url, text)
+      updateTraceCustomization(traceId, { mediaUrl: url, ...(name ? { content: name } : {}) })
+    } catch (error) {
+      console.error('Calendar not kept:', error)
+      showToast(t('atrium.calendar.notSaved'))
+    }
+  }
   // A snapshot of it, as a picture beside it.
   const snapshotModel = (traceId: string, png: Blob) => {
     const trace = traces.find(tr => tr.id === traceId)
@@ -6810,7 +6852,7 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
     const box = traceBox(trace)
     onPlaceFiles([new File([png], `${trace.content || 'model'} snapshot.png`, { type: 'image/png' })], box.cx + box.halfW * 2 + 40, box.cy)
   }
-  const on = useLatestHandlers({ handleMouseDown, handleTouchDown, endTextEdit, fitTextLive, isClickThrough, updateTraceCustomization, renameFrame, commitSheetCell, countSlides, finishTurning, snapshotModel })
+  const on = useLatestHandlers({ handleMouseDown, handleTouchDown, endTextEdit, fitTextLive, isClickThrough, updateTraceCustomization, renameFrame, commitSheetCell, countSlides, finishTurning, snapshotModel, saveCalendar })
   // The threads' (TraceLinksLayer): the same functions every render, each
   // reading the traces as they are now, so the layer can skip a render.
   const linkOn = useLatestHandlers({ place: placeTrace, levelOf: levelOfLink, press: pressLink, menu: openLinkMenu, elbowAt: dragElbow })
@@ -7809,6 +7851,8 @@ return (
         <CalendarTrace
           trace={trace}
           onView={canEdit && !isLockedTrace(trace) ? view => on.updateTraceCustomization(trace.id, { calendar: { ...trace.calendar, view } }) : undefined}
+          // Its own events, where it has its own (one followed only shows its calendar's).
+          onSave={canEdit && !isLockedTrace(trace) && !trace.calendar?.link ? text => void on.saveCalendar(trace.id, text) : undefined}
         />
       )}
 
@@ -10247,13 +10291,32 @@ return (
             {/* A calendar's iCal address: followed, or let go of. */}
             {editingTrace.type === 'calendar' && (
               <Section id="calendar" title={t('atrium.trace.type.calendar')} summary={editingTrace.calendar?.link ? t('atrium.calendar.following') : null}>
-                <CalendarLinkSection settings={editingTrace.calendar ?? { view: 'month' }} onChange={calendar => change({ calendar })} />
+                <CalendarLinkSection
+                  settings={editingTrace.calendar ?? { view: 'month' }}
+                  onChange={calendar => change({ calendar })}
+                  // An .ics in its place, where an atrium takes files from the computer.
+                  onFile={isLocalData && canEdit ? async file => {
+                    try {
+                      const text = await file.text()
+                      const read = await readCalendar(text)
+                      await saveCalendar(editingTrace.id, text, read.name)
+                    } catch {
+                      showToast(t('atrium.error.calendarUnreadable', { name: file.name }))
+                    }
+                  } : undefined}
+                />
               </Section>
             )}
             {/* A 3D model's light and colour: its still made again from them. */}
             {isModelTrace(editingTrace) && (
               <Section id="model" title={t('atrium.model.badge')} summary={t(`atrium.model.light.${(editingTrace.model?.look ?? DEFAULT_LOOK).light}` as TranslationKey)}>
-                <ModelLookSection look={editingTrace.model?.look ?? DEFAULT_LOOK} busy={modelBusy === editingTrace.id} onLook={look => void restyleModel(editingTrace.id, look)} />
+                <ModelLookSection
+                  record={editingTrace.model!}
+                  busy={modelBusy === editingTrace.id}
+                  onLook={look => void restyleModel(editingTrace.id, look)}
+                  // Files from the computer, where an atrium takes them (as a drop does).
+                  onReplace={isLocalData && canEdit ? files => void replaceModel(editingTrace.id, files) : undefined}
+                />
               </Section>
             )}
             {/* A frame's title: its font, size and weight, in the world as the frame is. */}
