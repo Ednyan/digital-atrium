@@ -182,7 +182,7 @@ function DrawSlider({ label, value, min, max, unit = '', onChange }: {
 }
 
 // What the quick bar's file buttons pick from.
-const TRACE_FILE_ACCEPT = { image: `image/*,.exr,${MODEL_ACCEPT}`, audio: 'audio/*', sound: 'audio/*', video: 'video/*', document: '.pdf,application/pdf,.pptx' } as const
+const TRACE_FILE_ACCEPT = { model: MODEL_ACCEPT, image: 'image/*,.exr', audio: 'audio/*', sound: 'audio/*', video: 'video/*', document: '.pdf,application/pdf,.pptx' } as const
 
 // Any colour at all: the palette's hues round a wheel.
 const ANY_COLOUR = 'conic-gradient(#e87a6d, #e8c15a, #7fd1a6, #9ad4c4, #a8b6d9, #c77dff, #e87a6d)'
@@ -2705,7 +2705,7 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
       toggleDrawing()
     } else if (action === 'pinterest') {
       openPinterestImport(centre)
-    } else if (action === 'image' || action === 'sound' || action === 'video' || action === 'document' || action === 'sheet') {
+    } else if (action === 'image' || action === 'sound' || action === 'video' || action === 'document' || action === 'sheet' || action === 'model') {
       // A file: picked, then placed in the middle of the view as a drop would
       // be (placeFilesAsTraces; a spreadsheet as its sheets). The web app
       // can't take files from the computer yet: said, as a dropped file has it.
@@ -6384,6 +6384,7 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
                 { label: `${t('atrium.trace.type.video')}`, type: 'video' as const, shape: undefined },
                 { label: `${t('atrium.trace.type.document')}`, type: 'document' as const, shape: undefined },
                 { label: `${t('atrium.trace.type.spreadsheet')}`, type: 'sheet' as const, shape: undefined },
+                { label: `${t('atrium.model.badge')}`, type: 'model' as const, shape: undefined },
               ] : []),
             ]).map((item) => (
               <button

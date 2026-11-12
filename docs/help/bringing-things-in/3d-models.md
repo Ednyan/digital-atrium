@@ -4,7 +4,7 @@ title: 3D models
 section: 3.3 Bringing things in > Pictures and media
 summary: Drop a GLB, glTF, FBX, OBJ or STL file to place a 3D model; double-click it to turn it, zoom, take a snapshot, and keep the view you like.
 keywords: 3d, 3d model, model, glb, gltf, fbx, obj, stl, mesh, blender, sculpt, turn, rotate, orbit, spin, zoom, snapshot, render, transparent, reference, figure, prop
-where: Drop a model file on the canvas, or Image (6) on the quick bar; double-click it, its Turn in 3D button, or right-click > Turn in 3D
+where: Drop a model file on the canvas, or the quick bar's Other > 3D model; double-click it, its Turn in 3D button, or right-click > Turn in 3D
 works_on: web, desktop
 related: pictures, drop-and-paste, exr-grading, customization-panel
 video: planned
@@ -12,7 +12,7 @@ video: planned
 
 # 3D models
 
-Drop a 3D model on the canvas, or pick one with **Image** (**6**) on the quick
+Drop a 3D model on the canvas, or pick one with **Other** > **3D model** on the quick
 bar. It arrives as a still picture of the model with nothing behind it, and
 keeps the model file so you can turn it.
 

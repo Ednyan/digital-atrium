@@ -30,7 +30,7 @@
 // Shapes holds the shapes drawn in a box -- rectangle, triangle, circle,
 // diamond, parallelogram -- in a flyout, the button showing the one in use;
 // Other holds the kinds of file a trace can be besides a picture -- sound,
-// video, a PDF, a spreadsheet -- each picked and placed at once, as a drop is.
+// video, a PDF, a spreadsheet, a 3D model -- each picked and placed at once, as a drop is.
 // Embed is a tool like Text: a click says where, and a box asks for the link
 // (EmbedLinkBox).
 //
@@ -68,8 +68,8 @@ import { ColourInput } from './ColourPicker'
 
 export type PlaceTool = 'text' | BoxShape | 'path' | 'frame' | 'slot' | 'embed'
 // The kinds of file the Other button offers.
-export type OtherTrace = 'sound' | 'video' | 'document' | 'sheet'
-const OTHER_TRACES: OtherTrace[] = ['sound', 'video', 'document', 'sheet']
+export type OtherTrace = 'sound' | 'video' | 'document' | 'sheet' | 'model'
+const OTHER_TRACES: OtherTrace[] = ['sound', 'video', 'document', 'sheet', 'model']
 // What the bar does: take a tool up, or act.
 export type QuickAction = 'select' | 'marquee' | 'pan' | 'connect' | PlaceTool | 'draw' | 'image' | 'laser' | 'pinterest' | OtherTrace
 // What the bar shows: a button each. Shapes and Other each hold several.
@@ -131,6 +131,8 @@ const ICONS: Record<QuickAction | 'other', ReactNode> = {
       <path d="M4 10 H20 M4 14.5 H20 M10 5 V19" />
     </>
   ),
+  // A 3D model: a cube seen from a corner.
+  model: <path d="M12 3.5 L19.5 7.75 V16.25 L12 20.5 L4.5 16.25 V7.75 Z M4.5 7.75 L12 12 L19.5 7.75 M12 12 V20.5" strokeLinejoin="round" />,
   path: (
     <>
       <path d="M4 18.5 L9.5 11 L13.5 14.5 L19.5 6" strokeLinecap="round" strokeLinejoin="round" />
@@ -396,6 +398,7 @@ export default function QuickBar({ armed, drawing, laser, panning, selecting, co
     video: t('atrium.trace.type.video'),
     document: t('atrium.trace.type.document'),
     sheet: t('atrium.trace.type.spreadsheet'),
+    model: t('atrium.model.badge'),
     path: t('atrium.trace.shape.path'),
     draw: t('atrium.draw.button'),
     image: t('atrium.trace.type.image'),
