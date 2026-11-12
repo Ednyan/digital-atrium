@@ -2330,7 +2330,7 @@ const zh: Catalogue = {
   'landing.ways.cloudText': '最多 3 个中庭，共 50 MB。',
   'landing.ways.desktop': "在你的电脑上",
   'landing.ways.desktopDesc': "每个中庭都是你磁盘上的一个文件夹。没有限制，可离线使用，带进来的文件还能与原文件保持同步。",
-  'landing.ways.desktopSolo': "为独自工作而设计：桌面版的中庭不会共享。",
+  'landing.ways.desktopSolo': "保险库里的中庭只属于你。登录后，与你共享的中庭也能在这里打开。",
   'landing.creator.title': "创作者",
   'landing.creator.alt': "Eduardo Paranhos 的黑白照片，目光望向一侧。",
   'landing.closing.title': "门是开着的",

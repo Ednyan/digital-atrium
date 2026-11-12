@@ -2247,7 +2247,7 @@ const es: Catalogue = {
   'landing.ways.cloudText': 'Hasta 3 atrios, 50 MB en total.',
   'landing.ways.desktop': "En tu ordenador",
   'landing.ways.desktopDesc': "Cada atrio es una carpeta en tu disco. Sin límites, funciona sin conexión, y los archivos que traes pueden seguir vinculados a sus originales.",
-  'landing.ways.desktopSolo': "Pensado para trabajar a solas: los atrios de escritorio no se comparten.",
+  'landing.ways.desktopSolo': "Los atrios de su bóveda son solo tuyos. Inicia sesión y los que compartan contigo también se abren aquí.",
   'landing.creator.title': "El creador",
   'landing.creator.alt': "Eduardo Paranhos, en blanco y negro, mirando a un lado.",
   'landing.closing.title': "La puerta está abierta",

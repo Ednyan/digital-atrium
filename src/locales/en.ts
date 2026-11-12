@@ -2275,7 +2275,7 @@ export const en = {
   'landing.ways.cloudText': 'Up to 3 atriums, 50 MB in all.',
   'landing.ways.desktop': "On your computer",
   'landing.ways.desktopDesc': "Every atrium is a folder on your disk. No limits, it works offline, and the files you bring in can stay live with their originals.",
-  'landing.ways.desktopSolo': "Made for working on your own: atriums on the desktop aren’t shared.",
+  'landing.ways.desktopSolo': "The atriums in its vault are yours alone. Sign in, and the ones shared with you open here too.",
   'landing.creator.title': "The creator",
   'landing.creator.alt': "Eduardo Paranhos, in black and white, looking to the side.",
   'landing.closing.title': "The door is open",

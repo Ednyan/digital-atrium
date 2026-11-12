@@ -2254,7 +2254,7 @@ const ptPT: Catalogue = {
   'landing.ways.cloudText': 'Até 3 átrios, 50 MB no total.',
   'landing.ways.desktop': "No seu computador",
   'landing.ways.desktopDesc': "Cada átrio é uma pasta no seu disco. Sem limites, funciona offline, e os ficheiros que traz podem continuar ligados aos originais.",
-  'landing.ways.desktopSolo': "Feito para trabalhar sozinho: os átrios no computador não são partilhados.",
+  'landing.ways.desktopSolo': "Os átrios do cofre são só seus. Inicie sessão, e os partilhados consigo também abrem aqui.",
   'landing.creator.title': "O criador",
   'landing.creator.alt': "Eduardo Paranhos, a preto e branco, a olhar para o lado.",
   'landing.closing.title': "A porta está aberta",

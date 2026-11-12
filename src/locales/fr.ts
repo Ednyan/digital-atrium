@@ -2249,7 +2249,7 @@ const fr: Catalogue = {
   'landing.ways.cloudText': 'Jusqu’à 3 atriums, 50 Mo en tout.',
   'landing.ways.desktop': "Sur votre ordinateur",
   'landing.ways.desktopDesc': "Chaque atrium est un dossier sur votre disque. Aucune limite, il fonctionne hors ligne, et les fichiers apportés peuvent rester liés à leurs originaux.",
-  'landing.ways.desktopSolo': "Conçu pour travailler seul : les atriums sur ordinateur ne sont pas partagés.",
+  'landing.ways.desktopSolo': "Les atriums de son coffre ne sont qu’à vous. Connectez-vous, et ceux partagés avec vous s’ouvrent ici aussi.",
   'landing.creator.title': "Le créateur",
   'landing.creator.alt': "Eduardo Paranhos, en noir et blanc, regardant de côté.",
   'landing.closing.title': "La porte est ouverte",

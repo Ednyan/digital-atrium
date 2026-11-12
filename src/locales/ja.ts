@@ -2327,7 +2327,7 @@ const ja: Catalogue = {
   'landing.ways.cloudText': '最大 3 つ、合計 50 MB まで。',
   'landing.ways.desktop': "あなたのパソコンで",
   'landing.ways.desktopDesc': "アトリウムはそれぞれディスク上のフォルダです。制限なし、オフラインで動き、持ち込んだファイルは元のファイルと連動できます。",
-  'landing.ways.desktopSolo': "一人での作業向けです。デスクトップ版のアトリウムは共有されません。",
+  'landing.ways.desktopSolo': "保管庫のアトリウムはあなただけのものです。サインインすると、共有されたアトリウムもここで開けます。",
   'landing.creator.title': "作者",
   'landing.creator.alt': "白黒で横を見つめるエドゥアルド・パラーニョス。",
   'landing.closing.title': "扉は開いている",

@@ -2250,7 +2250,7 @@ const de: Catalogue = {
   'landing.ways.cloudText': 'Bis zu 3 Atrien, zusammen 50 MB.',
   'landing.ways.desktop': "Auf deinem Computer",
   'landing.ways.desktopDesc': "Jedes Atrium ist ein Ordner auf deiner Festplatte. Keine Grenzen, es funktioniert offline, und mitgebrachte Dateien können mit ihren Originalen verbunden bleiben.",
-  'landing.ways.desktopSolo': "Gemacht für die Arbeit allein: Atrien am Desktop werden nicht geteilt.",
+  'landing.ways.desktopSolo': "Die Atrien im Tresor gehören dir allein. Meldest du dich an, öffnen sich hier auch die, die mit dir geteilt wurden.",
   'landing.creator.title': "Der Schöpfer",
   'landing.creator.alt': "Eduardo Paranhos in Schwarzweiß, zur Seite blickend.",
   'landing.closing.title': "Die Tür ist offen",

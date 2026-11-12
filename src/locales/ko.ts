@@ -2331,7 +2331,7 @@ const ko: Catalogue = {
   'landing.ways.cloudText': '최대 3개, 합계 50MB.',
   'landing.ways.desktop': "내 컴퓨터에서",
   'landing.ways.desktopDesc': "아트리움 하나하나가 디스크의 폴더예요. 제한이 없고, 오프라인에서도 되며, 가져온 파일은 원본과 연결된 채로 둘 수 있어요.",
-  'landing.ways.desktopSolo': "혼자 작업하기 위한 버전이에요. 데스크톱의 아트리움은 공유되지 않아요.",
+  'landing.ways.desktopSolo': "보관함의 아트리움은 나만의 것이에요. 로그인하면 공유받은 아트리움도 여기서 열 수 있어요.",
   'landing.creator.title': "만든 사람",
   'landing.creator.alt': "옆을 바라보는 흑백 사진 속 에두아르두 파라뉴스.",
   'landing.closing.title': "문은 열려 있어요",
