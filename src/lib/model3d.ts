@@ -14,7 +14,8 @@
 import type { Bone, Object3D, PerspectiveCamera, Scene, Vector3 } from 'three'
 import type { Trace } from '../types/database'
 
-export const MODEL_FORMATS = ['glb', 'gltf', 'fbx', 'obj', 'stl'] as const
+// .vrm: an avatar, a .glb underneath (its toon look and hair's swing aren't read).
+export const MODEL_FORMATS = ['glb', 'gltf', 'fbx', 'obj', 'stl', 'dae', 'vrm'] as const
 export type ModelFormat = typeof MODEL_FORMATS[number]
 
 /** How it's turned: round the model (yaw), up from level (pitch), both in
@@ -33,7 +34,8 @@ export const DEFAULT_LOOK: ModelLook = { light: 'studio', exposure: 1 }
 export interface BonePose { r: [number, number, number, number]; t?: [number, number, number]; s?: [number, number, number] }
 export type ModelPose = Record<string, BonePose>
 // `textured`: whether it came with textures (pictures on its surfaces).
-export interface ModelRecord { format: ModelFormat; view: ModelView; look?: ModelLook; pose?: ModelPose; textured?: boolean }
+/** `parts`: the model moved, turned or scaled whole ("0"), or its parts each (Stage.parts), kept as a pose is. */
+export interface ModelRecord { format: ModelFormat; view: ModelView; look?: ModelLook; pose?: ModelPose; parts?: ModelPose; textured?: boolean }
 
 /** Whether its textures show: as its look says, else whether it has any to show. A
  *  model kept before that was known: an STL or a plain OBJ never had them. */
@@ -70,6 +72,7 @@ export function asModelRecord(raw: unknown): ModelRecord | undefined {
   const look = (value as { look?: Record<string, unknown> }).look
   const light = MODEL_LIGHTS.find(one => one === look?.light)
   const pose = asPose((value as { pose?: unknown }).pose)
+  const parts = asPose((value as { parts?: unknown }).parts)
   return {
     format,
     view: {
@@ -87,6 +90,7 @@ export function asModelRecord(raw: unknown): ModelRecord | undefined {
       },
     } : {}),
     ...(pose ? { pose } : {}),
+    ...(parts ? { parts } : {}),
     ...(typeof (value as { textured?: unknown }).textured === 'boolean' ? { textured: (value as { textured: boolean }).textured } : {}),
   }
 }
@@ -200,7 +204,7 @@ async function parseAny(data: ArrayBuffer, format: ModelFormat, manager: import(
     const missing = (json.buffers ?? []).some(part => part.uri && !part.uri.startsWith('data:') && !sides.has(nameOf(part.uri)))
     if (missing) throw new ModelUnreadable('this .gltf needs the files kept beside it -- drop them with it, or export it as .glb, one file')
   }
-  if (format === 'glb' || format === 'gltf') {
+  if (format === 'glb' || format === 'gltf' || format === 'vrm') {
     const { GLTFLoader } = await import('three/examples/jsm/loaders/GLTFLoader.js')
     try {
       return (await new GLTFLoader(manager).parseAsync(data, '')).scene
@@ -210,7 +214,19 @@ async function parseAny(data: ArrayBuffer, format: ModelFormat, manager: import(
   }
   if (format === 'fbx') {
     const { FBXLoader } = await import('three/examples/jsm/loaders/FBXLoader.js')
-    return new FBXLoader(manager).parse(data, '')
+    try {
+      return new FBXLoader(manager).parse(data, '')
+    } catch (error) {
+      // FBX before 7 (Mixamo's own downloads can be 6.1): nothing in a browser reads it.
+      if (/version not supported/i.test(String((error as Error)?.message ?? error))) throw new ModelUnreadable('it is an old FBX (before 7.0), which can\'t be read here -- download it again as "FBX for Unity" or Collada (.dae), or export it as .glb')
+      throw error
+    }
+  }
+  if (format === 'dae') {
+    const { ColladaLoader } = await import('three/examples/jsm/loaders/ColladaLoader.js')
+    const read = new ColladaLoader(manager).parse(new TextDecoder().decode(data), '')
+    if (!read?.scene) throw new ModelUnreadable('it is not a Collada file')
+    return read.scene
   }
   if (format === 'obj') {
     const { OBJLoader } = await import('three/examples/jsm/loaders/OBJLoader.js')
@@ -267,6 +283,11 @@ export interface Stage {
   setPose(pose?: ModelPose): void
   /** Its pose now: the bones turned from their rest. */
   poseNow(): ModelPose | undefined
+  /** What can be moved, turned and scaled outside posing: the whole of it, then its
+   *  meshes, where it has more than one (a skinned one moves only by its bones). */
+  readonly parts: Object3D[]
+  setParts(parts?: ModelPose): void
+  partsNow(): ModelPose | undefined
   /** The distance the model's whole sphere fits at: what ModelView.distance is a share of. */
   base(): number
   place(view: ModelView): void
@@ -353,10 +374,49 @@ export async function makeStage(object: Object3D, canvas: HTMLCanvasElement = do
     for (const material of [(part as { material?: unknown }).material].flat() as (Colourful | undefined)[]) if (material?.color) materials.push(material)
   })
   const textured = materials.some(material => !!material.map)
-  // Its bones, and how each is at rest, to pose from and go back to.
+  // Its bones and parts, and how each is at rest, to pose from and go back to.
   const bones: Bone[] = []
-  object.traverse(part => { if ((part as Bone).isBone) bones.push(part as Bone) })
-  const rest = bones.map(bone => ({ r: bone.quaternion.clone(), t: bone.position.clone(), s: bone.scale.clone() }))
+  const meshes: Object3D[] = []
+  object.traverse(part => {
+    if ((part as Bone).isBone) bones.push(part as Bone)
+    else if ((part as { isMesh?: boolean }).isMesh && !(part as { isSkinnedMesh?: boolean }).isSkinnedMesh) meshes.push(part)
+  })
+  const parts = [object, ...(meshes.length > 1 ? meshes : [])]
+  // Each turned, moved and scaled from how it was made: by its place in the list,
+  // its turn, and its move and scale where they changed.
+  const keeper = (nodes: Object3D[]) => {
+    const rest = nodes.map(node => ({ r: node.quaternion.clone(), t: node.position.clone(), s: node.scale.clone() }))
+    return {
+      set: (pose?: ModelPose) => {
+        nodes.forEach((node, i) => {
+          const kept = pose?.[i]
+          if (kept) node.quaternion.set(kept.r[0], kept.r[1], kept.r[2], kept.r[3])
+          else node.quaternion.copy(rest[i].r)
+          if (kept?.t) node.position.set(kept.t[0], kept.t[1], kept.t[2])
+          else node.position.copy(rest[i].t)
+          if (kept?.s) node.scale.set(kept.s[0], kept.s[1], kept.s[2])
+          else node.scale.copy(rest[i].s)
+        })
+        object.updateMatrixWorld(true)
+      },
+      now: (): ModelPose | undefined => {
+        const pose: ModelPose = {}
+        nodes.forEach((node, i) => {
+          const turned = node.quaternion.angleTo(rest[i].r) > 1e-4
+          const moved = node.position.distanceTo(rest[i].t) > 1e-6 * (radius || 1)
+          const scaled = node.scale.distanceTo(rest[i].s) > 1e-5
+          if (!turned && !moved && !scaled) return
+          pose[i] = {
+            r: [node.quaternion.x, node.quaternion.y, node.quaternion.z, node.quaternion.w],
+            ...(moved ? { t: [node.position.x, node.position.y, node.position.z] as [number, number, number] } : {}),
+            ...(scaled ? { s: [node.scale.x, node.scale.y, node.scale.z] as [number, number, number] } : {}),
+          }
+        })
+        return Object.keys(pose).length ? pose : undefined
+      },
+    }
+  }
+  const posed = keeper(bones), shaped = keeper(parts)
 
   const stage: Stage = {
     canvas,
@@ -366,35 +426,13 @@ export async function makeStage(object: Object3D, canvas: HTMLCanvasElement = do
     scene,
     object,
     bones,
+    parts,
     base,
     place,
-    setPose: pose => {
-      bones.forEach((bone, i) => {
-        const kept = pose?.[i]
-        if (kept) bone.quaternion.set(kept.r[0], kept.r[1], kept.r[2], kept.r[3])
-        else bone.quaternion.copy(rest[i].r)
-        if (kept?.t) bone.position.set(kept.t[0], kept.t[1], kept.t[2])
-        else bone.position.copy(rest[i].t)
-        if (kept?.s) bone.scale.set(kept.s[0], kept.s[1], kept.s[2])
-        else bone.scale.copy(rest[i].s)
-      })
-      object.updateMatrixWorld(true)
-    },
-    poseNow: () => {
-      const pose: ModelPose = {}
-      bones.forEach((bone, i) => {
-        const turned = bone.quaternion.angleTo(rest[i].r) > 1e-4
-        const moved = bone.position.distanceTo(rest[i].t) > 1e-6 * (radius || 1)
-        const scaled = bone.scale.distanceTo(rest[i].s) > 1e-5
-        if (!turned && !moved && !scaled) return
-        pose[i] = {
-          r: [bone.quaternion.x, bone.quaternion.y, bone.quaternion.z, bone.quaternion.w],
-          ...(moved ? { t: [bone.position.x, bone.position.y, bone.position.z] as [number, number, number] } : {}),
-          ...(scaled ? { s: [bone.scale.x, bone.scale.y, bone.scale.z] as [number, number, number] } : {}),
-        }
-      })
-      return Object.keys(pose).length ? pose : undefined
-    },
+    setPose: posed.set,
+    poseNow: posed.now,
+    setParts: shaped.set,
+    partsNow: shaped.now,
     viewNow: () => {
       const offset = camera.position.clone().sub(target)
       const d = offset.length() || 1
@@ -492,9 +530,13 @@ async function firstStill(object: Object3D): Promise<{ png: Blob; view: ModelVie
   const stage = await makeStage(object)
   try {
     stage.setLook(DEFAULT_LOOK, stage.textured)
-    const { width, height } = stillSize(stage.silhouette(DEFAULT_VIEW))
+    // A person seen from the front, whichever way its file has it face.
+    const { humanoidOf, facingOf } = await import('./modelHumanoid')
+    const rig = humanoidOf(stage.bones), facing = rig && facingOf(rig)
+    const first = facing ? { ...DEFAULT_VIEW, yaw: Math.atan2(facing.x, facing.z) + DEFAULT_VIEW.yaw } : DEFAULT_VIEW
+    const { width, height } = stillSize(stage.silhouette(first))
     stage.setSize(width, height)
-    const view = stage.framed(DEFAULT_VIEW)
+    const view = stage.framed(first)
     stage.place(view)
     return { png: await stage.picture(width, height), view, textured: stage.textured }
   } finally {
@@ -507,6 +549,7 @@ export async function renderStill(file: Blob, record: ModelRecord, aspect: numbe
   const stage = await makeStage(await parseModel(await file.arrayBuffer(), record.format))
   try {
     stage.setLook(record.look ?? DEFAULT_LOOK, texturesOn(record))
+    stage.setParts(record.parts)
     stage.setPose(record.pose)
     const { width, height } = stillSize(aspect)
     stage.setSize(width, height)

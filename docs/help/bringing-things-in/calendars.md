@@ -74,6 +74,14 @@ Where to find the address:
 To follow an address with a calendar already placed, or to stop: Customize it,
 then the **Calendar** section.
 
+If it can't be followed, the Calendar section says why:
+
+| It says | Do this |
+|---|---|
+| Not shared at that address | Google's **Public address** works only for a calendar made public: use the **Secret address in iCal format**, or make the calendar public first |
+| Not a calendar | The address gives a web page: copy the iCal (.ics) address, not the calendar's page |
+| Didn't answer | Check the address, or try again later |
+
 Anyone who can open the atrium sees the calendar's events. Stop following, and
 it keeps the events it last showed.
 

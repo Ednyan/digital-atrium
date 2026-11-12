@@ -12,15 +12,34 @@ import type { Trace } from '../types/database'
 
 const FRESH_MS = 10 * 60_000
 
+/** Why an address gave no calendar: it isn't shared (the host answered 404 or 403
+ *  -- a Google calendar's public address before it's made public), it isn't a
+ *  calendar, or there was no answer. */
+export type LinkTrouble = 'notShared' | 'notCalendar' | 'unreachable'
+export class CalendarLinkError extends Error {
+  constructor(readonly trouble: LinkTrouble) { super(trouble) }
+}
+const reasonOf = (words: string): LinkTrouble =>
+  /answered:(401|403|404|410)/.test(words) || /answered (401|403|404|410)/.test(words) ? 'notShared'
+    : /not-a-calendar|not a calendar/i.test(words) ? 'notCalendar'
+    : 'unreachable'
+
 /** The calendar's text as its address gives it now. */
 export async function fetchCalendarText(link: string): Promise<string> {
   if (isDesktop) {
     const { invoke } = await import('@tauri-apps/api/core')
-    const bytes = await invoke<ArrayBuffer | number[]>('download_remote_image', { url: link })
-    return new TextDecoder().decode(bytes instanceof ArrayBuffer ? bytes : new Uint8Array(bytes))
+    let bytes: ArrayBuffer | number[]
+    try {
+      bytes = await invoke<ArrayBuffer | number[]>('download_remote_image', { url: link })
+    } catch (error) {
+      throw new CalendarLinkError(reasonOf(String(error)))
+    }
+    const text = new TextDecoder().decode(bytes instanceof ArrayBuffer ? bytes : new Uint8Array(bytes))
+    if (!/^\uFEFF?\s*BEGIN:VCALENDAR/i.test(text)) throw new CalendarLinkError('notCalendar')
+    return text
   }
   const answer = await fetch(`/api/proxy-calendar?url=${encodeURIComponent(link)}`, { cache: 'no-store' })
-  if (!answer.ok) throw new Error((await answer.text().catch(() => '')) || `answered ${answer.status}`)
+  if (!answer.ok) throw new CalendarLinkError(reasonOf(await answer.text().catch(() => '')))
   return answer.text()
 }
 

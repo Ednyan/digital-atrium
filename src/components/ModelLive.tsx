@@ -6,22 +6,26 @@
 // Full screen, it's taken out of its box onto the whole window to work on, and
 // put back as it's left -- the same drawing, its canvas moved, never made anew.
 //
-// A model with a skeleton can be posed: Pose shows its joints and a strip of
-// tools beside it -- Multi (move and turn at once), Move, Rotate, Scale -- for
-// the joint clicked or chosen from its list. Reset pose puts it at rest.
+// Its tools, down its left: View (dragging turns it), and Multi (move and turn
+// at once), Move, Rotate and Scale -- for the whole model, or a part of it
+// clicked or chosen from its list. A model with a skeleton can be posed: Pose
+// shows its joints, the tools working on the joint clicked or chosen. With IK, a
+// joint moved takes the bones above it along; two of them (an arm, a leg) bend
+// toward a pole -- a diamond, chosen and moved as a joint is. A person's
+// skeleton (lib/modelHumanoid) takes ready-made poses too.
 //
 // Let go (Done, Escape, a press anywhere else), a view or pose that changed is
 // drawn as a new still and handed back (onDone), to be kept as the trace's picture.
 
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
-import type { Object3D } from 'three'
+import { Box3, LineBasicMaterial, BufferGeometry, Line, Mesh, MeshBasicMaterial, Object3D, OctahedronGeometry, Raycaster, SkeletonHelper, Sphere, SphereGeometry, Vector2, Vector3 } from 'three'
 import type { Trace } from '../types/database'
 import { DEFAULT_LOOK, DEFAULT_VIEW, makeStage, parseModel, sameView, stillSize, STILL_SIDE, texturesOn, type ModelPose, type ModelView, type Stage } from '../lib/model3d'
 import { fetchMedia } from '../lib/exportImage'
 import { useTranslation } from '../lib/i18n'
-import { chainOf, reach } from '../lib/modelIk'
-import { FIGURE_MARK, FIGURE_POSES, type FigurePoseName } from '../lib/modelStarters'
+import { bendOf, chainOf, reach, reachTwo } from '../lib/modelIk'
+import { bendFor, humanoidOf, poseHumanoid, POSES, type Humanoid, type PoseName } from '../lib/modelHumanoid'
 import type { TranslationKey } from '../locales/en'
 
 // Its drawing's longer side at most, in pixels, however near the atrium is.
@@ -29,9 +33,10 @@ const MOST_PIXELS = 2048
 const CHIP = 'pointer-events-auto h-7 px-2.5 border text-[11px] tracking-[0.12em] uppercase whitespace-nowrap transition-colors'
 const QUIET = `${CHIP} bg-nier-black/85 border-nier-border/50 text-nier-strong hover:border-nier-border`
 const ON = `${CHIP} bg-nier-strong text-nier-black border-nier-strong`
+const SELECT = 'pointer-events-auto h-7 bg-nier-black/90 text-nier-strong border border-nier-border/50 px-1.5 text-[11px]'
 
-// A moment of it: how it's seen, and how it's posed.
-interface Moment { view: ModelView; pose?: ModelPose }
+// A moment of it: how it's seen, how it's posed, and its parts moved.
+interface Moment { view: ModelView; pose?: ModelPose; parts?: ModelPose }
 const near = (a: number[] | undefined, b: number[] | undefined, by = 1e-5) => (!a && !b) || (!!a && !!b && a.every((v, i) => Math.abs(v - b[i]) < by))
 const samePose = (a?: ModelPose, b?: ModelPose) => {
   const keys = new Set([...Object.keys(a ?? {}), ...Object.keys(b ?? {})])
@@ -43,25 +48,33 @@ const samePose = (a?: ModelPose, b?: ModelPose) => {
     return turn && near(p.t, q.t) && near(p.s, q.s)
   })
 }
-const sameMoment = (a: Moment, b: Moment) => sameView(a.view, b.view) && samePose(a.pose, b.pose)
+const sameMoment = (a: Moment, b: Moment) => sameView(a.view, b.view) && samePose(a.pose, b.pose) && samePose(a.parts, b.parts)
 
-// The tools for a joint, and the gizmos each shows: Multi moves and turns at once.
-const TOOLS = ['multi', 'translate', 'rotate', 'scale'] as const
+// The tools, and the gizmos each shows: View none (dragging turns the view), Multi moves and turns at once.
+const TOOLS = ['view', 'multi', 'translate', 'rotate', 'scale'] as const
 type Tool = typeof TOOLS[number]
 type GizmoMode = 'translate' | 'rotate' | 'scale'
-const GIZMOS: Record<Tool, GizmoMode[]> = { multi: ['translate', 'rotate'], translate: ['translate'], rotate: ['rotate'], scale: ['scale'] }
+const GIZMOS: Record<Tool, GizmoMode[]> = { view: [], multi: ['translate', 'rotate'], translate: ['translate'], rotate: ['rotate'], scale: ['scale'] }
 const TOOL_ICON: Record<Tool, string> = {
+  view: 'M5 3l14 7.5-6.2 1.6L9.6 18z',
   multi: 'M12 3v18M3 12h18M12 3l-2.5 2.5M12 3l2.5 2.5M21 12l-2.5-2.5M21 12l-2.5 2.5M17 12a5 5 0 1 1-5-5',
   translate: 'M12 3v18M3 12h18M12 3l-2.5 2.5M12 3l2.5 2.5M12 21l-2.5-2.5M12 21l2.5-2.5M3 12l2.5-2.5M3 12l2.5 2.5M21 12l-2.5-2.5M21 12l-2.5 2.5',
   rotate: 'M19 12a7 7 0 1 1-2.05-4.95M19 4v4h-4',
   scale: 'M4 20h7v-7H4zM14 4h6v6M20 4l-8 8',
 }
-const TOOL_WORD: Record<Tool, TranslationKey> = { multi: 'atrium.model.toolMulti', translate: 'atrium.model.toolMove', rotate: 'atrium.model.toolRotate', scale: 'atrium.model.toolScale' }
+const TOOL_WORD: Record<Tool, TranslationKey> = { view: 'atrium.model.toolView', multi: 'atrium.model.toolMulti', translate: 'atrium.model.toolMove', rotate: 'atrium.model.toolRotate', scale: 'atrium.model.toolScale' }
+const POLE = 0x4cc9f0
+
+// What's being worked on: posing (a joint, or its pole) or not (a part: 0, the
+// whole model), with which tool, and how far IK reaches.
+interface Editing { posing: boolean; tool: Tool; joint: number | null; part: number; ik: boolean; ikLength: number; onPole: boolean }
+const FIRST: Editing = { posing: false, tool: 'view', joint: null, part: 0, ik: true, ikLength: 2, onPole: false }
 
 interface Gizmo { mode: GizmoMode; object?: Object3D; attach(o: Object3D): void; detach(): void; dragging: boolean; axis: string | null; enabled: boolean; dispose(): void; setSize(size: number): void; getHelper(): Object3D }
-// What posing shows over the model: its skeleton, a dot at each joint, the gizmos.
-// `goal`: where a joint moved by reach (IK) is wanted -- the Move gizmo's, with IK on.
-interface Posing { shown: Object3D[]; gizmos: Gizmo[]; pick: (event: PointerEvent) => void; placeDots: () => void; goal: Object3D }
+// What's shown over the model to work on it: its skeleton and a dot at each joint
+// (posing), the pole and its line, the gizmos. `goal`: where a joint moved by
+// reach (IK) is wanted -- the Move gizmo's, with IK on.
+interface Kit { shown: Object3D[]; pole: Mesh<OctahedronGeometry, MeshBasicMaterial>; poleLine: Line; gizmos: Gizmo[]; goal: Object3D; placeDots: () => void; pick: (event: PointerEvent) => void; release: (event: PointerEvent) => void }
 
 export default function ModelLive({ trace, scale, editable, style, onReady, onDone, onSnapshot }: {
   trace: Trace
@@ -71,7 +84,7 @@ export default function ModelLive({ trace, scale, editable, style, onReady, onDo
   // The picture's crop and look, worn the same way in its box.
   style?: CSSProperties
   onReady: () => void
-  onDone: (turned: { png: Blob; view: ModelView; pose?: ModelPose } | null) => void
+  onDone: (turned: { png: Blob; view: ModelView; pose?: ModelPose; parts?: ModelPose } | null) => void
   onSnapshot?: (png: Blob) => void
 }) {
   const { t } = useTranslation()
@@ -86,14 +99,14 @@ export default function ModelLive({ trace, scale, editable, style, onReady, onDo
   const stage = useRef<Stage | null>(null)
   const controls = useRef<{ update(): void; enabled: boolean } | null>(null)
   const [status, setStatus] = useState<'loading' | 'ready' | { error: string }>('loading')
-  const started = useRef<Moment>({ view: trace.model?.view ?? DEFAULT_VIEW, pose: trace.model?.pose })
+  const started = useRef<Moment>({ view: trace.model?.view ?? DEFAULT_VIEW, pose: trace.model?.pose, parts: trace.model?.parts })
   // Its moments while it's open, each move let go of one: Ctrl+Z steps back
   // through them, Ctrl+Shift+Z (or Ctrl+Y) on again -- the atrium's own undo is Done's.
   const history = useRef<Moment[]>([])
   const future = useRef<Moment[]>([])
   const moment = (): Moment | null => {
     const at = stage.current
-    return at ? { view: at.viewNow(), pose: at.poseNow() } : null
+    return at ? { view: at.viewNow(), pose: at.poseNow(), parts: at.partsNow() } : null
   }
   const remember = () => {
     const now = moment()
@@ -105,38 +118,36 @@ export default function ModelLive({ trace, scale, editable, style, onReady, onDo
   const textures = trace.model ? texturesOn(trace.model) : true
   const lookKey = JSON.stringify([look, textures])
   const [bones, setBones] = useState<string[]>([])
-  const [posing, setPosing] = useState(false)
-  const [chosen, setChosen] = useState<number | null>(null)
-  const [tool, setTool] = useState<Tool>('rotate')
-  // Moved by reach (IK): a joint moved, the bones above it -- so many -- turn for it.
-  const [ik, setIk] = useState(true)
-  const [ikLength, setIkLength] = useState(2)
-  const ikRef = useRef({ on: ik, length: ikLength })
-  ikRef.current = { on: ik, length: ikLength }
-  // One of the Atrium's own figures (lib/modelStarters): its poses fit it.
-  const [figure, setFigure] = useState(false)
+  const [partNames, setPartNames] = useState<string[]>([])
+  const [editing, setEditing] = useState<Editing>(FIRST)
+  const editingRef = useRef(editing)
+  // A person's skeleton, found in it: its poses, and which way its knees and elbows bend.
+  const rig = useRef<Humanoid | null>(null)
   const [whole, setWhole] = useState(false)
-  const posingTools = useRef<Posing | null>(null)
+  const kit = useRef<Kit | null>(null)
   const overlay = useRef<HTMLDivElement>(null)
   const room = useRef<HTMLDivElement>(null)
   const scene = document.querySelector('.lobby-scene') ?? document.body
 
   // Where it's drawn now: its box, or the full screen's room.
   const holder = () => (whole ? room.current : host.current)
-  // Drawn, and where posing, its joints told where they are on the screen.
+  // Drawn, and while posing, its joints (and pole) told where they are on the screen.
   const draw = () => {
     const at = stage.current
     if (!at) return
-    posingTools.current?.placeDots()
+    kit.current?.placeDots()
     at.render()
     const box = host.current
     if (!box) return
-    if (!posingTools.current?.shown[0]?.visible) { box.removeAttribute('data-model-joints'); return }
     const r = canvas.getBoundingClientRect()
-    box.dataset.modelJoints = JSON.stringify(at.bones.map(bone => {
-      const p = bone.getWorldPosition(at.center.clone()).project(at.camera)
+    const onScreen = (p: Vector3) => {
+      p.project(at.camera)
       return [Math.round(r.left + (p.x + 1) / 2 * r.width), Math.round(r.top + (1 - p.y) / 2 * r.height)]
-    }))
+    }
+    if (!kit.current?.shown[0]?.visible) box.removeAttribute('data-model-joints')
+    else box.dataset.modelJoints = JSON.stringify(at.bones.map(bone => onScreen(bone.getWorldPosition(new Vector3()))))
+    if (!kit.current?.pole.visible) box.removeAttribute('data-model-pole')
+    else box.dataset.modelPole = JSON.stringify(onScreen(kit.current.pole.position.clone()))
   }
   const drawRef = useRef(draw)
   drawRef.current = draw
@@ -178,6 +189,7 @@ export default function ModelLive({ trace, scale, editable, style, onReady, onDo
         stage.current = made
         fitRef.current()
         made.setLook(look, textures)
+        made.setParts(started.current.parts)
         made.setPose(started.current.pose)
         made.place(started.current.view)
         history.current = [started.current]
@@ -195,9 +207,8 @@ export default function ModelLive({ trace, scale, editable, style, onReady, onDo
         orbit = turning
         controls.current = turning
         setBones(made.bones.map((bone, i) => bone.name || `${i + 1}`))
-        let marked = false
-        made.object.traverse(part => { if (part.userData?.[FIGURE_MARK]) marked = true })
-        setFigure(marked)
+        setPartNames(made.parts.map((part, i) => (i === 0 ? t('atrium.model.wholeModel') : part.name || `${t('atrium.model.part')} ${i}`)))
+        rig.current = humanoidOf(made.bones)
         drawRef.current()
         setStatus('ready')
         onReady()
@@ -207,10 +218,11 @@ export default function ModelLive({ trace, scale, editable, style, onReady, onDo
     })()
     return () => {
       live = false
-      const tools = posingTools.current
-      posingTools.current = null
+      const tools = kit.current
+      kit.current = null
       if (tools) {
         canvas.removeEventListener('pointerdown', tools.pick, { capture: true })
+        canvas.removeEventListener('pointerup', tools.release)
         tools.gizmos.forEach(gizmo => gizmo.dispose())
       }
       orbit?.dispose()
@@ -230,103 +242,130 @@ export default function ModelLive({ trace, scale, editable, style, onReady, onDo
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lookKey])
 
-  // ---- Posing ---------------------------------------------------------------------
+  // ---- Working on it ----------------------------------------------------------------
 
-  // What posing shows, as it's asked: the skeleton and dots while posing, and the
-  // tool's gizmos on the joint chosen.
-  const showPosing = (on: boolean, joint: number | null, using: Tool, reaching = ikRef.current) => {
-    const tools = posingTools.current, at = stage.current
+  // The joint chosen, whether IK moves it, and whether it bends toward a pole (two bones).
+  const reachOf = (e: Editing) => {
+    const bone = e.posing && e.joint !== null ? stage.current?.bones[e.joint] ?? null : null
+    const reaching = !!bone && e.ik && chainOf(bone, e.ikLength).length > 0
+    return { bone, reaching, twoBone: reaching && e.ikLength === 2 && chainOf(bone!, 2).length === 2 }
+  }
+  // A joint's pole, where its bend points now -- or, straight, where a knee (forward)
+  // or an elbow (back) would bend; any other joint, toward the eye.
+  const placePole = (end: Object3D) => {
+    const at = stage.current, tools = kit.current, middle = end.parent, top = middle?.parent
+    if (!at || !tools || !middle || !top) return
+    const bend = middle.getWorldPosition(new Vector3())
+    const length = top.getWorldPosition(new Vector3()).distanceTo(bend)
+    let way = bendOf(end) ?? (rig.current && bendFor(rig.current, middle))
+    if (!way) {
+      const along = end.getWorldPosition(new Vector3()).sub(top.getWorldPosition(new Vector3())).normalize()
+      way = at.camera.position.clone().sub(bend)
+      way.addScaledVector(along, -way.dot(along)).normalize()
+    }
+    tools.pole.position.copy(bend).addScaledVector(way, Math.max(length, 1e-3) * 0.75)
+  }
+  // What's shown, as it's asked: the skeleton and dots while posing, the pole for a
+  // joint that bends toward one, and the tool's gizmos on what's chosen.
+  const show = (e: Editing) => {
+    const tools = kit.current, at = stage.current
     if (!tools || !at) return
-    tools.shown.forEach(part => { part.visible = on })
+    tools.shown.forEach(part => { part.visible = e.posing })
+    const { bone, reaching, twoBone } = reachOf(e)
+    const onPole = twoBone && e.onPole
+    tools.pole.visible = tools.poleLine.visible = twoBone
+    if (twoBone && !onPole) placePole(bone!)
+    tools.pole.material.color.setHex(onPole ? 0xffffff : POLE)
+    if (reaching) bone!.getWorldPosition(tools.goal.position)
+    const subject = e.posing ? bone : at.parts[e.part] ?? at.parts[0]
     for (const gizmo of tools.gizmos) {
-      const wanted = on && joint !== null && GIZMOS[using].includes(gizmo.mode)
-      const bone = joint === null ? null : at.bones[joint]
-      // Moved by reach where it has bones above it to turn: the gizmo on its goal, there.
-      const byReach = gizmo.mode === 'translate' && !!bone && reaching.on && chainOf(bone, reaching.length).length > 0
-      if (byReach) bone!.getWorldPosition(tools.goal.position)
-      if (wanted) gizmo.attach(byReach ? tools.goal : bone!)
+      // The pole is only moved; a joint moved by reach, by its goal.
+      const target = onPole ? (gizmo.mode === 'translate' ? tools.pole : null)
+        : !subject || !GIZMOS[e.tool].includes(gizmo.mode) ? null
+        : gizmo.mode === 'translate' && reaching ? tools.goal : subject
+      if (target) gizmo.attach(target)
       else gizmo.detach()
       // Move and turn together: the rings inside the arrows.
-      gizmo.setSize(using === 'multi' && gizmo.mode === 'rotate' ? 0.6 : 0.85)
+      gizmo.setSize(e.tool === 'multi' && gizmo.mode === 'rotate' ? 0.6 : 0.85)
     }
     draw()
   }
-  const showRef = useRef(showPosing)
-  showRef.current = showPosing
-  const chosenRef = useRef(chosen)
-  chosenRef.current = chosen
-  const choose = (joint: number | null) => {
-    setChosen(joint)
-    chosenRef.current = joint
-    showPosing(posing, joint, tool)
+  const showRef = useRef(show)
+  showRef.current = show
+  const edit = (patch: Partial<Editing>) => {
+    const next = { ...editingRef.current, ...patch }
+    editingRef.current = next
+    setEditing(next)
+    if (kit.current) showRef.current(next)
+    else if (next.posing || next.tool !== 'view') void makeKit().then(() => showRef.current(editingRef.current))
   }
-  const reachBy = (on: boolean, length = ikLength) => {
-    setIk(on)
-    setIkLength(length)
-    showPosing(posing, chosen, tool, { on, length })
-  }
-  // One of a figure's poses (lib/modelStarters): turned from standing.
-  const takePose = async (name: FigurePoseName) => {
+  const editRef = useRef(edit)
+  editRef.current = edit
+
+  // Made once, the first time it's wanted, and kept -- shown or not -- till it's let go.
+  const making = useRef<Promise<void> | null>(null)
+  const makeKit = () => (making.current ??= (async () => {
     const at = stage.current
     if (!at) return
-    const { Euler, Quaternion, MathUtils } = await import('three')
-    const wanted = FIGURE_POSES[name] as { turns: Record<string, [number, number, number]>; hips?: [number, number, number] }
-    at.setPose(undefined)
-    for (const bone of at.bones) {
-      const turn = wanted.turns[bone.name]
-      if (turn) bone.quaternion.multiply(new Quaternion().setFromEuler(new Euler(...turn.map(MathUtils.degToRad) as [number, number, number], 'XYZ')))
-      if (bone.name === 'Hips' && wanted.hips) bone.position.set(bone.position.x + wanted.hips[0], bone.position.y + wanted.hips[1], bone.position.z + wanted.hips[2])
-    }
-    at.object.updateMatrixWorld(true)
-    showPosing(posing, chosen, tool)
-    remember()
-  }
-  const chooseRef = useRef(choose)
-  chooseRef.current = choose
-
-  // Made once, the first time it's posed, and kept -- shown or not -- till it's let go.
-  const makePosing = async () => {
-    const at = stage.current
-    if (!at || posingTools.current) return
-    const { SkeletonHelper, Mesh, SphereGeometry, MeshBasicMaterial, Raycaster, Vector2, Box3, Sphere, Object3D } = await import('three')
     const { TransformControls } = await import('three/examples/jsm/controls/TransformControls.js')
-    if (posingTools.current || stage.current !== at) return
+    if (kit.current || stage.current !== at) return
     const size = new Box3().setFromObject(at.object).getBoundingSphere(new Sphere()).radius * 0.025 || 0.02
     const skeleton = new SkeletonHelper(at.object)
     const dot = new SphereGeometry(1, 12, 8)
     const paint = new MeshBasicMaterial({ color: 0xff8a3d, depthTest: false, transparent: true, opacity: 0.9 })
+    // Always drawn, never left out as off the view: each is made at the scene's
+    // middle and only moved to its joint before it's drawn.
+    const onTop = <T extends Object3D>(made: T) => { made.renderOrder = 999; made.frustumCulled = false; return made }
     const markers = at.bones.map((_, i) => {
-      const marker = new Mesh(dot, paint)
-      marker.renderOrder = 999
+      const marker = onTop(new Mesh(dot, paint))
       marker.scale.setScalar(size)
       marker.userData.bone = i
-      // Always drawn: it was left out as off the view while still where it was
-      // made -- the scene's middle -- never reaching its joint, on a model away from it.
-      marker.frustumCulled = false
       return marker
     })
-    // Each at its joint, before every drawing.
-    const placeDots = () => markers.forEach((marker, i) => { at.bones[i].getWorldPosition(marker.position); marker.updateMatrixWorld() })
+    const pole = onTop(new Mesh(new OctahedronGeometry(1), new MeshBasicMaterial({ color: POLE, depthTest: false, transparent: true, opacity: 0.95 })))
+    pole.scale.setScalar(size * 1.6)
+    pole.visible = false
+    const poleLine = onTop(new Line(new BufferGeometry().setFromPoints([new Vector3(), new Vector3()]), new LineBasicMaterial({ color: POLE, depthTest: false, transparent: true, opacity: 0.7 })))
+    poleLine.visible = false
+    // Each at its joint, and the pole's line from its bend, before every drawing.
+    const placeDots = () => {
+      markers.forEach((marker, i) => { at.bones[i].getWorldPosition(marker.position); marker.updateMatrixWorld() })
+      pole.updateMatrixWorld()
+      const bone = reachOf(editingRef.current).bone
+      if (poleLine.visible && bone?.parent) {
+        const from = bone.parent.getWorldPosition(new Vector3())
+        const line = poleLine.geometry.getAttribute('position')
+        line.setXYZ(0, from.x, from.y, from.z)
+        line.setXYZ(1, pole.position.x, pole.position.y, pole.position.z)
+        line.needsUpdate = true
+      }
+    }
     const gizmos = (['translate', 'rotate', 'scale'] as const).map(mode => {
       const gizmo = new TransformControls(at.camera, canvas)
       gizmo.setMode(mode)
       gizmo.setSpace('local')
       return gizmo
     })
-    // Where a joint moved by reach is wanted: moved by the Move gizmo, followed by its chain.
+    // Where a joint moved by reach is wanted: moved by the Move gizmo, followed by its
+    // chain -- two bones bending toward the pole; the pole moved, the bend follows it.
     const goal = new Object3D()
     at.scene.add(goal)
+    const solve = (bone: Object3D, to: Vector3) => {
+      const { ikLength } = editingRef.current
+      if (ikLength === 2 && chainOf(bone, 2).length === 2) reachTwo(bone, to, pole.position)
+      else reach(chainOf(bone, ikLength), bone, to)
+    }
     const [moving] = gizmos
     moving.addEventListener('objectChange', () => {
-      const joint = chosenRef.current
-      if (moving.object !== goal || joint === null) return
-      const bone = at.bones[joint]
-      reach(chainOf(bone, ikRef.current.length), bone, goal.position)
+      const { bone } = reachOf(editingRef.current)
+      if (!bone) return
+      if (moving.object === goal) solve(bone, goal.position)
+      else if (moving.object === pole) solve(bone, bone.getWorldPosition(new Vector3()))
     })
     // Let go: its goal back where the joint got to (as near as it could).
     moving.addEventListener('mouseUp', () => {
-      const joint = chosenRef.current
-      if (moving.object === goal && joint !== null) at.bones[joint].getWorldPosition(goal.position)
+      const { bone } = reachOf(editingRef.current)
+      if (moving.object === goal && bone) bone.getWorldPosition(goal.position)
     })
     for (const gizmo of gizmos) {
       gizmo.addEventListener('change', () => drawRef.current())
@@ -336,47 +375,77 @@ export default function ModelLive({ trace, scale, editable, style, onReady, onDo
       gizmo.addEventListener('mouseUp', () => { for (const other of gizmos) other.enabled = true; remember() })
       at.scene.add(gizmo.getHelper())
     }
-    at.scene.add(skeleton, ...markers)
-    // A joint's dot pressed: that joint chosen -- before the view takes the press to turn.
+    skeleton.visible = false
+    markers.forEach(marker => { marker.visible = false })
+    at.scene.add(skeleton, ...markers, pole, poleLine)
+    // A joint's dot or the pole pressed: chosen -- before the view takes the press to
+    // turn. Not posing, a part clicked (pressed and let go where it was): chosen.
     const ray = new Raycaster(), point = new Vector2()
-    const pick = (event: PointerEvent) => {
-      if (!skeleton.visible || gizmos.some(gizmo => gizmo.dragging || (gizmo.object && gizmo.axis !== null))) return
+    const aim = (event: PointerEvent) => {
       const r = canvas.getBoundingClientRect()
       point.set((event.clientX - r.left) / r.width * 2 - 1, -((event.clientY - r.top) / r.height * 2 - 1))
       ray.setFromCamera(point, at.camera)
+    }
+    let press: { x: number; y: number; onGizmo: boolean } | null = null
+    const pick = (event: PointerEvent) => {
+      const onGizmo = gizmos.some(gizmo => gizmo.dragging || (!!gizmo.object && gizmo.axis !== null))
+      press = { x: event.clientX, y: event.clientY, onGizmo }
+      const e = editingRef.current
+      if (!e.posing || onGizmo) return
+      aim(event)
       placeDots()
+      if (pole.visible && ray.intersectObject(pole, false).length) {
+        event.stopImmediatePropagation()
+        editRef.current({ onPole: true })
+        return
+      }
       const hit = ray.intersectObjects(markers, false)[0]
       if (!hit) return
       event.stopImmediatePropagation()
-      chooseRef.current(hit.object.userData.bone as number)
+      editRef.current({ joint: hit.object.userData.bone as number, onPole: false, tool: e.tool === 'view' ? 'rotate' : e.tool })
+    }
+    const release = (event: PointerEvent) => {
+      const from = press, e = editingRef.current
+      press = null
+      if (!from || from.onGizmo || e.posing || e.tool === 'view' || Math.hypot(event.clientX - from.x, event.clientY - from.y) > 4) return
+      aim(event)
+      const hit = ray.intersectObjects(at.parts.slice(1), false)[0]
+      editRef.current({ part: hit ? at.parts.indexOf(hit.object) : 0 })
     }
     canvas.addEventListener('pointerdown', pick, { capture: true })
-    posingTools.current = { shown: [skeleton, ...markers], gizmos: gizmos as unknown as Gizmo[], pick, placeDots, goal }
+    canvas.addEventListener('pointerup', release)
+    kit.current = { shown: [skeleton, ...markers], pole, poleLine, gizmos: gizmos as unknown as Gizmo[], goal, placeDots, pick, release }
+  })())
+
+  const pose = (on: boolean) => {
+    const e = editingRef.current
+    // The joint chosen before is chosen again; the first time, a person's hips or
+    // else its root, so a gizmo shows at once.
+    const hips = rig.current?.Hips ? stage.current?.bones.indexOf(rig.current.Hips) ?? -1 : -1
+    edit(on ? { posing: true, joint: e.joint ?? Math.max(0, hips), onPole: false, tool: e.tool === 'view' ? 'rotate' : e.tool } : { posing: false, onPole: false, tool: 'view' })
   }
-  const pose = async (on: boolean) => {
-    setPosing(on)
-    if (on) await makePosing()
-    // The joint chosen before is chosen again; the first time, its root, so a gizmo shows at once.
-    const joint = chosen ?? (on && bones.length ? 0 : null)
-    setChosen(joint)
-    chosenRef.current = joint
-    showRef.current(on, joint, tool)
-  }
-  const useTool = (next: Tool) => {
-    setTool(next)
-    showPosing(posing, chosen, next)
-  }
-  const resetPose = () => {
+  // One of a person's poses (lib/modelHumanoid): taken from its rest.
+  const takePose = (name: PoseName) => {
     const at = stage.current
-    if (!at) return
+    if (!at || !rig.current) return
     at.setPose(undefined)
-    draw()
+    poseHumanoid(rig.current, name)
+    edit({ onPole: false })
     remember()
   }
-  // Drawn without what posing shows: for a picture of it.
+  // Its pose, or its parts, as they were made.
+  const resetShape = () => {
+    const at = stage.current
+    if (!at) return
+    if (editingRef.current.posing) at.setPose(undefined)
+    else at.setParts(undefined)
+    edit({ onPole: false })
+    remember()
+  }
+  // Drawn without what's shown to work on it: for a picture of it.
   const bare = async <T,>(make: () => Promise<T>): Promise<T> => {
-    const tools = posingTools.current
-    const shown = [...(tools?.shown ?? []), ...(tools?.gizmos ?? []).map(gizmo => gizmo.getHelper())]
+    const tools = kit.current
+    const shown = tools ? [...tools.shown, tools.pole, tools.poleLine, ...tools.gizmos.map(gizmo => gizmo.getHelper())] : []
     const was = shown.map(part => part.visible)
     shown.forEach(part => { part.visible = false })
     try { return await make() } finally { shown.forEach((part, i) => { part.visible = was[i] }); draw() }
@@ -395,7 +464,7 @@ export default function ModelLive({ trace, scale, editable, style, onReady, onDo
     // Drawn for its box, whatever it's shown on now.
     const { width, height } = stillSize(box.clientWidth / box.clientHeight)
     try {
-      onDone({ png: await bare(() => at.picture(width, height)), view: now.view, pose: now.pose })
+      onDone({ png: await bare(() => at.picture(width, height)), view: now.view, pose: now.pose, parts: now.parts })
     } catch {
       onDone(null)
     }
@@ -455,10 +524,11 @@ export default function ModelLive({ trace, scale, editable, style, onReady, onDo
       if (back) future.current.push(history.current.pop()!)
       else history.current.push(future.current.pop()!)
       const now = history.current[history.current.length - 1]
+      at.setParts(now.parts)
       at.setPose(now.pose)
       at.place(now.view)
       controls.current?.update()
-      drawRef.current()
+      editRef.current({ onPole: false })
     }
     window.addEventListener('pointerdown', away, true)
     window.addEventListener('keydown', key, true)
@@ -485,8 +555,13 @@ export default function ModelLive({ trace, scale, editable, style, onReady, onDo
   }
 
   const ready = status === 'ready'
+  const { posing, tool, joint, part, ik, ikLength, onPole } = editing
+  const poleShown = ready && reachOf(editing).twoBone
+  const shaping = !posing && tool !== 'view'
   const keep = (event: { stopPropagation(): void }) => event.stopPropagation()
   const layer = whole ? 'var(--layer-dialog)' : 'var(--layer-menu)'
+  const hint: TranslationKey = posing ? (onPole && poleShown ? 'atrium.model.poleHint' : poleShown ? 'atrium.model.poleShown' : 'atrium.model.poseHint')
+    : shaping ? 'atrium.model.partHint' : 'atrium.model.hint'
   return (
     <div
       ref={host}
@@ -503,21 +578,21 @@ export default function ModelLive({ trace, scale, editable, style, onReady, onDo
       {createPortal(
         <>
           {whole && (
-        // The full screen: the model on the whole window, dimmed behind; a press
-        // outside it, or Escape, puts it back in its box.
-        <div
-          ref={overlay}
-          data-ui-element=""
-          data-model-whole={trace.id}
-          className="fixed inset-0 flex items-center justify-center"
-          style={{ zIndex: 'var(--layer-dialog)', background: 'rgb(0 0 0 / 0.72)' }}
-          onPointerDown={event => { if (event.target === event.currentTarget) setWhole(false) }}
-          onWheel={keep}
-        >
-          <div ref={room} className="relative w-[94vw] h-[86vh] border border-nier-border/30" style={{ background: 'rgb(var(--c-ground) / 0.6)' }} />
-        </div>
+            // The full screen: the model on the whole window, dimmed behind; a press
+            // outside it, or Escape, puts it back in its box.
+            <div
+              ref={overlay}
+              data-ui-element=""
+              data-model-whole={trace.id}
+              className="fixed inset-0 flex items-center justify-center"
+              style={{ zIndex: 'var(--layer-dialog)', background: 'rgb(0 0 0 / 0.72)' }}
+              onPointerDown={event => { if (event.target === event.currentTarget) setWhole(false) }}
+              onWheel={keep}
+            >
+              <div ref={room} className="relative w-[94vw] h-[86vh] border border-nier-border/30" style={{ background: 'rgb(var(--c-ground) / 0.6)' }} />
+            </div>
           )}
-          {posing && (
+          {ready && editable && (
             <div
               ref={strip}
               data-ui-element=""
@@ -533,7 +608,7 @@ export default function ModelLive({ trace, scale, editable, style, onReady, onDo
                   aria-pressed={tool === one}
                   title={t(TOOL_WORD[one])}
                   aria-label={t(TOOL_WORD[one])}
-                  onClick={() => useTool(one)}
+                  onClick={() => edit({ tool: one, onPole: false })}
                   className={`w-8 h-8 flex items-center justify-center border ${tool === one ? 'bg-nier-strong text-nier-black border-nier-strong' : 'text-nier-strong border-transparent hover:border-nier-border/60'}`}
                 >
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={TOOL_ICON[one]} /></svg>
@@ -549,44 +624,46 @@ export default function ModelLive({ trace, scale, editable, style, onReady, onDo
             style={{ zIndex: layer, pointerEvents: 'none' }}
           >
             <span data-model-status="" className="px-2 h-7 flex items-center bg-nier-black/85 border border-nier-border/40 text-[11px] tracking-[0.08em] text-nier-bg/85 whitespace-nowrap">
-              {status === 'loading' ? t('atrium.model.loading') : ready ? t(posing ? 'atrium.model.poseHint' : 'atrium.model.hint') : status.error}
+              {status === 'loading' ? t('atrium.model.loading') : ready ? t(hint) : status.error}
             </span>
             {ready && editable && bones.length > 0 && (
-              <button type="button" data-model-pose="" aria-pressed={posing} onClick={() => void pose(!posing)} className={posing ? ON : QUIET}>{t('atrium.model.pose')}</button>
+              <button type="button" data-model-pose="" aria-pressed={posing} onClick={() => pose(!posing)} className={posing ? ON : QUIET}>{t('atrium.model.pose')}</button>
             )}
             {posing && (
               <>
-                <select
-                  data-model-bone=""
-                  aria-label={t('atrium.model.bone')}
-                  value={chosen ?? ''}
-                  onChange={e => choose(e.target.value === '' ? null : Number(e.target.value))}
-                  className="pointer-events-auto h-7 max-w-[10rem] bg-nier-black/90 text-nier-strong border border-nier-border/50 px-1.5 text-[11px]"
-                >
+                <select data-model-bone="" aria-label={t('atrium.model.bone')} value={joint ?? ''} onChange={e => edit({ joint: e.target.value === '' ? null : Number(e.target.value), onPole: false })} className={`${SELECT} max-w-[10rem]`}>
                   <option value="">{t('atrium.model.bone')}</option>
                   {bones.map((name, i) => <option key={i} value={i}>{name}</option>)}
                 </select>
-                <button type="button" data-model-ik="" aria-pressed={ik} title={t('atrium.model.ikHint')} onClick={() => reachBy(!ik)} className={ik ? ON : QUIET}>{t('atrium.model.ik')}</button>
+                <button type="button" data-model-ik="" aria-pressed={ik} title={t('atrium.model.ikHint')} onClick={() => edit({ ik: !ik, onPole: false })} className={ik ? ON : QUIET}>{t('atrium.model.ik')}</button>
                 {ik && (
-                  <select data-model-ik-length="" aria-label={t('atrium.model.chain')} title={t('atrium.model.chain')} value={ikLength} onChange={e => reachBy(true, Number(e.target.value))}
-                    className="pointer-events-auto h-7 bg-nier-black/90 text-nier-strong border border-nier-border/50 px-1.5 text-[11px]">
+                  <select data-model-ik-length="" aria-label={t('atrium.model.chain')} title={t('atrium.model.chain')} value={ikLength} onChange={e => edit({ ikLength: Number(e.target.value), onPole: false })} className={SELECT}>
                     {[1, 2, 3, 4].map(length => <option key={length} value={length}>{t('atrium.model.chainOf', { n: length })}</option>)}
                   </select>
                 )}
-                {figure && (
-                  <select data-model-poses="" aria-label={t('atrium.model.poses')} value="" onChange={e => { if (e.target.value) void takePose(e.target.value as FigurePoseName) }}
-                    className="pointer-events-auto h-7 bg-nier-black/90 text-nier-strong border border-nier-border/50 px-1.5 text-[11px]">
+                {rig.current && (
+                  <select data-model-poses="" aria-label={t('atrium.model.poses')} value="" onChange={e => { if (e.target.value) takePose(e.target.value as PoseName) }} className={SELECT}>
                     <option value="">{t('atrium.model.poses')}</option>
-                    {(Object.keys(FIGURE_POSES) as FigurePoseName[]).map(name => <option key={name} value={name}>{t(`atrium.model.pose.${name}` as TranslationKey)}</option>)}
+                    {(Object.keys(POSES) as PoseName[]).map(name => <option key={name} value={name}>{t(`atrium.model.pose.${name}` as TranslationKey)}</option>)}
                   </select>
                 )}
-                <button type="button" data-model-reset-pose="" onClick={resetPose} className={QUIET}>{t('atrium.model.resetPose')}</button>
+                <button type="button" data-model-reset-pose="" onClick={resetShape} className={QUIET}>{t('atrium.model.resetPose')}</button>
               </>
             )}
-            {ready && editable && onSnapshot && !posing && (
+            {shaping && (
+              <>
+                {partNames.length > 1 && (
+                  <select data-model-part="" aria-label={t('atrium.model.part')} value={part} onChange={e => edit({ part: Number(e.target.value) })} className={`${SELECT} max-w-[10rem]`}>
+                    {partNames.map((name, i) => <option key={i} value={i}>{name}</option>)}
+                  </select>
+                )}
+                <button type="button" data-model-reset-parts="" onClick={resetShape} className={QUIET}>{t('atrium.model.resetParts')}</button>
+              </>
+            )}
+            {ready && editable && onSnapshot && !posing && !shaping && (
               <button type="button" data-model-snapshot="" onClick={() => void snapshot()} className={QUIET}>{t('atrium.model.snapshot')}</button>
             )}
-            {ready && !posing && <button type="button" data-model-reset="" onClick={reset} className={QUIET}>{t('atrium.model.reset')}</button>}
+            {ready && !posing && !shaping && <button type="button" data-model-reset="" onClick={reset} className={QUIET}>{t('atrium.model.reset')}</button>}
             {ready && (
               <button type="button" data-model-whole-switch="" aria-pressed={whole} onClick={() => setWhole(was => !was)} className={whole ? ON : QUIET}>
                 {t(whole ? 'atrium.model.backToTrace' : 'atrium.model.fullScreen')}

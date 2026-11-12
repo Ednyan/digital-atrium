@@ -63,3 +63,13 @@ test('a pose is read only as bones moved: whole quaternions, moves and scales, b
   assert.deepEqual(read.pose!['6'], { r: [0, 0, 0, 1] }, 'a broken move and a zero scale are left out')
   assert.equal(asModelRecord({ format: 'glb', pose: { x: 1 } })!.pose, undefined)
 })
+
+test('an FBX older than 7.0 is refused with what to do instead', async () => {
+  const { parseModel, ModelUnreadable } = await import('../src/lib/model3d.ts')
+  // A binary FBX's opening, version 6100 (as Mixamo's own 6.1 downloads are).
+  const head = new Uint8Array(64)
+  head.set(new TextEncoder().encode('Kaydara FBX Binary  \0'))
+  head.set([0x1a, 0x00], 21)
+  new DataView(head.buffer).setUint32(23, 6100, true)
+  await assert.rejects(parseModel(head.buffer, 'fbx'), (error: unknown) => error instanceof ModelUnreadable && /FBX for Unity/.test((error as Error).message))
+})

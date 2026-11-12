@@ -30,13 +30,14 @@ export async function onRequest({ request }) {
 
   try {
     const answer = await fetch(link.toString(), { headers: { 'User-Agent': 'The Digital Atrium calendar reader', Accept: 'text/calendar, text/plain;q=0.8, */*;q=0.1' }, redirect: 'follow' })
-    if (!answer.ok) return refuse(502, `The calendar answered ${answer.status}`)
+    // 424, not 502: Cloudflare answers a 5xx with its own page, and the reason was lost.
+    if (!answer.ok) return refuse(424, `answered:${answer.status}`)
     const length = Number(answer.headers.get('content-length') || 0)
     if (length > MOST_BYTES) return refuse(413, 'That calendar is too large')
     const bytes = await answer.arrayBuffer()
     if (bytes.byteLength > MOST_BYTES) return refuse(413, 'That calendar is too large')
     const start = new TextDecoder().decode(bytes.slice(0, 64)).replace(/^﻿/, '').trimStart()
-    if (!/^BEGIN:VCALENDAR/i.test(start)) return refuse(422, 'That address is not a calendar')
+    if (!/^BEGIN:VCALENDAR/i.test(start)) return refuse(422, 'not-a-calendar')
     return new Response(bytes, {
       headers: {
         ...CORS,
@@ -48,6 +49,6 @@ export async function onRequest({ request }) {
       },
     })
   } catch (error) {
-    return refuse(502, 'The calendar could not be read: ' + (error && error.message ? error.message : 'no answer'))
+    return refuse(424, 'unreachable')
   }
 }

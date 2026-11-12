@@ -4,7 +4,7 @@
 // read before it's kept, so a wrong one is said so at once.
 
 import { useRef, useState } from 'react'
-import { asCalendarLink, fetchCalendarText } from '../lib/calendarLink'
+import { asCalendarLink, CalendarLinkError, fetchCalendarText, type LinkTrouble } from '../lib/calendarLink'
 import { CALENDAR_THEMES, readCalendar, type CalendarSettings, type CalendarTheme } from '../lib/calendar'
 import { Choices, Row } from './Customization'
 import type { TranslationKey } from '../locales/en'
@@ -21,7 +21,7 @@ export default function CalendarLinkSection({ settings, onChange, onFile }: {
   const { t } = useTranslation()
   const file = useRef<HTMLInputElement>(null)
   const [typed, setTyped] = useState('')
-  const [status, setStatus] = useState<'idle' | 'reading' | 'wrong'>('idle')
+  const [status, setStatus] = useState<'idle' | 'reading' | 'wrong' | LinkTrouble>('idle')
   const follow = async () => {
     const link = asCalendarLink(typed)
     if (!link) { setStatus('wrong'); return }
@@ -31,8 +31,8 @@ export default function CalendarLinkSection({ settings, onChange, onFile }: {
       onChange({ ...settings, link })
       setTyped('')
       setStatus('idle')
-    } catch {
-      setStatus('wrong')
+    } catch (error) {
+      setStatus(error instanceof CalendarLinkError ? error.trouble : 'wrong')
     }
   }
   // Its paper: light, dark, as the one looking has the atrium, or the trace's own colours.
@@ -81,7 +81,10 @@ export default function CalendarLinkSection({ settings, onChange, onFile }: {
         />
         <button type="button" data-calendar-follow="" className={BUTTON} disabled={!typed.trim() || status === 'reading'} onClick={() => void follow()}>{status === 'reading' ? '…' : t('atrium.calendar.follow')}</button>
       </div>
-      <p className="mt-1.5 text-[11px] text-nier-bg/60">{status === 'wrong' ? t('atrium.error.calendarLinkUnreadable') : t('atrium.calendar.linkHint')}</p>
+      <p className="mt-1.5 text-[11px] text-nier-bg/60">{status === 'notShared' ? t('atrium.calendar.trouble.notShared')
+        : status === 'notCalendar' ? t('atrium.calendar.trouble.notCalendar')
+        : status === 'unreachable' ? t('atrium.calendar.trouble.unreachable')
+        : status === 'wrong' ? t('atrium.error.calendarLinkUnreadable') : t('atrium.calendar.linkHint')}</p>
     </div>
   )
 }

@@ -6746,7 +6746,7 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
   // the render it was made in.
   // A model let go of (ModelLive): turned, its new still kept as its picture --
   // one step of undo -- and shown from here meanwhile.
-  const finishTurning = (traceId: string, turned: { png: Blob; view: ModelView; pose?: ModelPose } | null) => {
+  const finishTurning = (traceId: string, turned: { png: Blob; view: ModelView; pose?: ModelPose; parts?: ModelPose } | null) => {
     setTurning(null)
     const trace = traces.find(tr => tr.id === traceId)
     if (!turned || !trace?.model || !lobbyId) return
@@ -6757,9 +6757,9 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
     const name = `${(trace.content || 'model').replace(/[^\w.-]+/g, '_')}.png`
     uploadTraceFile(new File([turned.png], name, { type: 'image/png' }), lobbyId, userId)
       .then(url => {
-        // Its pose too: none, at rest, is none kept.
-        const { pose: _, ...rest } = trace.model!
-        updateTraceCustomization(traceId, { mediaUrl: url, model: { ...rest, view: turned.view, ...(turned.pose ? { pose: turned.pose } : {}) } })
+        // Its pose and parts too: none, as made, is none kept.
+        const { pose: _, parts: __, ...rest } = trace.model!
+        updateTraceCustomization(traceId, { mediaUrl: url, model: { ...rest, view: turned.view, ...(turned.pose ? { pose: turned.pose } : {}), ...(turned.parts ? { parts: turned.parts } : {}) } })
         setStillPreview(prev => ({ ...prev, [traceId]: { src, for: url } }))
       })
       .catch(error => {

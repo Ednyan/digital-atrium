@@ -27,5 +27,5 @@ test('a page, or a private address, is refused', async () => {
   assert.equal((await ask('http://192.168.1.4/c.ics')).status, 403)
   assert.equal((await ask('file:///etc/passwd')).status, 400)
   answering('nope', 404)
-  assert.equal((await ask('https://example.org/gone.ics')).status, 502)
+  assert.equal((await ask('https://example.org/gone.ics')).status, 424)
 })
