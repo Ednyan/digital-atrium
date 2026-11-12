@@ -96,6 +96,16 @@ const ICON = {
 const TileIcon = ({ d }: { d: string }) => (
   <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d={d} /></svg>
 )
+// A big tile's inside: its mark, its name, and under it, quietly, what it's for.
+const BigTileWords = ({ icon, label, note, filled = false }: { icon: string; label: string; note: string; filled?: boolean }) => (
+  <>
+    <span className={`${TILE_MARK} ${filled ? 'bg-nier-strong text-nier-black' : 'border border-nier-border/40'}`}><TileIcon d={icon} /></span>
+    <span className="min-w-0">
+      <span className="block">{label}</span>
+      <span data-tile-note="" className="block mt-1 truncate normal-case text-[11px] tracking-[0.03em] text-nier-bg/70">{note}</span>
+    </span>
+  </>
+)
 
 export default function HomeScreen({ view, onGo, onOpenAtrium, guest = false, onSignIn, onBackToLanding, onAbout, onDevelopers }: HomeScreenProps) {
   const { t, language } = useTranslation()
@@ -273,13 +283,6 @@ export default function HomeScreen({ view, onGo, onOpenAtrium, guest = false, on
             </nav>
           )}
           <div className="home-tools flex items-center gap-2.5">
-            {/* Home has Help (and About) among its own tiles; the top bar keeps it only where there are none. */}
-            {(guest || view === 'atriums') && (
-              <button type="button" data-top-help="" onClick={() => setShowHelp(true)} title={t('help.title')} aria-label={t('help.title')} className={TOP_WORD} style={{ backgroundColor: 'rgb(var(--c-ground) / 0.94)' }}>
-                <span aria-hidden="true" className="text-[13px] leading-none">?</span>
-                <span className="hidden xl:inline">{t('help.title')}</span>
-              </button>
-            )}
             <FullscreenButton className="cut-corner inline-flex items-center justify-center w-[2.625rem] h-[2.125rem] border border-nier-border/40 text-nier-bg/80 hover:text-nier-strong hover:border-nier-border/70 transition-colors" style={{ backgroundColor: 'rgb(var(--c-ground) / 0.94)' }} />
             <ThemeToggle />
             <DonateButton onClick={() => setShowContribute(true)} variant="quiet" compact className="h-[2.125rem] !py-0" />
@@ -326,7 +329,7 @@ export default function HomeScreen({ view, onGo, onOpenAtrium, guest = false, on
         {!guest && (
         <div ref={homeWall} data-home-wall="" data-away={view !== 'home' || undefined} className="home-wall">
         <div className="relative min-h-full max-w-[90rem] mx-auto flex flex-col px-5 sm:px-10 xl:px-16 pt-2 pb-5">
-          <main className="relative flex-1 flex flex-col min-h-0">
+          <main className="relative flex-1 flex flex-col justify-center min-h-0 py-4">
             {/* What this is, not who's here: the name's at the top, and first days aren't "back". */}
             <h1 data-welcome-title="" data-rise="" className="enter-up text-2xl sm:text-[2rem] font-extralight leading-tight tracking-[0.01em] text-nier-strong" style={{ '--i': 1 } as CSSProperties}>{t(last ? 'welcome.pickUp' : reading || stats.daysHere > 1 ? 'browser.yours' : 'welcome.firstTitle')}</h1>
             <p data-welcome-line="" data-rise="" className="enter-up mt-2 text-[13px] tracking-[0.04em] text-nier-bg/85" style={{ '--i': 2 } as CSSProperties}>
@@ -337,7 +340,7 @@ export default function HomeScreen({ view, onGo, onOpenAtrium, guest = false, on
 
             {/* Wide: the last atrium and what else is recent on the left, what one can do
                 on the right. Narrow, in the order written: what one can do right after Continue. */}
-            <div className="mt-6 flex-1 grid gap-7 lg:grid-cols-[minmax(0,1fr)_22rem] xl:grid-cols-[minmax(0,1fr)_24rem] lg:grid-rows-[auto_1fr] min-h-0">
+            <div className="mt-6 grid gap-7 lg:grid-cols-[minmax(0,1fr)_22rem] xl:grid-cols-[minmax(0,1fr)_24rem] lg:grid-rows-[auto_1fr] min-h-0">
               {/* What one came for, and the screen's one filled button: a wide card, its
                   picture beside its words, not over them. */}
               {last ? (
@@ -392,24 +395,21 @@ export default function HomeScreen({ view, onGo, onOpenAtrium, guest = false, on
                 {/* Making, finding and learning one's atriums, side by side. */}
                 <div className="enter-up flex flex-col gap-2.5" style={{ '--i': 5 } as CSSProperties}>
                   <button type="button" data-welcome-new="" onClick={event => { const from = event.currentTarget.getBoundingClientRect(); askAtriums(api => api.openNew(from)) }} className={`${TILE} ${TILE_BIG}`}>
-                    <span className={`${TILE_MARK} bg-nier-strong text-nier-black`}><TileIcon d={ICON.new} /></span>
-                    {t('welcome.newAtrium')}
+                    <BigTileWords icon={ICON.new} filled label={t('welcome.newAtrium')} note={t('welcome.newAtriumNote')} />
                   </button>
                   <button type="button" data-welcome-all="" onClick={() => onGo('atriums')} className={`${TILE} ${TILE_BIG}`}>
-                    <span className={`${TILE_MARK} border border-nier-border/40`}><TileIcon d={ICON.all} /></span>
-                    {t('welcome.allAtriums')}
+                    <BigTileWords icon={ICON.all} label={t('welcome.allAtriums')} note={t('welcome.allAtriumsNote')} />
                   </button>
                   <button type="button" data-welcome-tutorial="" onClick={() => askAtriums(api => api.startTutorial())} className={`${TILE} ${TILE_BIG}`}>
-                    <span className={`${TILE_MARK} border border-nier-border/40`}><TileIcon d={ICON.tutorial} /></span>
-                    {t('tutorial.button')}
+                    <BigTileWords icon={ICON.tutorial} label={t('tutorial.button')} note={t('welcome.tutorialNote')} />
                   </button>
                 </div>
                 <div className="enter-up grid grid-cols-2 gap-2.5" style={{ '--i': 6 } as CSSProperties}>
                   {/* An atrium in from a file, or out to one: Atriums' own windows, asked for from here. */}
                   <button type="button" data-welcome-import="" onClick={() => askAtriums(api => api.importAtrium())} className={`${TILE} ${TILE_SMALL}`}><TileIcon d={ICON.import} />{t('browser.importJson')}</button>
                   <button type="button" data-welcome-export="" onClick={() => askAtriums(api => api.exportAtrium())} className={`${TILE} ${TILE_SMALL}`}><TileIcon d={ICON.export} />{t('browser.exportJson')}</button>
-                  <button type="button" data-home-help="" onClick={() => setShowHelp(true)} className={`${TILE} ${TILE_SMALL} ${isDesktop && onAbout ? '' : 'col-span-2'}`}><TileIcon d={ICON.help} />{t('help.title')}</button>
-                  {isDesktop && onAbout && <button type="button" data-home-about="" onClick={onAbout} className={`${TILE} ${TILE_SMALL}`}><TileIcon d={ICON.about} />{t('welcome.about')}</button>}
+                  <button type="button" data-home-help="" onClick={() => setShowHelp(true)} className={`${TILE} ${TILE_SMALL} ${onAbout ? '' : 'col-span-2'}`}><TileIcon d={ICON.help} />{t('help.title')}</button>
+                  {onAbout && <button type="button" data-home-about="" onClick={onAbout} className={`${TILE} ${TILE_SMALL}`}><TileIcon d={ICON.about} />{t('welcome.about')}</button>}
                 </div>
                 {next && (
                   <button
@@ -471,7 +471,7 @@ export default function HomeScreen({ view, onGo, onOpenAtrium, guest = false, on
         {atriumsThere && (
           <div ref={atriumsWall} data-atriums-wall="" data-away={view !== 'atriums' || undefined} className="home-wall">
             <div className="relative max-w-[90rem] mx-auto px-5 sm:px-10 xl:px-16 pt-2">
-              {LobbyBrowser && <LobbyBrowser onJoinLobby={onOpenAtrium} onReady={atriumsReady} inSight={view === 'atriums'} onCardsKnown={() => setCardsTold(told => told + 1)} guest={guest} onSignIn={onSignIn} />}
+              {LobbyBrowser && <LobbyBrowser onJoinLobby={onOpenAtrium} onReady={atriumsReady} inSight={view === 'atriums'} onCardsKnown={() => setCardsTold(told => told + 1)} guest={guest} onSignIn={onSignIn} onHelp={() => setShowHelp(true)} onAbout={onAbout} />}
             </div>
           </div>
         )}

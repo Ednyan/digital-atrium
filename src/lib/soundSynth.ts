@@ -55,12 +55,6 @@ export const SOUNDS = {
   close: [{ kind: 'tone', long: 0.07, freq: N.D4, to: N.A3, gain: 0.32, attack: 0.008, space: 0.12 }],
   openSwell: [{ kind: 'air', long: 0.26, from: 320, to: 1400, q: 0.7, gain: 0.9, attack: 0.1, space: 0.3 }],
   closeSwell: [{ kind: 'air', long: 0.24, from: 1300, to: 360, q: 0.7, gain: 0.8, attack: 0.05, space: 0.3 }],
-  // Pointing at something that can be pressed: a click, barely there -- a
-  // tick of wood rather than a bell, under everything else.
-  hover: [
-    { kind: 'tone', long: 0.018, freq: N.D5, to: N.A4, gain: 0.24, attack: 0.001 },
-    { kind: 'air', long: 0.007, from: 1900, to: 1500, q: 1.6, gain: 0.18, attack: 0.0005 },
-  ],
   // A trace placed: a low knock, glass softly over it.
   place: [
     { kind: 'tone', long: 0.06, freq: N.A3, to: N.D3, gain: 0.9, attack: 0.002 },

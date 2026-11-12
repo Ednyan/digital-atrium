@@ -57,6 +57,7 @@ const ROW = 'border border-nier-border/25 p-4 hover:border-nier-border/60 transi
 const ROW_FILL = { backgroundColor: 'rgb(var(--c-ground) / 0.75)' }
 // As tall as the row it's in -- the search, Create -- and its icon in its middle.
 const ICON_BUTTON = 'w-11 self-stretch flex items-center justify-center border border-nier-border/30 text-nier-bg/80 hover:text-nier-bg hover:border-nier-border/60 transition-colors disabled:opacity-50'
+const LEARN_BUTTON = 'px-4 py-3 text-nier-bg/80 text-xs tracking-[0.18em] uppercase hover:text-nier-bg hover:bg-nier-bg/5 transition-colors disabled:opacity-40'
 const SMALL_BUTTON = 'px-3 h-8 shrink-0 flex items-center justify-center border border-nier-border/30 text-nier-bg/80 text-xs tracking-[0.1em] uppercase hover:text-nier-bg hover:border-nier-border/60 transition-colors disabled:opacity-50'
 const FOOT_BUTTON = 'flex-1 min-w-[10rem] py-3 border border-nier-border/30 text-nier-bg/80 text-xs tracking-[0.15em] uppercase hover:border-nier-border/60 hover:text-nier-bg transition-colors'
 // Which way the lists are shown, kept for the next visit.
@@ -272,9 +273,12 @@ interface LobbyBrowserProps {
   /** Without an account: this browser's atriums only. */
   guest?: boolean
   onSignIn?: () => void
+  // Help and About, beside the Tutorial: what's there to learn, together (HomeScreen has their windows).
+  onHelp?: () => void
+  onAbout?: () => void
 }
 
-export function LobbyBrowser({ onJoinLobby, onReady, inSight = true, onCardsKnown, guest = false, onSignIn }: LobbyBrowserProps) {
+export function LobbyBrowser({ onJoinLobby, onReady, inSight = true, onCardsKnown, guest = false, onSignIn, onHelp, onAbout }: LobbyBrowserProps) {
   const { t, language } = useTranslation()
   const [lobbies, setLobbies] = useState<LobbyWithOwner[]>([])
   // Everyone's public Drive atriums (phase 8), shown to anyone, a guest too.
@@ -1702,15 +1706,20 @@ export function LobbyBrowser({ onJoinLobby, onReady, inSight = true, onCardsKnow
           >
             ◇ {t('browser.create')}
           </button>
-          <button
-            type="button"
-            data-tutorial-start=""
-            onClick={() => void startTutorial()}
-            disabled={creating}
-            className="px-4 py-3 border border-nier-border/40 text-nier-bg/80 text-xs tracking-[0.18em] uppercase hover:text-nier-bg hover:border-nier-border/70 transition-colors disabled:opacity-40"
-          >
-            {t('tutorial.button')}
-          </button>
+          {/* What there is to learn, as one group: the tour, the articles, the app itself. */}
+          <div role="group" className="flex border border-nier-border/40 divide-x divide-nier-border/40">
+            <button
+              type="button"
+              data-tutorial-start=""
+              onClick={() => void startTutorial()}
+              disabled={creating}
+              className={LEARN_BUTTON}
+            >
+              {t('tutorial.button')}
+            </button>
+            {onHelp && <button type="button" data-atriums-help="" onClick={onHelp} className={LEARN_BUTTON}>{t('help.title')}</button>}
+            {onAbout && <button type="button" data-atriums-about="" onClick={onAbout} className={LEARN_BUTTON}>{t('welcome.about')}</button>}
+          </div>
           {/* The lists as cards or as rows: the one in use lit, the light sliding to it. */}
           <div role="group" aria-label={t('browser.view.label')} className="relative flex border border-nier-border/30">
             <span aria-hidden="true" className="absolute inset-y-0 left-0 w-1/2 bg-nier-bg/10 border border-nier-border/60 transition-transform duration-300 ease-[cubic-bezier(.2,.8,.2,1)] motion-reduce:transition-none" style={{ transform: view === 'list' ? 'translateX(100%)' : undefined }} />

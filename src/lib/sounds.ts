@@ -73,25 +73,6 @@ function installInterfaceSounds() {
       if (now !== null && now !== expanded) play(now === 'true' ? 'open' : 'close')
     }, 0)
   }, true)
-  // Pointing at something that can be pressed: a click, barely there, so it
-  // feels pressable (the user, 2026-11-12). Once as the pointer comes onto it,
-  // not again till it has left; a mouse's only (a finger points by pressing),
-  // never while a button is held (a drag passing over).
-  let pointedAt: Element | null = null
-  window.addEventListener('pointerover', event => {
-    if (event.pointerType !== 'mouse' || event.buttons) return
-    const el = (event.target as Element | null)?.closest?.(PRESSABLE) ?? null
-    if (el === pointedAt) return
-    // Something else passing under the pointer -- a label sliding out of the
-    // button -- isn't leaving it: only going outside it is.
-    if (!el && pointedAt) {
-      const box = pointedAt.getBoundingClientRect()
-      if (event.clientX >= box.left && event.clientX <= box.right && event.clientY >= box.top && event.clientY <= box.bottom) return
-    }
-    pointedAt = el
-    if (!el || el.closest('[data-sound="none"]') || (el as HTMLButtonElement).disabled || el.getAttribute('aria-disabled') === 'true') return
-    play('hover')
-  }, true)
   // A right-click that opened a menu.
   window.addEventListener('contextmenu', () => {
     const pressedAt = performance.now()
