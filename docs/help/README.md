@@ -57,8 +57,8 @@ first. Web and Desktop mean only there; no mark means both.
 | [`where-atriums-live`](getting-started/where-atriums-live.md) | **Written.** This browser, the Atrium's cloud, Google Drive, the desktop vault; differences, limits | 1 | |
 | [`accounts`](getting-started/accounts.md) | **Written.** Email, Google, no account; username against display name; passwords; desktop | 2 | |
 | [`atrium-browser`](getting-started/atrium-browser.md) | **Written.** Its parts, finding and opening, a card and its menu, Join by ID | 2 | |
-| `web-or-desktop` | What each does, moving between them | 2 | |
-| `install-desktop` | Windows, macOS, Linux; first-launch warnings; updates | 2 | |
+| [`web-or-desktop`](getting-started/web-or-desktop.md) | **Written.** What each does, desktop only, moving between them | 2 | |
+| [`install-desktop`](getting-started/install-desktop.md) | **Written.** Windows, macOS, Linux; first-launch warnings; updates | 2 | |
 
 ### 2. Moving around (`moving-around/`)
 
