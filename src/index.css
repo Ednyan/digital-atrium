@@ -1606,27 +1606,11 @@ body.dragging * {
 }
 .welcome-hero { transition: border-color 220ms ease, box-shadow 400ms ease; }
 .welcome-hero:hover { border-color: rgb(var(--c-line) / 0.8); box-shadow: 0 24px 60px -34px rgb(var(--c-fg) / 0.5); }
-/* The picture giving way to the words, eased as a shadow falls off: a straight ramp
-   shows where it starts and ends. Solid by where they begin (their padding, 11rem). */
-.welcome-hero-words {
-  background: linear-gradient(
-    rgb(var(--c-ground) / 0) 0,
-    rgb(var(--c-ground) / 0.03) 1.5rem,
-    rgb(var(--c-ground) / 0.1) 3rem,
-    rgb(var(--c-ground) / 0.22) 4.5rem,
-    rgb(var(--c-ground) / 0.38) 6rem,
-    rgb(var(--c-ground) / 0.56) 7.5rem,
-    rgb(var(--c-ground) / 0.72) 9rem,
-    rgb(var(--c-ground) / 0.85) 10.5rem,
-    rgb(var(--c-ground) / 0.94) 12rem,
-    rgb(var(--c-ground) / 0.97) 14rem
-  );
-}
 .atrium-picture { animation: enter-fade 260ms ease backwards; }
 .welcome-hero-picture { transition: scale 1.1s cubic-bezier(.16, 1, .3, 1); }
 .group:hover .welcome-hero-picture { scale: 1.035; }
 .welcome-recent { transition: transform 240ms cubic-bezier(.16, 1, .3, 1), border-color 180ms ease, background-color 180ms ease; }
-.welcome-recent:hover { transform: translateX(4px); background-color: rgb(var(--c-ground)); background-image: linear-gradient(rgb(var(--c-fg) / 0.04), rgb(var(--c-fg) / 0.04)); }
+.welcome-recent:hover { transform: translateY(-3px); background-color: rgb(var(--c-ground)); background-image: linear-gradient(rgb(var(--c-fg) / 0.04), rgb(var(--c-fg) / 0.04)); }
 .welcome-action { transition: transform 220ms cubic-bezier(.16, 1, .3, 1), border-color 180ms ease, background-color 180ms ease; }
 .welcome-action:hover { transform: translateY(-2px); background-color: rgb(var(--c-ground)); background-image: linear-gradient(rgb(var(--c-fg) / 0.05), rgb(var(--c-fg) / 0.05)); }
 .welcome-action:active { transform: translateY(0) scale(0.985); }
