@@ -148,8 +148,19 @@ function AtriumCard({ view, fly, name, renaming, preview, tags, busy, onEnter, e
 }) {
   const list = view === 'list'
   const morphName = useMorphName()
+  // A double-click anywhere on the card goes in, as Enter does (the user,
+  // 2026-11-12) -- but not on its own controls (a button, the menu, the name
+  // being typed), which keep their single clicks.
+  const onControl = (target: EventTarget) => !!(target as Element).closest?.('button, a, input, textarea, select, [role="menu"]')
+  const canEnter = !renaming && !enterDisabled
   return (
-    <div className={`${ROW} morph morph-card group ${list ? 'flex items-center gap-4 py-3' : ''}`} style={{ ...ROW_FILL, ...morphed(morphName) }}>
+    <div
+      className={`${ROW} morph morph-card group ${list ? 'flex items-center gap-4 py-3' : ''}`}
+      style={{ ...ROW_FILL, ...morphed(morphName) }}
+      // The second press's own selection of the name, not made: it would flash as it goes in.
+      onMouseDown={e => { if (e.detail > 1 && canEnter && !onControl(e.target)) e.preventDefault() }}
+      onDoubleClick={e => { if (canEnter && !onControl(e.target)) onEnter() }}
+    >
       <AtriumPreview url={preview} small={list} name={`${morphName}-picture`} fly={fly} />
       <div className={list ? 'flex-1 min-w-0 flex flex-col sm:flex-row sm:items-center gap-3' : 'flex flex-col gap-3'}>
         <div className="min-w-0 flex-1">
