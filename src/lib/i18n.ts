@@ -26,7 +26,7 @@ import { en, type Catalogue, type TranslationKey } from '../locales/en'
 
 export type LanguageCode =
   | 'en' | 'es' | 'pt-BR' | 'pt-PT' | 'it' | 'fr' | 'de'
-  | 'ja' | 'hi' | 'zh' | 'ru' | 'ko'
+  | 'ja' | 'zh' | 'ru' | 'ko'
 
 export interface Language {
   code: LanguageCode
@@ -56,7 +56,6 @@ export const LANGUAGES: Language[] = [
   { code: 'zh', endonym: '中文', english: 'Chinese' },
   { code: 'ja', endonym: '日本語', english: 'Japanese' },
   { code: 'ko', endonym: '한국어', english: 'Korean' },
-  { code: 'hi', endonym: 'हिन्दी', english: 'Hindi' },
 ]
 
 // Adding a language is two lines: write src/locales/<code>.ts as a partial
