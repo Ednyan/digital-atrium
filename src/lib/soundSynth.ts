@@ -47,9 +47,20 @@ export const SOUNDS = {
     { kind: 'glass', long: 0.1, freq: N.D5, gain: 0.38 },
     { kind: 'glass', at: 0.065, long: 0.2, freq: N.A4, gain: 0.36, space: 0.25 },
   ],
-  // A menu or panel opening, closing: air, swelling up, falling away -- soft at both ends.
-  open: [{ kind: 'air', long: 0.26, from: 320, to: 1400, q: 0.7, gain: 0.9, attack: 0.1, space: 0.3 }],
-  close: [{ kind: 'air', long: 0.24, from: 1300, to: 360, q: 0.7, gain: 0.8, attack: 0.05, space: 0.3 }],
+  // A menu or panel opening, closing: a soft, low pluck, rising a fourth or
+  // falling one -- no air. The first ones, swelling noise, read as a whoosh on
+  // every panel (the user, 2026-11-12: "a lot softer and less of a whoosh");
+  // kept below, unused, as openSwell and closeSwell.
+  open: [{ kind: 'tone', long: 0.075, freq: N.A3, to: N.D4, gain: 0.35, attack: 0.008, space: 0.12 }],
+  close: [{ kind: 'tone', long: 0.07, freq: N.D4, to: N.A3, gain: 0.32, attack: 0.008, space: 0.12 }],
+  openSwell: [{ kind: 'air', long: 0.26, from: 320, to: 1400, q: 0.7, gain: 0.9, attack: 0.1, space: 0.3 }],
+  closeSwell: [{ kind: 'air', long: 0.24, from: 1300, to: 360, q: 0.7, gain: 0.8, attack: 0.05, space: 0.3 }],
+  // Pointing at something that can be pressed: a click, barely there -- a
+  // tick of wood rather than a bell, under everything else.
+  hover: [
+    { kind: 'tone', long: 0.018, freq: N.D5, to: N.A4, gain: 0.24, attack: 0.001 },
+    { kind: 'air', long: 0.007, from: 1900, to: 1500, q: 1.6, gain: 0.18, attack: 0.0005 },
+  ],
   // A trace placed: a low knock, glass softly over it.
   place: [
     { kind: 'tone', long: 0.06, freq: N.A3, to: N.D3, gain: 0.9, attack: 0.002 },

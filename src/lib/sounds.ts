@@ -5,7 +5,8 @@
 // they sound as they do: lib/soundSynth.
 //
 // Some come by themselves (installInterfaceSounds): a switch's own on and off,
-// a menu or panel opening and closing. A plain button is silent: a sound for
+// a menu or panel opening and closing, and a faint click as the pointer comes
+// onto something pressable. A plain button's press is silent: a sound for
 // every press grows tiresome (the user, 2026-11-11). The rest are played where
 // the thing happens -- placed, removed, undone, redone, saved by hand, a tool
 // taken up, a template made, an achievement shown (AchievementPopup), a refusal. Only for what this person did -- never for
@@ -71,6 +72,25 @@ function installInterfaceSounds() {
       const now = el.getAttribute('aria-expanded')
       if (now !== null && now !== expanded) play(now === 'true' ? 'open' : 'close')
     }, 0)
+  }, true)
+  // Pointing at something that can be pressed: a click, barely there, so it
+  // feels pressable (the user, 2026-11-12). Once as the pointer comes onto it,
+  // not again till it has left; a mouse's only (a finger points by pressing),
+  // never while a button is held (a drag passing over).
+  let pointedAt: Element | null = null
+  window.addEventListener('pointerover', event => {
+    if (event.pointerType !== 'mouse' || event.buttons) return
+    const el = (event.target as Element | null)?.closest?.(PRESSABLE) ?? null
+    if (el === pointedAt) return
+    // Something else passing under the pointer -- a label sliding out of the
+    // button -- isn't leaving it: only going outside it is.
+    if (!el && pointedAt) {
+      const box = pointedAt.getBoundingClientRect()
+      if (event.clientX >= box.left && event.clientX <= box.right && event.clientY >= box.top && event.clientY <= box.bottom) return
+    }
+    pointedAt = el
+    if (!el || el.closest('[data-sound="none"]') || (el as HTMLButtonElement).disabled || el.getAttribute('aria-disabled') === 'true') return
+    play('hover')
   }, true)
   // A right-click that opened a menu.
   window.addEventListener('contextmenu', () => {
