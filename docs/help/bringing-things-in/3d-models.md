@@ -129,7 +129,7 @@ it's turning, you see the change there too.
 - A .gltf missing its .bin can't be read: drop the .bin with it, or export it as **.glb**, one file.
 - A Draco-compressed model can't be read yet.
 - An FBX older than 7.0 (some Mixamo downloads are 6.1) can't be read: download it again as **FBX for Unity** or **Collada (.dae)**, or export it as **.glb**.
-- A VRM shows toon-shaded, outlined, as its maker made it; its expressions and swinging hair don't play. Its bones are the ones the VRM names, so **Poses** work on it.
+- A VRM shows toon-shaded, outlined, as its maker made it. While it's open, its hair and clothes swing as you pose it (its physics); its picture shows them at rest, hanging. Its expressions don't play. Its bones are the ones the VRM names, so **Poses** work on it.
 - An .stl has no colours of its own: it's grey, its own colours off; give it a **Colour**.
 - Made wider or taller, a model's box shows the model as it is, never stretched.
 - Animations don't play: a model shows its rest pose, or the pose you give it.

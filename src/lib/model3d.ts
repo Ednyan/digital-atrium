@@ -14,8 +14,8 @@
 import type { Bone, Object3D, PerspectiveCamera, Scene, Vector3 } from 'three'
 import type { Trace } from '../types/database'
 
-// .vrm: an avatar, a .glb underneath, with its toon look (MToon, by @pixiv/three-vrm); its
-// hair's swing and its expressions aren't played.
+// .vrm: an avatar, a .glb underneath, with its toon look (MToon, by @pixiv/three-vrm) and,
+// while it's open, its hair and clothes' swing; its expressions aren't played.
 export const MODEL_FORMATS = ['glb', 'gltf', 'fbx', 'obj', 'stl', 'dae', 'vrm'] as const
 export type ModelFormat = typeof MODEL_FORMATS[number]
 
@@ -132,6 +132,10 @@ export function stillSize(aspect: number, side = STILL_SIDE): { width: number; h
 /** Why a file couldn't be shown, in words for a person. */
 export class ModelUnreadable extends Error {}
 
+// A VRM read, by the scene it's drawn as: its hair and clothes' springs and its
+// constraints, stepped on by its stage (Stage.step).
+const vrms = new WeakMap<Object3D, import('@pixiv/three-vrm').VRM>()
+
 // A file that points at others beside it (a .gltf's .bin and textures, an OBJ's
 // .mtl, an FBX's textures) is given them from `sides` -- the files dropped with
 // it, by name -- and every other such address is answered with nothing, quietly,
@@ -223,6 +227,7 @@ async function parseAny(data: ArrayBuffer, format: ModelFormat, manager: import(
         vrm.humanoid?.normalizedHumanBonesRoot.removeFromParent()
         // Which bone is which, as the file says (lib/modelHumanoid reads it).
         for (const [name, bone] of Object.entries(vrm.humanoid?.humanBones ?? {})) if (bone?.node) bone.node.userData.humanBone = name
+        vrms.set(gltf.scene, vrm)
       }
       return gltf.scene
     } catch (error) {
@@ -316,6 +321,12 @@ export interface Stage {
   render(): void
   /** A still at this size, transparent where the model isn't. */
   picture(width: number, height: number): Promise<Blob>
+  /** Whether it moves by itself -- a VRM's hair and clothes swinging -- to be drawn each frame. */
+  readonly moves: boolean
+  /** Its physics stepped on by so many seconds. */
+  step(seconds: number): void
+  /** Its physics run on till it has come to rest: hair hanging as it falls. */
+  settle(): void
   dispose(): void
 }
 
@@ -436,6 +447,7 @@ export async function makeStage(object: Object3D, canvas: HTMLCanvasElement = do
     }
   }
   const posed = keeper(bones), shaped = keeper(parts)
+  const vrm = vrms.get(object)
 
   const stage: Stage = {
     canvas,
@@ -449,6 +461,13 @@ export async function makeStage(object: Object3D, canvas: HTMLCanvasElement = do
     base,
     place,
     setPose: posed.set,
+    moves: !!vrm?.springBoneManager,
+    step: seconds => {
+      // Twist bones following their arms first, then the springs from where they are.
+      vrm?.nodeConstraintManager?.update()
+      vrm?.springBoneManager?.update(seconds)
+    },
+    settle: () => { if (vrm) for (let i = 0; i < 120; i++) stage.step(1 / 60) },
     poseNow: posed.now,
     setParts: shaped.set,
     partsNow: shaped.now,
@@ -552,6 +571,7 @@ async function firstStill(object: Object3D): Promise<{ png: Blob; view: ModelVie
     const { humanoidOf, facingOf } = await import('./modelHumanoid')
     const rig = humanoidOf(stage.bones), facing = rig && facingOf(rig)
     const first = facing ? { ...DEFAULT_VIEW, yaw: Math.atan2(facing.x, facing.z) + DEFAULT_VIEW.yaw } : DEFAULT_VIEW
+    stage.settle()
     const { width, height } = stillSize(stage.silhouette(first))
     stage.setSize(width, height)
     const view = stage.framed(first)
@@ -569,6 +589,7 @@ export async function renderStill(file: Blob, record: ModelRecord, aspect: numbe
     stage.setLook(record.look ?? DEFAULT_LOOK, texturesOn(record))
     stage.setParts(record.parts)
     stage.setPose(record.pose)
+    stage.settle()
     const { width, height } = stillSize(aspect)
     stage.setSize(width, height)
     stage.place(record.view)

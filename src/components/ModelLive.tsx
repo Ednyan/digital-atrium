@@ -191,6 +191,7 @@ export default function ModelLive({ trace, scale, editable, style, onReady, onDo
     let live = true
     let made: Stage | null = null
     let orbit: { dispose(): void } | null = null
+    let frame = 0
     void (async () => {
       try {
         const file = trace.imageUrl ? await fetchMedia(trace.imageUrl) : null
@@ -222,6 +223,19 @@ export default function ModelLive({ trace, scale, editable, style, onReady, onDo
         setBones(made.bones.map((bone, i) => bone.name || `${i + 1}`))
         setPartNames(made.parts.map((part, i) => (i === 0 ? t('atrium.model.wholeModel') : part.name || `${t('atrium.model.part')} ${i}`)))
         rig.current = humanoidOf(made.bones)
+        // A VRM's hair and clothes swing while it's open: stepped and drawn each
+        // frame (no more than a twentieth of a second at once, after a pause).
+        if (made.moves) {
+          const moving = made
+          let last = performance.now()
+          const tick = (now: number) => {
+            moving.step(Math.min(0.05, (now - last) / 1000))
+            last = now
+            drawRef.current()
+            frame = requestAnimationFrame(tick)
+          }
+          frame = requestAnimationFrame(tick)
+        }
         drawRef.current()
         setStatus('ready')
         onReady()
@@ -231,6 +245,7 @@ export default function ModelLive({ trace, scale, editable, style, onReady, onDo
     })()
     return () => {
       live = false
+      cancelAnimationFrame(frame)
       const tools = kit.current
       kit.current = null
       if (tools) {
