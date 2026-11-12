@@ -66,7 +66,7 @@ first. Web and Desktop mean only there; no mark means both.
 |---|---|---|---|
 | [`moving-around`](moving-around/moving-around.md) | **Written.** Pan, zoom, Move the view (H), recenter (Shift+1), 100% (0), coordinates | 1 | Yes |
 | [`keyboard-shortcuts`](moving-around/keyboard-shortcuts.md) | **Written.** Every key, one page | 1 | |
-| `minimap-and-view` | Minimap, off-screen arrows, fade at the edge, hide UI, fullscreen | 3 | |
+| [`minimap-and-view`](moving-around/minimap-and-view.md) | **Written.** Minimap, off-screen arrows, fade at the edge, hide UI, fullscreen | 3 | |
 | [`locations-and-presenting`](moving-around/locations-and-presenting.md) | **Written.** Saved views, locking, presentation mode, export as slides or web page | 2 | Yes |
 | `phones-and-tablets` | The bar along the foot, what changes with touch | 3 | |
 
@@ -121,7 +121,7 @@ first. Web and Desktop mean only there; no mark means both.
 |---|---|---|---|
 | [`selecting`](arranging/selecting.md) | **Written.** Select, direct select, area, lasso, Shift and Ctrl, Select submenu | 1 | Yes |
 | [`move-resize-rotate`](arranging/move-resize-rotate.md) | **Written.** Handles, grid snap, snap angles, Reset Rotation and Aspect | 1 | |
-| `copy-duplicate-delete` | Copy, paste, duplicate, between atriums, ask before deleting | 2 | |
+| [`copy-duplicate-delete`](arranging/copy-duplicate-delete.md) | **Written.** Copy and paste, between atriums too; duplicate; delete and its question | 2 | |
 | [`undo-and-saving`](arranging/undo-and-saving.md) | **Written.** Undo depth, Save, Don't Save, Auto-save, leaving with changes | 1 | |
 
 **4.2 Organizing**
@@ -130,7 +130,7 @@ first. Web and Desktop mean only there; no mark means both.
 |---|---|---|---|
 | [`frames`](arranging/frames.md) | **Written.** | 1 | Yes |
 | [`groups-and-layers`](arranging/groups-and-layers.md) | **Written.** The Layers panel, groups, Move to Group, lock, go to | 1 | Yes |
-| `stacking-order` | What's on top and how to change it | 2 | |
+| [`stacking-order`](arranging/stacking-order.md) | **Written.** One stack; Move Layer; Order buttons; the Layers panel | 2 | |
 | `tidying-up` | Reorganize Selected, rectangular or rounded | 3 | |
 
 **4.3 Connecting**
@@ -145,10 +145,10 @@ first. Web and Desktop mean only there; no mark means both.
 | Article | Covers | Order | Video |
 |---|---|---|---|
 | [`customization-panel`](making-it-look-right/customization-panel.md) | **Written.** Sections and switches, quick presets, your own footer buttons, Batch Edit | 1 | Yes |
-| `batch-edit` | Changing many at once, mixed values | 2 | |
+| [`batch-edit`](making-it-look-right/batch-edit.md) | **Written.** Several at once, which each setting is for, mixed values | 2 | |
 | [`colours-and-palette`](making-it-look-right/colours-and-palette.md) | **Written.** Your palette, I to take a colour, copy and paste style | 2 | |
 | `light-glow-effects` | Light, emit from, pulse, soft shadow, Colour (look) | 3 | Yes |
-| `atrium-themes` | Presets, your own, grid, particles, background picture, parallax, ground | 2 | Yes |
+| [`atrium-themes`](making-it-look-right/atrium-themes.md) | **Written.** Presets, your own (grid, room, particles, ground), the atrium's theme | 2 | Yes |
 
 ### 6. Working together (`working-together/`)
 
@@ -158,7 +158,7 @@ first. Web and Desktop mean only there; no mark means both.
 | [`people-and-roles`](working-together/people-and-roles.md) | **Written.** Owner, admin, editor, viewer; adding, removing, blocking; asking to join; kicking | 2 | |
 | [`public-atriums`](working-together/public-atriums.md) | **Written.** Making one public, finding them, view only, reporting | 2 | |
 | [`drive-atriums`](working-together/drive-atriums.md) | **Written.** Making one, members, bringing back deleted traces, leaving or deleting, the Drive connection | 2 | |
-| `live-together` | Cursors, name tags, laser, Hide My IP | 3 | Yes |
+| [`live-together`](working-together/live-together.md) | **Written.** Who's here, cursors, laser, others' changes, Hide My IP | 3 | Yes |
 
 ### 7. Keeping and moving (`keeping-and-moving/`)
 
@@ -176,7 +176,7 @@ first. Web and Desktop mean only there; no mark means both.
 | Article | Covers | Order | Video |
 |---|---|---|---|
 | [`preferences`](account-and-settings/preferences.md) | **Written.** User Preferences, one by one: profile, how you work, moving, seeing, people, sound, animations | 2 | |
-| `profile-and-account` | Name, cursor colour, password, signing in on desktop, delete account | 3 | |
+| [`profile-and-account`](account-and-settings/profile-and-account.md) | **Written.** Picture, achievements, finding people, settings, password, deleting | 3 | |
 | `language-and-theme` | The 11 languages, light and dark | 3 | |
 
 ### 9. Help and support (`help-and-support/`)
@@ -184,7 +184,7 @@ first. Web and Desktop mean only there; no mark means both.
 | Article | Covers | Order | Video |
 |---|---|---|---|
 | [`report-or-suggest`](help-and-support/report-or-suggest.md) | **Written.** Reporting a problem, suggesting a feature | 1 | |
-| `when-something-breaks` | Won't load, a missing file, an embed refuses, can't save, can't sign in | 2 | |
+| [`when-something-breaks`](help-and-support/when-something-breaks.md) | **Written.** Broken traces, saving, signing in, the desktop app | 2 | |
 | `supporting-the-atrium` | Donating, monthly, the contributors wall | 3 | |
 
 ## Left out on purpose
