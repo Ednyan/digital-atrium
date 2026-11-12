@@ -95,6 +95,7 @@ first. Web and Desktop mean only there; no mark means both.
 |---|---|---|---|
 | [`pictures`](bringing-things-in/pictures.md) | **Written.** Formats, GIFs, crop, flip, reset | 1 | |
 | [`exr-grading`](bringing-things-in/exr-grading.md) | **Written.** View transform, colour space, exposure, looks, LUTs | 3 | Yes |
+| [`3d-models`](bringing-things-in/3d-models.md) | **Written.** Formats, turning, snapshot, keeping a view, what can't be read | 2 | Yes |
 | [`video-and-sound`](bringing-things-in/video-and-sound.md) | **Written.** Files; their controls; a sound's bars; spatial sound | 2 | |
 | [`embeds-and-links`](bringing-things-in/embeds-and-links.md) | **Written.** Pasting links, several at once, interaction on and off, iframes, what can't be framed, Convert to Image | 1 | |
 

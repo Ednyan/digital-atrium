@@ -59,6 +59,7 @@ import { nextShapeStyle, previewFrameColour, rememberShapeStyle, shapePaint, sha
 import { defaultEmbedBox, embedSourcesIn } from '../lib/embedUrl'
 import { hasTransparency } from '../lib/imageAlpha'
 import { exrOrigin, isExr, withExrAsPng } from '../lib/exr'
+import { isModelFile, MODEL_ACCEPT, modelOrigin, withModelsAsPng } from '../lib/model3d'
 import { asStrokeData, BUILTIN_BRUSHES, customBrushKey, drawingOf, drawPlacedPicture, drawStroke, erasePicture, eraseStrokeData, fitBox, localToWorldDelta, strokeToLocal, isCustomBrush, makeBrushTip, newStrokeSeed, rasterizeStroke, registerCustomBrush, type CustomBrush, type Piece, type Stroke, type StrokeData, type StrokePoint } from '../lib/brushes'
 import { createWheelGestures } from '../lib/canvasGestures'
 import { PINTEREST_CONNECTED_EVENT, getPinterestConnectionStatus, importAfterPinterestConnect, isPin, takeImportAfterPinterestConnect } from '../lib/pinterest'
@@ -181,7 +182,7 @@ function DrawSlider({ label, value, min, max, unit = '', onChange }: {
 }
 
 // What the quick bar's file buttons pick from.
-const TRACE_FILE_ACCEPT = { image: 'image/*,.exr', audio: 'audio/*', sound: 'audio/*', video: 'video/*', document: '.pdf,application/pdf,.pptx' } as const
+const TRACE_FILE_ACCEPT = { image: `image/*,.exr,${MODEL_ACCEPT}`, audio: 'audio/*', sound: 'audio/*', video: 'video/*', document: '.pdf,application/pdf,.pptx' } as const
 
 // Any colour at all: the palette's hues round a wheel.
 const ANY_COLOUR = 'conic-gradient(#e87a6d, #e8c15a, #7fd1a6, #9ad4c4, #a8b6d9, #c77dff, #e87a6d)'
@@ -4529,6 +4530,18 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
         return
       }
     }
+    // A 3D model the same: a still of it, its file kept with the trace (lib/model3d).
+    if (files.some(isModelFile)) {
+      setImportProgress({ done: 0, total: files.length })
+      files = await withModelsAsPng(files, (file, error) => {
+        console.error('3D model unreadable:', file.name, error)
+        showToast(t('atrium.error.modelUnreadable', { name: file.name, reason: error instanceof Error ? error.message : String(error) }))
+      })
+      if (files.length === 0) {
+        setImportProgress(null)
+        return
+      }
+    }
 
     // Phase 1: classify every file and estimate its box size without uploading
     // or inserting anything yet, so the whole batch can be bin-packed into one
@@ -4602,7 +4615,13 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
           const origin = exrOrigin(item.file)
           const source = origin ? await uploadFile(origin.source).catch(() => null) : null
           const exr = origin && source && !source.startsWith('data:') ? { exr: { source, ...origin.look } } : undefined
-          await insertDroppedTrace(item.traceType, item.content, uploadedUrl, dropX, dropY, item.file, undefined, undefined, exr)
+          // A model's file beside its still, never as a data URL either: without
+          // it, the still is placed as the picture it is, and that's said.
+          const model = modelOrigin(item.file)
+          const modelFile = model ? await uploadFile(model.source).catch(() => null) : null
+          const modelKept = model && modelFile && !modelFile.startsWith('data:') ? { image_url: modelFile, model: model.record } : undefined
+          if (model && !modelKept) showToast(t('atrium.error.modelNotKept', { name: model.source.name }))
+          await insertDroppedTrace(item.traceType, item.content, uploadedUrl, dropX, dropY, item.file, undefined, undefined, exr ?? modelKept)
         }
       } else {
         await insertDroppedTrace(item.traceType, item.content, item.mediaUrl, dropX, dropY)
@@ -5324,6 +5343,7 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
             onMultiSelectionChange={setMultiSelectedTraceIds}
             onExport={ids => setExportOf({ ids })}
             onSaveTemplate={!workshop ? ids => askTemplateName(ids) : undefined}
+            onPlaceFiles={(files, x, y) => { if (ensureLobbyHasSpace(files)) void placeFilesAsTraces(files, x, y) }}
             onCustomizeOpen={closeSidePanels}
             canEdit={canEdit}
           />

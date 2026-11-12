@@ -9,7 +9,11 @@ import RemoteCursors from './RemoteCursors'
 import { hexToRgb } from '../lib/cursorLook'
 import { dashProps } from '../lib/strokeStyle'
 import { TRACES_PLACED_EVENT, UNSUPPORTED } from '../lib/atriumFile'
-import React, { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo, useSyncExternalStore } from 'react'
+import React, { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo, useSyncExternalStore, lazy, Suspense } from 'react'
+import { isModelTrace, type ModelView } from '../lib/model3d'
+import { uploadTraceFile } from '../lib/traceUpload'
+// A 3D model turning live: three and its loaders, fetched only when one is opened.
+const ModelLive = lazy(() => import('./ModelLive'))
 import { flushSync } from 'react-dom'
 import type { Layer, Trace } from '../types/database'
 import { supabase, isDesktop, isLocalData } from '../lib/supabase'
@@ -202,6 +206,8 @@ interface TraceOverlayProps {
   onExport?: (ids: string[]) => void
   // These traces kept as one of one's templates (LobbyScene, asked a name first).
   onSaveTemplate?: (ids: string[]) => void
+  // Files placed as traces around a point, as if dropped there: a 3D model's snapshot.
+  onPlaceFiles?: (files: File[], worldX: number, worldY: number) => void
   // A trace's customize panel (or the batch one) opened -- LobbyScene clears
   // the Layer, Locations and Create Trace panels from around it.
   onCustomizeOpen?: () => void
@@ -672,7 +678,7 @@ const TraceSlot = React.memo(
 // runs before it has to be laid out again.
 export const CULL_MARGIN = 500
 
-export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackground, gridLineSpacing, zoom, worldOffset, worldLayerRef, onEdgePan, lobbyId, selectedTraceId, setSelectedTraceId, multiSelectRequest, areaSelectRequest, lassoSelectRequest, selecting = false, customizeRequest, newPathRequest, newTextRequest, directSelect = false, frameRequest, isDrawingMode, hideCursor, panning = false, connectTool = false, clearRequest = 0, placing = false, onEditDrawing, hiddenTraceIds, toolSwitch = 0, onMultiSelectionChange, onExport, onSaveTemplate, onCustomizeOpen, canEdit = true, templateValues = null, sidePanelOpen = false, panelSelection = null }: TraceOverlayProps) {
+export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackground, gridLineSpacing, zoom, worldOffset, worldLayerRef, onEdgePan, lobbyId, selectedTraceId, setSelectedTraceId, multiSelectRequest, areaSelectRequest, lassoSelectRequest, selecting = false, customizeRequest, newPathRequest, newTextRequest, directSelect = false, frameRequest, isDrawingMode, hideCursor, panning = false, connectTool = false, clearRequest = 0, placing = false, onEditDrawing, hiddenTraceIds, toolSwitch = 0, onMultiSelectionChange, onExport, onSaveTemplate, onPlaceFiles, onCustomizeOpen, canEdit = true, templateValues = null, sidePanelOpen = false, panelSelection = null }: TraceOverlayProps) {
   const { t, language } = useTranslation()
   // A crop under way: the trace as cropped so far, in place of the store's,
   // and into the store as it ends (handleMouseUp). Written on every step,
@@ -1314,6 +1320,12 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
   // An EXR trace being graded (ExrGradePanel): the picture to show for it
   // meanwhile, over its own file.
   const [exrPreview, setExrPreview] = useState<Record<string, string>>({})
+  // A 3D model trace turning live (ModelLive) -- one at a time -- and whether it's drawn yet.
+  const [turning, setTurning] = useState<{ id: string; ready: boolean } | null>(null)
+  // A model's new still, shown from the file made here while it's kept, and
+  // after it for the picture it was kept as (`for`) -- never for another, as an
+  // undo leaves it.
+  const [stillPreview, setStillPreview] = useState<Record<string, { src: string; for?: string }>>({})
   const [localMediaUrls, setLocalMediaUrls] = useState<Record<string, string>>({}) // Track resolved local:// URLs for audio/video
   const [deleteConfirmDialog, setDeleteConfirmDialog] = useState<{ traceIds: string[]; linkIds: string[] } | null>(null)
   // "New group" from the Move to Group flyout: which traces are going into it,
@@ -6714,7 +6726,37 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
   // always the latest version. TraceSlot can keep a trace's drawing -- handlers
   // and all -- for many renders, and a plain handler would act on the state of
   // the render it was made in.
-  const on = useLatestHandlers({ handleMouseDown, handleTouchDown, endTextEdit, fitTextLive, isClickThrough, updateTraceCustomization, renameFrame, commitSheetCell, countSlides })
+  // A model let go of (ModelLive): turned, its new still kept as its picture --
+  // one step of undo -- and shown from here meanwhile.
+  const finishTurning = (traceId: string, turned: { png: Blob; view: ModelView } | null) => {
+    setTurning(null)
+    const trace = traces.find(tr => tr.id === traceId)
+    if (!turned || !trace?.model || !lobbyId) return
+    const src = URL.createObjectURL(turned.png)
+    setStillPreview(prev => ({ ...prev, [traceId]: { src } }))
+    // A still that was missing is there again.
+    setFailedImages(prev => { if (!prev.has(traceId)) return prev; const next = new Set(prev); next.delete(traceId); return next })
+    const name = `${(trace.content || 'model').replace(/[^\w.-]+/g, '_')}.png`
+    uploadTraceFile(new File([turned.png], name, { type: 'image/png' }), lobbyId, userId)
+      .then(url => {
+        updateTraceCustomization(traceId, { mediaUrl: url, model: { ...trace.model!, view: turned.view } })
+        setStillPreview(prev => ({ ...prev, [traceId]: { src, for: url } }))
+      })
+      .catch(error => {
+        console.error('3D model still not kept:', error)
+        showToast(t('atrium.model.notSaved'))
+        URL.revokeObjectURL(src)
+        setStillPreview(prev => { const { [traceId]: _, ...rest } = prev; return rest })
+      })
+  }
+  // A snapshot of it, as a picture beside it.
+  const snapshotModel = (traceId: string, png: Blob) => {
+    const trace = traces.find(tr => tr.id === traceId)
+    if (!trace || !onPlaceFiles) return
+    const box = traceBox(trace)
+    onPlaceFiles([new File([png], `${trace.content || 'model'} snapshot.png`, { type: 'image/png' })], box.cx + box.halfW * 2 + 40, box.cy)
+  }
+  const on = useLatestHandlers({ handleMouseDown, handleTouchDown, endTextEdit, fitTextLive, isClickThrough, updateTraceCustomization, renameFrame, commitSheetCell, countSlides, finishTurning, snapshotModel })
   // The threads' (TraceLinksLayer): the same functions every render, each
   // reading the traces as they are now, so the layer can skip a render.
   const linkOn = useLatestHandlers({ place: placeTrace, levelOf: levelOfLink, press: pressLink, menu: openLinkMenu, elbowAt: dragElbow })
@@ -6745,6 +6787,7 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
       // This trace.
       zOf(trace), localTraceTransforms[id], imageDimensions[id], imageProxySources[id], imageRetryCount[id],
       failedImages.has(id), failedMedia.has(id), confirmedImageIds.has(id), localMediaUrls[id], localShapePoints[id], exrPreview[id],
+      stillPreview[id], turning?.id === id ? turning : null, !!onPlaceFiles,
       playingMedia.has(id), movingIds.has(id), glidingIds.has(id),
       // The selected trace's frame, and crop mode, which only it shows.
       selected, multiSelectedIds.has(id), inWholeGroup.has(id), selected ? selectedPointIndex : null, selected && isCropMode, !!hiddenTraceIds?.has(id),
@@ -6874,7 +6917,8 @@ const picture = (rawUrl: string, resolvedSrc: string | undefined) => (
     src={resolvedSrc || rawUrl}
     alt=""
     className="w-full h-full object-contain pointer-events-none select-none"
-    style={{ clipPath: cropClip(shownCrop), filter: lookFilter }}
+    // Under a 3D model turning live, as soon as that's drawn: both would show.
+    style={{ clipPath: cropClip(shownCrop), filter: lookFilter, visibility: turning?.id === trace.id && turning.ready ? 'hidden' : undefined }}
     onLoad={(e) => {
       const img = e.currentTarget
       if (img.naturalWidth && img.naturalHeight) {
@@ -7185,6 +7229,12 @@ return (
           else editCell()
           return
         }
+        // A 3D model turns where it is (ModelLive).
+        if (isModelTrace(trace)) {
+          setSelectedTraceId(trace.id)
+          setTurning({ id: trace.id, ready: false })
+          return
+        }
         setModalTrace(trace)
       }}
       onContextMenu={(e) => {
@@ -7465,8 +7515,21 @@ return (
                 transformOrigin: 'top left',
               }}
             >
-              {getTraceTypeLabel(trace.type)}
+              {isModelTrace(trace) ? t('atrium.model.badge') : getTraceTypeLabel(trace.type)}
             </div>
+          )}
+          {/* A 3D model, chosen: turned from here, as by a double-click. */}
+          {isSelected && isModelTrace(trace) && turning?.id !== trace.id && (
+            <button
+              type="button"
+              data-model-turn={trace.id}
+              className="absolute top-1.5 right-1.5 z-[1] h-7 px-2.5 bg-nier-black/85 border border-nier-border/60 text-nier-strong text-[11px] tracking-[0.12em] uppercase whitespace-nowrap hover:border-nier-border"
+              onMouseDown={e => e.stopPropagation()}
+              onTouchStart={e => e.stopPropagation()}
+              onClick={e => { e.stopPropagation(); setTurning({ id: trace.id, ready: false }) }}
+            >
+              {t('atrium.model.turn')}
+            </button>
           )}
           {trace.mediaUrl?.startsWith('local://') && <VaultWriteBar url={trace.mediaUrl} />}
           {showBorder && !isFrame(trace) && (
@@ -7531,7 +7594,8 @@ return (
           // lib/atriumFile): the error, saying what it was.
           if (rawUrl.startsWith(UNSUPPORTED)) return <TraceGlitch reason={t('atrium.error.unsupportedType', { type: rawUrl.slice(UNSUPPORTED.length) })} />
           const isLocal = rawUrl.startsWith('local://')
-          const resolvedSrc = exrPreview[trace.id] ?? imageProxySources[trace.id]
+          const still = stillPreview[trace.id]
+          const resolvedSrc = (still && (!still.for || still.for === trace.mediaUrl) ? still.src : undefined) ?? exrPreview[trace.id] ?? imageProxySources[trace.id]
           // For local:// URLs, wait for resolved blob URL before rendering
           if (isLocal && !resolvedSrc) return <div className="flex items-center justify-center h-full"><span className="text-nier-strong/70 text-[10px] tracking-wider uppercase">{t('common.loading')}...</span></div>
           // A successful resolve always hands back a blob: URL, so one
@@ -7548,8 +7612,24 @@ return (
       )}
       
       {/* Image placeholder - shown when no URL or when image failed to load */}
-      {!paintStroke && trace.type === 'image' && (!trace.mediaUrl && !trace.imageUrl || failedImages.has(trace.id)) && (
+      {!paintStroke && trace.type === 'image' && (!trace.mediaUrl && !trace.imageUrl || failedImages.has(trace.id)) && !(turning?.id === trace.id && turning.ready) && (
         <TraceGlitch reason={t('atrium.error.imageFailed')} />
+      )}
+
+      {/* A 3D model turning live, over its still -- or over the stand-in for a
+          still that's gone, which letting go of it makes anew. */}
+      {turning?.id === trace.id && isModelTrace(trace) && (
+        <Suspense fallback={null}>
+          <ModelLive
+            trace={trace}
+            scale={zoom * Math.abs(transform.scaleX ?? 1)}
+            editable={canEdit && !isLockedTrace(trace)}
+            style={{ clipPath: cropClip(shownCrop), filter: lookFilter }}
+            onReady={() => setTurning(now => (now?.id === trace.id ? { id: trace.id, ready: true } : now))}
+            onDone={turned => on.finishTurning(trace.id, turned)}
+            onSnapshot={canEdit && onPlaceFiles ? png => on.snapshotModel(trace.id, png) : undefined}
+          />
+        </Suspense>
       )}
 
       {/* Video Content */}
@@ -9085,6 +9165,14 @@ return (
                 {t('atrium.menu.customize')}
               </button>
             )}
+            {!editingWholeSelection && (() => {
+              const trace = traces.find(tr => tr.id === contextMenu.traceId)
+              return trace && isModelTrace(trace) && (
+                <button type="button" data-ctx-turn3d="" className="ctx-item" onClick={() => { setTurning({ id: trace.id, ready: false }); setContextMenu(null) }}>
+                  {t('atrium.model.turn')}
+                </button>
+              )
+            })()}
             {/* This trace's look, to give to others; the look copied, given to
                 this trace -- or, right-clicked in a selection, to all of it. */}
             <button

@@ -96,6 +96,8 @@ export function buildTraceInsertRow(
   // A picture made from an EXR (lib/exr). Only when it is one, so a database
   // without the column still takes every other trace.
   if (trace.exr) newTrace.exr = trace.exr
+  // A 3D model's format and view (lib/model3d), the same: only when it is one.
+  if (trace.model) newTrace.model = trace.model
   // Another picture's look (lib/traceLook): the same, once it's been set.
   if (trace.look) newTrace.look = trace.look
   // Its links to its group's values (lib/templateValues), once it has any.
@@ -220,6 +222,8 @@ export function traceColumns(trace: Trace): Record<string, any> {
   if (trace.height !== undefined) columns.height = trace.height
   // Graded again, an EXR's picture is a new file and this its new look.
   if (trace.exr) columns.exr = trace.exr
+  // Turned, a 3D model's still is a new file and this its new view.
+  if (trace.model) columns.model = trace.model
   // Reset is a neutral look, not none: written only once set, as above.
   if (trace.look) columns.look = trace.look
   // Linked, or unlinked again (null): a trace never linked sends nothing, so an

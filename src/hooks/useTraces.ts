@@ -4,6 +4,7 @@ import { isSlot } from '../lib/frames'
 import { asStrokeStyle } from '../lib/strokeStyle'
 import { asStrokeData } from '../lib/brushes'
 import { asExrGrade } from '../lib/exr'
+import { asModelRecord } from '../lib/model3d'
 import { asLook } from '../lib/traceLook'
 import { useGameStore, useGamePick } from '../store/gameStore'
 import { supabase, isLocalData, cloudClient } from '../lib/supabase'
@@ -148,6 +149,7 @@ export function mapRowToTrace(row: any): Trace {
     // Checked, not trusted: it's painted from.
     strokeData: asStrokeData(row.stroke_data),
     exr: asExrGrade(row.exr),
+    model: asModelRecord(row.model),
     look: asLook(row.look),
     // None stays none, not null: a save sends the column only for a trace once linked.
     valueLinks: row.value_links && typeof row.value_links === 'object' ? row.value_links : undefined,

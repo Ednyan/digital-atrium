@@ -1,6 +1,7 @@
 import type { StrokeStyle } from '../lib/strokeStyle'
 import type { StrokeData } from '../lib/brushes'
 import type { ExrGrade } from '../lib/exr'
+import type { ModelRecord } from '../lib/model3d'
 import type { TraceLook } from '../lib/traceLook'
 import type { TemplateValues, ValueLinks } from '../lib/templateValues'
 import type { SlotFit } from '../lib/frames'
@@ -102,6 +103,9 @@ export interface Trace {
   strokeData?: StrokeData | null
   // A picture made from an EXR: its original, and how it's shown (lib/exr).
   exr?: ExrGrade
+  // A 3D model (lib/model3d): its picture is a still of it, its file is in
+  // imageUrl, and this says which format that is and how it's turned.
+  model?: ModelRecord
   // Any other picture's colour -- exposure, brightness, contrast -- drawn
   // over it, not into its file (lib/traceLook).
   look?: TraceLook

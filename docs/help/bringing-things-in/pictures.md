@@ -6,7 +6,7 @@ summary: Pictures come in by dropping, pasting or the Image tool; crop them, fli
 keywords: picture, pictures, image, images, photo, png, jpg, jpeg, gif, animated gif, webp, svg, avif, bmp, crop, cropping, flip, mirror, reset cropping, uncrop
 where: Quick bar > Image (6); the Customization panel's footer (Crop, Flip); trace right-click menu
 works_on: web, desktop, phone
-related: drop-and-paste, quick-bar, move-resize-rotate, customization-panel, storage-and-limits
+related: drop-and-paste, quick-bar, move-resize-rotate, customization-panel, storage-and-limits, 3d-models
 video:
 ---
 

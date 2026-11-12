@@ -1,0 +1,44 @@
+// A 3D model trace's record, as kept in a row, and the still made for a box.
+
+import { test } from 'node:test'
+import assert from 'node:assert/strict'
+
+import { asModelRecord, DEFAULT_VIEW, formatOf, isModelTrace, sameView, stillSize } from '../src/lib/model3d.ts'
+
+test('formats by extension, any case, never another file', () => {
+  assert.equal(formatOf('Chair.GLB'), 'glb')
+  assert.equal(formatOf('local://traces/L/u_1_ab.fbx'), 'fbx')
+  assert.equal(formatOf('https://x.org/a.obj?v=2#top'), 'obj')
+  assert.equal(formatOf('photo.png'), null)
+  assert.equal(formatOf('model.blend'), null)
+})
+
+test('a record is read only as one, its view kept within bounds', () => {
+  assert.equal(asModelRecord(null), undefined)
+  assert.equal(asModelRecord({ format: 'blend' }), undefined)
+  assert.equal(asModelRecord('not json'), undefined)
+  assert.deepEqual(asModelRecord({ format: 'stl' }), { format: 'stl', view: DEFAULT_VIEW })
+  const wild = asModelRecord(JSON.stringify({ format: 'glb', view: { yaw: 'left', pitch: 9, distance: -4 } }))!
+  assert.equal(wild.view.yaw, DEFAULT_VIEW.yaw)
+  assert.ok(wild.view.pitch < Math.PI / 2 && wild.view.pitch > 1.5)
+  assert.equal(wild.view.distance, 0.05)
+  assert.ok(Math.abs(asModelRecord({ format: 'obj', view: { yaw: Math.PI * 5, pitch: 0, distance: 1 } })!.view.yaw - Math.PI) < 1e-9)
+})
+
+test('a model trace is a picture with its model and its file', () => {
+  const record = { format: 'glb' as const, view: DEFAULT_VIEW }
+  assert.equal(isModelTrace({ type: 'image', model: record, imageUrl: 'local://a.glb' }), true)
+  assert.equal(isModelTrace({ type: 'image', model: record }), false)
+  assert.equal(isModelTrace({ type: 'image', imageUrl: 'x' }), false)
+  assert.equal(isModelTrace({ type: 'video', model: record, imageUrl: 'x' }), false)
+})
+
+test('a still is the box\'s shape, its longer side the one given', () => {
+  assert.deepEqual(stillSize(2), { width: 1280, height: 640 })
+  assert.deepEqual(stillSize(0.5), { width: 640, height: 1280 })
+  assert.deepEqual(stillSize(1, 100), { width: 100, height: 100 })
+  assert.deepEqual(stillSize(100), { width: 1280, height: 320 })
+  assert.deepEqual(stillSize(NaN), { width: 1280, height: 1280 })
+  assert.ok(sameView(DEFAULT_VIEW, { ...DEFAULT_VIEW, yaw: DEFAULT_VIEW.yaw + 1e-6 }))
+  assert.ok(!sameView(DEFAULT_VIEW, { ...DEFAULT_VIEW, distance: 2 }))
+})

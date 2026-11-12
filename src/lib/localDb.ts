@@ -1551,6 +1551,12 @@ export async function initLocalDb(): Promise<void> {
     // Column already exists — ignore
   }
   try {
+    // A 3D model's format and view, as JSON (lib/model3d ModelRecord; the web's add_trace_model.sql).
+    await db.execute('ALTER TABLE traces ADD COLUMN model TEXT')
+  } catch {
+    // Column already exists — ignore
+  }
+  try {
     // Any other picture's look, as JSON (lib/traceLook; the web's add_trace_look.sql).
     await db.execute('ALTER TABLE traces ADD COLUMN look TEXT')
   } catch {
@@ -2097,7 +2103,7 @@ const BOOL_COLUMNS: Record<string, string[]> = {
 }
 // Kept as JSON text in SQLite, objects everywhere else.
 const JSON_COLUMNS: Record<string, string[]> = {
-  traces: ['shape_points', 'stroke_data', 'exr', 'look', 'value_links', 'pin_source'],
+  traces: ['shape_points', 'stroke_data', 'exr', 'look', 'value_links', 'pin_source', 'model'],
   lobbies: ['theme_settings'],
   profiles: ['custom_themes'],
   layers: ['template'],
