@@ -2246,7 +2246,7 @@ const fr: Catalogue = {
   'landing.ways.browser': 'Dans ce navigateur',
   'landing.ways.browserText': 'Sans compte : à vous seul, sur cet appareil.',
   'landing.ways.cloud': 'Dans le cloud',
-  'landing.ways.cloudText': 'Jusqu’à 3 atriums de 10 Mo chacun.',
+  'landing.ways.cloudText': 'Jusqu’à 3 atriums, 50 Mo en tout.',
   'landing.ways.desktop': "Sur votre ordinateur",
   'landing.ways.desktopDesc': "Chaque atrium est un dossier sur votre disque. Aucune limite, il fonctionne hors ligne, et les fichiers apportés peuvent rester liés à leurs originaux.",
   'landing.ways.desktopSolo': "Conçu pour travailler seul : les atriums sur ordinateur ne sont pas partagés.",

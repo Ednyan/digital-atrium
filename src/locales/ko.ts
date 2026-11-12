@@ -2328,7 +2328,7 @@ const ko: Catalogue = {
   'landing.ways.browser': '이 브라우저',
   'landing.ways.browserText': '계정 없이: 이 기기에서 나만 쓰는 공간.',
   'landing.ways.cloud': '클라우드',
-  'landing.ways.cloudText': '각 10MB, 최대 3개.',
+  'landing.ways.cloudText': '최대 3개, 합계 50MB.',
   'landing.ways.desktop': "내 컴퓨터에서",
   'landing.ways.desktopDesc': "아트리움 하나하나가 디스크의 폴더예요. 제한이 없고, 오프라인에서도 되며, 가져온 파일은 원본과 연결된 채로 둘 수 있어요.",
   'landing.ways.desktopSolo': "혼자 작업하기 위한 버전이에요. 데스크톱의 아트리움은 공유되지 않아요.",

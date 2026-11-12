@@ -2248,7 +2248,7 @@ const ptBR: Catalogue = {
   'landing.ways.browser': 'Neste navegador',
   'landing.ways.browserText': 'Sem conta: só seu, neste dispositivo.',
   'landing.ways.cloud': 'Na nuvem',
-  'landing.ways.cloudText': 'Até 3 átrios de 10 MB cada.',
+  'landing.ways.cloudText': 'Até 3 átrios, 50 MB no total.',
   'landing.ways.desktop': "No seu computador",
   'landing.ways.desktopDesc': "Cada átrio é uma pasta no seu disco. Sem limites, funciona offline, e os arquivos que você traz podem continuar ligados aos originais.",
   'landing.ways.desktopSolo': "Feito para trabalhar sozinho: átrios no desktop não são compartilhados.",

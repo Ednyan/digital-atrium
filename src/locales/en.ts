@@ -2272,7 +2272,7 @@ export const en = {
   'landing.ways.browser': 'In this browser',
   'landing.ways.browserText': 'No account needed: yours alone, on this device.',
   'landing.ways.cloud': 'In the cloud',
-  'landing.ways.cloudText': 'Up to 3 atriums of 10 MB each.',
+  'landing.ways.cloudText': 'Up to 3 atriums, 50 MB in all.',
   'landing.ways.desktop': "On your computer",
   'landing.ways.desktopDesc': "Every atrium is a folder on your disk. No limits, it works offline, and the files you bring in can stay live with their originals.",
   'landing.ways.desktopSolo': "Made for working on your own: atriums on the desktop aren’t shared.",

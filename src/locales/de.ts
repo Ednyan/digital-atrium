@@ -2247,7 +2247,7 @@ const de: Catalogue = {
   'landing.ways.browser': 'In diesem Browser',
   'landing.ways.browserText': 'Kein Konto nötig: nur für dich, auf diesem Gerät.',
   'landing.ways.cloud': 'In der Cloud',
-  'landing.ways.cloudText': 'Bis zu 3 Atrien mit je 10 MB.',
+  'landing.ways.cloudText': 'Bis zu 3 Atrien, zusammen 50 MB.',
   'landing.ways.desktop': "Auf deinem Computer",
   'landing.ways.desktopDesc': "Jedes Atrium ist ein Ordner auf deiner Festplatte. Keine Grenzen, es funktioniert offline, und mitgebrachte Dateien können mit ihren Originalen verbunden bleiben.",
   'landing.ways.desktopSolo': "Gemacht für die Arbeit allein: Atrien am Desktop werden nicht geteilt.",

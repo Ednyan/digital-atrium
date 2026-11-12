@@ -2324,7 +2324,7 @@ const ja: Catalogue = {
   'landing.ways.browser': 'このブラウザ',
   'landing.ways.browserText': 'アカウント不要：この端末で、あなただけのもの。',
   'landing.ways.cloud': 'クラウド',
-  'landing.ways.cloudText': '1 つ 10 MB まで、最大 3 つ。',
+  'landing.ways.cloudText': '最大 3 つ、合計 50 MB まで。',
   'landing.ways.desktop': "あなたのパソコンで",
   'landing.ways.desktopDesc': "アトリウムはそれぞれディスク上のフォルダです。制限なし、オフラインで動き、持ち込んだファイルは元のファイルと連動できます。",
   'landing.ways.desktopSolo': "一人での作業向けです。デスクトップ版のアトリウムは共有されません。",

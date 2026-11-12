@@ -2327,7 +2327,7 @@ const zh: Catalogue = {
   'landing.ways.browser': '在此浏览器中',
   'landing.ways.browserText': '无需账号：只属于你，保存在此设备上。',
   'landing.ways.cloud': '在云端',
-  'landing.ways.cloudText': '最多 3 个中庭，每个 10 MB。',
+  'landing.ways.cloudText': '最多 3 个中庭，共 50 MB。',
   'landing.ways.desktop': "在你的电脑上",
   'landing.ways.desktopDesc': "每个中庭都是你磁盘上的一个文件夹。没有限制，可离线使用，带进来的文件还能与原文件保持同步。",
   'landing.ways.desktopSolo': "为独自工作而设计：桌面版的中庭不会共享。",

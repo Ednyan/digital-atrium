@@ -2250,7 +2250,7 @@ const ru: Catalogue = {
   'landing.ways.browser': 'В этом браузере',
   'landing.ways.browserText': 'Без аккаунта: только ваш, на этом устройстве.',
   'landing.ways.cloud': 'В облаке',
-  'landing.ways.cloudText': 'До 3 атриумов по 10 МБ.',
+  'landing.ways.cloudText': 'До 3 атриумов, всего 50 МБ.',
   'landing.ways.desktop': "На вашем компьютере",
   'landing.ways.desktopDesc': "Каждый атриум это папка на вашем диске. Без ограничений, работает офлайн, а принесённые файлы могут оставаться связанными с оригиналами.",
   'landing.ways.desktopSolo': "Для работы в одиночку: атриумы на компьютере не публикуются.",

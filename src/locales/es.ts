@@ -2244,7 +2244,7 @@ const es: Catalogue = {
   'landing.ways.browser': 'En este navegador',
   'landing.ways.browserText': 'Sin cuenta: solo tuyo, en este dispositivo.',
   'landing.ways.cloud': 'En la nube',
-  'landing.ways.cloudText': 'Hasta 3 atrios de 10 MB cada uno.',
+  'landing.ways.cloudText': 'Hasta 3 atrios, 50 MB en total.',
   'landing.ways.desktop': "En tu ordenador",
   'landing.ways.desktopDesc': "Cada atrio es una carpeta en tu disco. Sin límites, funciona sin conexión, y los archivos que traes pueden seguir vinculados a sus originales.",
   'landing.ways.desktopSolo': "Pensado para trabajar a solas: los atrios de escritorio no se comparten.",
