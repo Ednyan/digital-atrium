@@ -28,6 +28,7 @@ export type Setting =
   | 'strokes'   // a drawing's stroke colour
   | 'light'     // the light it gives off; a glow along a path
   | 'bars'      // a sound's bars: their colour
+  | 'title'     // a frame's title: its font, size and weight
 
 // Everything drawn in the usual box: every trace that isn't a shape.
 const BOXED: readonly Setting[] = ['frame', 'captions', 'light']
@@ -43,7 +44,7 @@ export const SETTINGS: Record<TraceKind, readonly Setting[]> = {
   calendar: BOXED,
   audio: ['bars', ...BOXED],
   video: BOXED,
-  frame: ['frame', 'light'],
+  frame: ['frame', 'title', 'light'],
   shape: ['shape', 'link', 'light'],
   path: ['line', 'link', 'light'],
 }
@@ -68,6 +69,7 @@ export const SETTING_FIELDS: Record<Exclude<Setting, 'link' | 'strokes'>, readon
   light: ['illuminate', 'lightColor', 'lightIntensity', 'lightRadius', 'lightPulse', 'lightPulseSpeed', 'lightEmit'],
   // Kept in the shape's colour field, which a sound has no other use for.
   bars: ['shapeColor'],
+  title: ['fontFamily', 'fontSize', 'textBold', 'textItalic'],
 }
 
 // Every field of a trace's look, by its settings.

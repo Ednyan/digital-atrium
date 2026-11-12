@@ -1779,6 +1779,7 @@ const zh: Catalogue = {
   'atrium.customize.sectionStyle': '样式',
   'atrium.customize.sectionFill': '填充',
   'atrium.customize.sectionOutline': '轮廓',
+  'atrium.customize.sectionTitle': "标题",
   'atrium.customize.sectionText': '文本',
   'atrium.customize.sectionShape': '形状',
   'atrium.customize.sectionContent': '内容',

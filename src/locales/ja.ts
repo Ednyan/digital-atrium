@@ -1776,6 +1776,7 @@ const ja: Catalogue = {
   'atrium.customize.sectionStyle': 'スタイル',
   'atrium.customize.sectionFill': '塗り',
   'atrium.customize.sectionOutline': '輪郭',
+  'atrium.customize.sectionTitle': "タイトル",
   'atrium.customize.sectionText': 'テキスト',
   'atrium.customize.sectionShape': '図形',
   'atrium.customize.sectionContent': '内容',

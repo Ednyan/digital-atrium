@@ -306,3 +306,33 @@ export function arrowhead(tx: number, ty: number, fx: number, fy: number, size: 
 export function curveMiddle(ax: number, ay: number, cx: number, cy: number, bx: number, by: number) {
   return { x: 0.25 * ax + 0.5 * cx + 0.25 * bx, y: 0.25 * ay + 0.5 * cy + 0.25 * by }
 }
+
+// The look a thread was last given in its menu: every thread made after starts
+// from it, on this device, so a look isn't set again thread by thread.
+const LOOK_KEY = 'atrium.linkLook'
+const LOOK_FIELDS = ['arrow', 'color', 'width', 'labelOnHover', 'straight', 'toCenter', 'labelSize', 'elbow', 'opacity', 'strokeStyle'] as const
+export type LinkLook = Partial<Pick<TraceLink, typeof LOOK_FIELDS[number]>>
+
+/** What of `patch` is look, remembered over what was. */
+export function rememberLinkLook(patch: Partial<TraceLink>) {
+  const look = Object.fromEntries(LOOK_FIELDS.filter(field => field in patch).map(field => [field, patch[field]]))
+  if (Object.keys(look).length === 0) return
+  try { localStorage.setItem(LOOK_KEY, JSON.stringify({ ...lastLinkLook(), ...look })) } catch { /* only a convenience */ }
+}
+
+/** The look remembered, each part checked: what isn't one is left out. */
+export function lastLinkLook(): LinkLook {
+  let kept: Record<string, unknown>
+  try { kept = JSON.parse(localStorage.getItem(LOOK_KEY) || '{}') } catch { return {} }
+  if (!kept || typeof kept !== 'object') return {}
+  const look: LinkLook = {}
+  if (kept.arrow === 'none' || kept.arrow === 'forward' || kept.arrow === 'back' || kept.arrow === 'both') look.arrow = kept.arrow
+  if (kept.color === null || (typeof kept.color === 'string' && /^#[0-9a-f]{6}$/i.test(kept.color))) look.color = kept.color as string | null
+  for (const field of ['width', 'labelSize', 'opacity'] as const) {
+    const value = kept[field]
+    if (typeof value === 'number' && Number.isFinite(value) && value > 0) look[field] = field === 'opacity' ? Math.min(1, value) : value
+  }
+  for (const field of ['labelOnHover', 'straight', 'toCenter', 'elbow'] as const) if (typeof kept[field] === 'boolean') look[field] = kept[field] as boolean
+  if (kept.strokeStyle === 'solid' || kept.strokeStyle === 'dashed' || kept.strokeStyle === 'dotted') look.strokeStyle = kept.strokeStyle
+  return look
+}

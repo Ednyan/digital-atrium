@@ -1782,6 +1782,7 @@ const ru: Catalogue = {
   'atrium.customize.sectionStyle': 'Стиль',
   'atrium.customize.sectionFill': 'Заливка',
   'atrium.customize.sectionOutline': 'Контур',
+  'atrium.customize.sectionTitle': "Заголовок",
   'atrium.customize.sectionText': 'Текст',
   'atrium.customize.sectionShape': 'Фигура',
   'atrium.customize.sectionContent': 'Содержимое',

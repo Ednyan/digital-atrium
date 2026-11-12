@@ -1779,6 +1779,7 @@ const de: Catalogue = {
   'atrium.customize.sectionStyle': 'Stil',
   'atrium.customize.sectionFill': 'Füllung',
   'atrium.customize.sectionOutline': 'Umriss',
+  'atrium.customize.sectionTitle': "Titel",
   'atrium.customize.sectionText': 'Text',
   'atrium.customize.sectionShape': 'Form',
   'atrium.customize.sectionContent': 'Inhalt',

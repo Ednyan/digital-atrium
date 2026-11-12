@@ -1780,6 +1780,7 @@ const ko: Catalogue = {
   'atrium.customize.sectionStyle': '스타일',
   'atrium.customize.sectionFill': '채우기',
   'atrium.customize.sectionOutline': '윤곽선',
+  'atrium.customize.sectionTitle': "제목",
   'atrium.customize.sectionText': '텍스트',
   'atrium.customize.sectionShape': '도형',
   'atrium.customize.sectionContent': '내용',

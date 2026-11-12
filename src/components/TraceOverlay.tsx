@@ -44,7 +44,7 @@ import { privately, throughRelay, toEmbedUrl, withPlayerApi } from '../lib/embed
 import { compareOrder, drawRanks, groupIdOf, inOrder, keyAt, keysAt, keysBetween, keysOnTop, keysOnTopOfGroup, reorder, siblingsOf, topLevel, type Ordered } from '../lib/order'
 import { createGroup, letGoUnderSlots, reloadLayers, writeGroupKey, writeGroupTemplate } from '../hooks/useLayers'
 import { buildTraceInsertRow } from '../lib/traceInsert'
-import { boxInside, fillCrop, frameAround, frameAt, heldBy, isArranged, isFrame, isSlot, masonry, outOfSlot, slotLook, SLOT_FITS, SLOT_FIT_WORDS, underTheirSlots, newFrame, placeUnits, putInFrame, readingOrder, slotPlacement, unitBox, unitMiddle, unitsOf, withHeld, type FrameBox, type SlotFit } from '../lib/frames'
+import { boxInside, fillCrop, frameAround, frameTitleFont, FRAME_TITLE_SIZE, frameAt, heldBy, isArranged, isFrame, isSlot, masonry, outOfSlot, slotLook, SLOT_FITS, SLOT_FIT_WORDS, underTheirSlots, newFrame, placeUnits, putInFrame, readingOrder, slotPlacement, unitBox, unitMiddle, unitsOf, withHeld, type FrameBox, type SlotFit } from '../lib/frames'
 import { APPLY_COLOUR_EVENT, type ApplyColour } from '../lib/palette'
 import { ELBOW_RADIUS, elbowRoute, lineCrosses } from '../lib/elbow'
 import { alignedHandle, boxHolds, borderMarks, handlesAt, pathLine, pathOutline, pointBetween, shiftPoints, snapToBorder, type PathCurve, type PathPoint, type TurnedBox } from '../lib/pathGeometry'
@@ -74,7 +74,7 @@ import { fileName, followed, stopFollowing, watchFollowing } from '../lib/liveFi
 import { asStrokeData, drawingOf, isDrawingTrace, strokeDensity, strokesIn } from '../lib/brushes'
 import { changeStrokes, rasterizeDrawings, splitDrawing } from '../lib/drawingFiles'
 import { extractPages } from '../lib/pdfTraces'
-import { DEFAULT_LABEL_SIZE, DEFAULT_LINK_OPACITY, DEFAULT_LINK_WIDTH, boxCrosses, joins, threadCrosses, type Box, type TraceLink, boxInLasso, lineInLasso, threadInLasso } from '../lib/traceLinks'
+import { DEFAULT_LABEL_SIZE, DEFAULT_LINK_OPACITY, DEFAULT_LINK_WIDTH, lastLinkLook, rememberLinkLook, boxCrosses, joins, threadCrosses, type Box, type TraceLink, boxInLasso, lineInLasso, threadInLasso } from '../lib/traceLinks'
 import TraceLinksLayer, { LinkMenu, type LinkEnd } from './TraceLinksLayer'
 import RotateHandles from './RotateHandles'
 import StrokeStyleField from './StrokeStyleField'
@@ -443,6 +443,9 @@ function VaultWriteBar({ url }: { url: string }) {
 // when it's shown again.
 let pointerAt: { x: number; y: number } | null = null
 
+// What can be pressed: under the pointer, the cursor is the plain arrow (OwnCursor).
+const PRESSABLE = 'button, a[href], input, select, textarea, label, summary, [role="button"], [role="menuitem"], [role="switch"], [role="tab"], [role="option"]'
+
 function OwnCursor({ hidden, zIndex, pointerInWindow, crosshair, pan }: {
   hidden: boolean
   zIndex: number
@@ -460,6 +463,10 @@ function OwnCursor({ hidden, zIndex, pointerInWindow, crosshair, pan }: {
   // Whether the pointer is over the canvas; a render only when that changes.
   const [overCanvas, setOverCanvas] = useState(true)
   const overCanvasRef = useRef(true)
+  // Whether it's over something to press -- a button, a link, a field -- which
+  // shows the plain arrow even inside a trace, never the four arrows of moving it.
+  const [overPressable, setOverPressable] = useState(false)
+  const overPressableRef = useRef(false)
   // Unseen until the pointer has been somewhere, rather than in the corner.
   const putAtPointer = (el: HTMLDivElement | null) => {
     if (!el) return
@@ -478,6 +485,8 @@ function OwnCursor({ hidden, zIndex, pointerInWindow, crosshair, pan }: {
       pointerAt = { x: e.clientX, y: e.clientY }
       const onCanvas = isCanvasTarget(e.target)
       if (onCanvas !== overCanvasRef.current) setOverCanvas(overCanvasRef.current = onCanvas)
+      const pressable = !!(e.target as Element | null)?.closest?.(PRESSABLE)
+      if (pressable !== overPressableRef.current) setOverPressable(overPressableRef.current = pressable)
       for (const el of [elRef.current, edgeRef.current]) {
         if (!el) continue
         el.style.visibility = ''
@@ -543,7 +552,7 @@ function OwnCursor({ hidden, zIndex, pointerInWindow, crosshair, pan }: {
           <path d={PAN_ICON} fill="none" stroke={playerColor} strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       )
-    } else if (cursorState === 'pointer' || (pan && overCanvas)) {
+    } else if ((cursorState === 'pointer' && !overPressable) || (pan && overCanvas)) {
       // Four arrows, centred on the point: over a trace, that it can be
       // moved; with Move the view, that the view will be (the readout's
       // PAN_ICON). It was a drop of paint, which said neither.
@@ -2957,6 +2966,7 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
     const after = before.map(l => ({ ...l, ...patch }))
     for (const link of after) putLink(link)
     pushLinksOp(before, after, true)
+    rememberLinkLook(patch)
   }
 
   // An elbow's middle run dragged (TraceLinksLayer): shown as it goes, and
@@ -3017,7 +3027,8 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
     for (const from of sources) {
       // Not to itself, and not twice: one thread per pair, either way round.
       if (from === target || existing.some(l => joins(l, from, target)) || made.some(l => joins(l, from, target))) continue
-      made.push({ id: crypto.randomUUID(), lobbyId, from, to: target, arrow: 'none', color: null, width: DEFAULT_LINK_WIDTH, label: '', labelOnHover: false, straight: false, toCenter: false, labelSize: DEFAULT_LABEL_SIZE, elbow: false, elbowAt: 0.5, opacity: DEFAULT_LINK_OPACITY })
+      // In the look last given a thread (lib/traceLinks lastLinkLook), over the usual one.
+      made.push({ arrow: 'none', color: null, width: DEFAULT_LINK_WIDTH, label: '', labelOnHover: false, straight: false, toCenter: false, labelSize: DEFAULT_LABEL_SIZE, elbow: false, elbowAt: 0.5, opacity: DEFAULT_LINK_OPACITY, ...lastLinkLook(), id: crypto.randomUUID(), lobbyId, from, to: target })
     }
     if (made.length === 0) return
     count('threads', made.length)
@@ -8233,22 +8244,26 @@ return (
             ))}
             {isSlot(trace) && !filledSlots.has(trace.id) && (
               // In the slot's own colour, as its dashed edge is: seen wherever that is (a photo card's light paper).
-              <div data-slot-hint="" className="absolute inset-0 grid place-items-center content-center gap-1 p-3 pointer-events-none text-center text-[11px] tracking-[0.12em] uppercase opacity-60" style={{ color: trace.borderColor || undefined }}>
-                <span>{t('templates.slotDrop')}</span>
-                {/* How what's dropped in will take its size: seen before there's anything to see it on. */}
-                <span data-slot-mode="" className="text-[10px] normal-case tracking-normal opacity-80">{t(SLOT_FIT_WORDS[trace.frameArrange as SlotFit][0])} · {t(SLOT_FIT_WORDS[trace.frameArrange as SlotFit][1])}</span>
+              // Its words sized by the slot (container units), never past their usual size nor
+              // out of it: a fixed size on screen spilled far over a slot seen from afar.
+              <div data-slot-hint="" className="absolute inset-0 overflow-hidden pointer-events-none opacity-60" style={{ color: trace.borderColor || undefined, containerType: 'size' }}>
+                <div className="h-full grid place-items-center content-center text-center uppercase tracking-[0.12em]" style={{ gap: 'min(4px, 1.5cqh)', padding: 'min(12px, 5cqw, 5cqh)', fontSize: 'min(11px, 5.5cqw, 10cqh)' }}>
+                  <span>{t('templates.slotDrop')}</span>
+                  {/* How what's dropped in will take its size: seen before there's anything to see it on. */}
+                  <span data-slot-mode="" className="normal-case tracking-normal opacity-80" style={{ fontSize: 'min(10px, 5cqw, 9cqh)' }}>{t(SLOT_FIT_WORDS[trace.frameArrange as SlotFit][0])} · {t(SLOT_FIT_WORDS[trace.frameArrange as SlotFit][1])}</span>
+                </div>
               </div>
             )}
             {!isSlot(trace) && <div
-              data-keeps-size=""
               data-frame-title=""
-              className="absolute pointer-events-auto cursor-move text-xs font-semibold whitespace-nowrap select-none"
+              className="absolute pointer-events-auto cursor-move whitespace-nowrap select-none leading-tight"
               style={{
                 left: 0,
                 top: 0,
                 // Its anchor, the bottom left, at its own 0 0: the corner.
                 transform: 'translateY(-100%)',
-                paddingBottom: '4px',
+                // In the world, as the frame is: its size its own (lib/frames frameTitleFont), not the screen's.
+                ...(() => { const font = frameTitleFont(displayTrace); return { fontFamily: font.family, fontSize: `${font.size * zoom}px`, fontWeight: font.bold ? 600 : 400, fontStyle: font.italic ? 'italic' : undefined, paddingBottom: `${4 * zoom}px` } })(),
                 color: isSelected ? selectionInk(atriumBackground) : isMultiSelected ? multiSelectionInk(atriumBackground) : borderColor,
               }}
               title={canEdit ? t('atrium.frame.renameHint') : undefined}
@@ -10184,6 +10199,29 @@ return (
             )}
             {contentSection}
 
+            {/* A frame's title: its font, size and weight, in the world as the frame is. */}
+            {has(editingTrace, 'title') && !isSlot(editingTrace) && (
+              <Section id="title" title={t('atrium.customize.sectionTitle')} summary={[FONT_FAMILY_OPTIONS.find(font => font.value === (editingTrace.fontFamily ?? 'mono'))?.label, `${frameTitleFont(editingTrace).size} px`].filter(Boolean).join(' · ')}>
+                <Row label={t('atrium.customize.fontFamily')}>
+                  <select
+                    value={editingTrace.fontFamily ?? 'mono'}
+                    onChange={e => change({ fontFamily: e.target.value })}
+                    className="w-full h-8 bg-nier-black text-nier-bg border border-nier-border/30 px-2 font-mono text-xs focus:outline-none focus:border-nier-border/60"
+                  >
+                    {FONT_FAMILY_OPTIONS.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}
+                  </select>
+                </Row>
+                <Row label={t('atrium.customize.fontSize')}>
+                  <FontSizeField min={6} max={400} value={frameTitleFont(editingTrace).size} onChange={fontSize => change({ fontSize })} placeholder={String(FRAME_TITLE_SIZE)} />
+                </Row>
+                <Row label={t('atrium.customize.textStyle')}>
+                  <div className="flex gap-1">
+                    <ChoiceButton on={frameTitleFont(editingTrace).bold} title="Bold" className="font-bold normal-case text-xs" onClick={() => change({ textBold: !frameTitleFont(editingTrace).bold })}>B</ChoiceButton>
+                    <ChoiceButton on={!!editingTrace.textItalic} title="Italic" className="italic normal-case text-xs" onClick={() => change({ textItalic: !editingTrace.textItalic })}>I</ChoiceButton>
+                  </div>
+                </Row>
+              </Section>
+            )}
             {has(editingTrace, 'font') && (
               <Section
                 id="text"

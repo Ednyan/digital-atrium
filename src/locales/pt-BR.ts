@@ -1780,6 +1780,7 @@ const ptBR: Catalogue = {
   'atrium.customize.sectionStyle': 'Estilo',
   'atrium.customize.sectionFill': 'Preenchimento',
   'atrium.customize.sectionOutline': 'Contorno',
+  'atrium.customize.sectionTitle': "Título",
   'atrium.customize.sectionText': 'Texto',
   'atrium.customize.sectionShape': 'Forma',
   'atrium.customize.sectionContent': 'Conteúdo',

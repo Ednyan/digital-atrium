@@ -1730,6 +1730,7 @@ export const en = {
   'atrium.customize.sectionStyle': 'Style',
   'atrium.customize.sectionFill': 'Fill',
   'atrium.customize.sectionOutline': 'Outline',
+  'atrium.customize.sectionTitle': "Title",
   'atrium.customize.sectionText': 'Text',
   'atrium.customize.sectionShape': 'Shape',
   'atrium.customize.sectionContent': 'Content',

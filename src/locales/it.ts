@@ -1780,6 +1780,7 @@ const it: Catalogue = {
   'atrium.customize.sectionStyle': 'Stile',
   'atrium.customize.sectionFill': 'Riempimento',
   'atrium.customize.sectionOutline': 'Contorno',
+  'atrium.customize.sectionTitle': "Titolo",
   'atrium.customize.sectionText': 'Testo',
   'atrium.customize.sectionShape': 'Forma',
   'atrium.customize.sectionContent': 'Contenuto',

@@ -33,7 +33,7 @@ import { embedSourcesIn, youtubeId } from './embedUrl'
 import { customFontUrl } from './customFonts'
 import { isPathTrace, pathWorldBounds } from './pathBounds'
 import { cropOf } from './traceCrop'
-import { isSlot, slotLook } from './frames'
+import { frameTitleFont, isSlot, slotLook } from './frames'
 import { chartSvg, sheetFile, sheetRows, sheetSvg, atriumChartLook } from './sheetDraw'
 import { deckFile, deckSvg, isDeckFile, slidePictures } from './deckDraw'
 import { currentLanguage } from './i18n'
@@ -725,7 +725,7 @@ function drawBoxed(p: Painter, item: Prepared, measure: CanvasRenderingContext2D
   p.pop()
   // A frame's title, over its top-left corner. A slot has none.
   if (trace.type === 'frame' && trace.content && !isSlot(trace)) {
-    p.text(trace.content, -bw / 2 - border, -bh / 2 - border - 4, { family: 'sans-serif', size: 12, bold: true }, borderColour, 'left')
+    p.text(trace.content, -bw / 2 - border, -bh / 2 - border - 4, frameTitleFont(trace), borderColour, 'left')
   }
   p.pop()
 }
@@ -834,7 +834,7 @@ export async function exportImage(traces: Trace[], links: TraceLink[], layers: L
       take(box.minX, box.minY)
       take(box.maxX, box.maxY)
       // A frame's title above it.
-      if (trace.type === 'frame' && trace.content && !isSlot(trace)) take(box.minX, box.minY - 18)
+      if (trace.type === 'frame' && trace.content && !isSlot(trace)) take(box.minX, box.minY - frameTitleFont(trace).size - 6)
     }
     const box = traceBox(trace, size)
     ends.set(trace.id, { x: box.cx, y: box.cy, hw: box.halfW, hh: box.halfH, turn: box.turn, colour: trace.borderColor || borderColourOf(trace.type) })

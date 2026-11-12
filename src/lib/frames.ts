@@ -16,6 +16,7 @@
 // which reads as no frame; undo brings the frame back holding what it held.
 
 import type { Trace } from '../types/database'
+import { resolveFontFamilyCss } from './textFit.ts'
 
 export interface FrameBox {
   cx: number
@@ -62,7 +63,23 @@ export function newFrame(
     fillColor: colours.fill,
     borderWidth: 2,
     borderRadius: 8,
+    // Its title's look (frameTitleFont): the Atrium's monospace, bold.
+    fontFamily: 'mono',
+    fontSize: FRAME_TITLE_SIZE,
+    textBold: true,
     orderKey,
+  }
+}
+
+/** A frame's title: in its text's font, size (world units: it grows and shrinks
+ *  with the frame) and weight -- on the canvas and in an export alike. */
+export const FRAME_TITLE_SIZE = 14
+export function frameTitleFont(trace: Pick<Trace, 'fontFamily' | 'fontSize' | 'textBold' | 'textItalic'>) {
+  return {
+    family: resolveFontFamilyCss(trace.fontFamily ?? 'mono'),
+    size: typeof trace.fontSize === 'number' && trace.fontSize > 0 ? trace.fontSize : FRAME_TITLE_SIZE,
+    bold: trace.textBold ?? true,
+    italic: !!trace.textItalic,
   }
 }
 

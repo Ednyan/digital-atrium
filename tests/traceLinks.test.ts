@@ -154,3 +154,16 @@ test('a lasso takes what it goes round, its middle or a corner; a frame only who
   assert.equal(threadInLasso(box(-50, 50), box(150, 50), square, true), true)
   assert.equal(threadInLasso(box(-50, 150), box(150, 150), square, true), false)
 })
+
+test('a thread\'s look is remembered for the next, each part checked', async () => {
+  const kept = new Map<string, string>()
+  ;(globalThis as any).localStorage = { getItem: (k: string) => kept.get(k) ?? null, setItem: (k: string, v: string) => kept.set(k, v) }
+  const { lastLinkLook, rememberLinkLook } = await import('../src/lib/traceLinks.ts')
+  assert.deepEqual(lastLinkLook(), {})
+  rememberLinkLook({ arrow: 'forward', width: 3, label: 'not a look' })
+  rememberLinkLook({ color: '#ff8a3d', elbow: true })
+  assert.deepEqual(lastLinkLook(), { arrow: 'forward', color: '#ff8a3d', width: 3, elbow: true })
+  kept.set('atrium.linkLook', JSON.stringify({ arrow: 'sideways', width: -2, opacity: 9, strokeStyle: 'dashed' }))
+  assert.deepEqual(lastLinkLook(), { opacity: 1, strokeStyle: 'dashed' })
+  delete (globalThis as any).localStorage
+})
