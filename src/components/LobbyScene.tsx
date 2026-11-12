@@ -61,6 +61,7 @@ import { hasTransparency } from '../lib/imageAlpha'
 import { exrOrigin, isExr, withExrAsPng } from '../lib/exr'
 import { isModelFile, MODEL_ACCEPT, modelOrigin, withModelsAsPng } from '../lib/model3d'
 import { isCalendarFile, keepCalendarFile, readCalendar } from '../lib/calendar'
+import { asCalendarLink, fetchCalendarText, keepLinkedCalendar, looksLikeCalendarLink } from '../lib/calendarLink'
 import { asStrokeData, BUILTIN_BRUSHES, customBrushKey, drawingOf, drawPlacedPicture, drawStroke, erasePicture, eraseStrokeData, fitBox, localToWorldDelta, strokeToLocal, isCustomBrush, makeBrushTip, newStrokeSeed, rasterizeStroke, registerCustomBrush, type CustomBrush, type Piece, type Stroke, type StrokeData, type StrokePoint } from '../lib/brushes'
 import { createWheelGestures } from '../lib/canvasGestures'
 import { PINTEREST_CONNECTED_EVENT, getPinterestConnectionStatus, importAfterPinterestConnect, isPin, takeImportAfterPinterestConnect } from '../lib/pinterest'
@@ -3239,6 +3240,11 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
       return true
     }
     const text = data.getData('text/plain').trim()
+    // A calendar's iCal address: a calendar that follows it (lib/calendarLink).
+    if (looksLikeCalendarLink(text)) {
+      void placeLinkedCalendar(text, at)
+      return true
+    }
     // A site's embed code: where its frames point (lib/embedUrl).
     const framed = /<iframe\b/i.test(text) ? embedSourcesIn(text) : null
     const words = text.split(/\s+/).filter(Boolean)
@@ -4515,6 +4521,25 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
   // a point. Shared by the drop handler and the Create Trace panel's file
   // picker, so selecting six images in the picker lands them exactly as
   // dragging the same six in would.
+  // A calendar from its iCal address: read now, placed with what it reads as its
+  // file (shown when the address can't be read), and following the address after.
+  const placeLinkedCalendar = async (text: string, at: { x: number; y: number }) => {
+    const link = asCalendarLink(text)
+    if (!link) return
+    try {
+      const ics = await fetchCalendarText(link)
+      const read = await readCalendar(ics)
+      if (!ensureLobbyHasSpace()) return
+      const url = await uploadFile(new File([ics], 'calendar.ics', { type: 'text/calendar' }))
+      keepCalendarFile(url, ics)
+      keepLinkedCalendar(link, read)
+      await insertDroppedTrace('calendar', read.name ?? new URL(link).hostname, url, at.x, at.y, undefined, undefined, undefined, { calendar: { view: 'month', link } })
+    } catch (error) {
+      console.error('Calendar link unreadable:', error)
+      showToast(t('atrium.error.calendarLinkUnreadable'))
+    }
+  }
+
   const placeFilesAsTraces = async (files: File[], worldX: number, worldY: number) => {
     // A calendar (.ics) is a calendar trace, read here first: one that isn't a
     // calendar is said so, not placed as its text.

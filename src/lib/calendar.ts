@@ -9,7 +9,8 @@ import { ATRIUM_FONT, atriumInk } from './atriumLook.ts'
 import type { Trace } from '../types/database'
 
 export type CalendarView = 'month' | 'week'
-export interface CalendarSettings { view: CalendarView }
+// `link`: an iCal address it follows (lib/calendarLink), read again as it's shown.
+export interface CalendarSettings { view: CalendarView; link?: string }
 export interface Occurrence { title: string; start: Date; end: Date; allDay: boolean }
 export interface Calendar { name: string | null; between(from: Date, to: Date): Occurrence[] }
 
@@ -20,8 +21,27 @@ export const isCalendarFile = (file: { name: string }) => /\.ics$/i.test(file.na
 export function asCalendarSettings(raw: unknown): CalendarSettings | undefined {
   const value = typeof raw === 'string' ? (() => { try { return JSON.parse(raw) } catch { return null } })() : raw
   if (!value || typeof value !== 'object') return undefined
-  return { view: (value as { view?: unknown }).view === 'week' ? 'week' : 'month' }
+  const link = (value as { link?: unknown }).link
+  return {
+    view: (value as { view?: unknown }).view === 'week' ? 'week' : 'month',
+    ...(typeof link === 'string' && /^https?:\/\/\S+$/i.test(link) && link.length < 2048 ? { link } : {}),
+  }
 }
+
+/** An address as one a calendar can be read from: webcal:// as https://, or null. */
+export function asCalendarLink(text: string): string | null {
+  const link = text.trim().replace(/^webcal:/i, 'https:')
+  try {
+    const url = new URL(link)
+    return url.protocol === 'https:' || url.protocol === 'http:' ? url.toString() : null
+  } catch {
+    return null
+  }
+}
+
+/** Whether a pasted address is plainly a calendar's: webcal://, an .ics, Google's or Outlook's iCal address. */
+export const looksLikeCalendarLink = (text: string) =>
+  /^webcal:\/\/\S+$/i.test(text.trim()) || (/^https?:\/\/\S+$/i.test(text.trim()) && (/\.ics([?#]|$)/i.test(text.trim()) || /calendar\.google\.com\/calendar\/ical\//i.test(text)))
 
 // ---- Reading ---------------------------------------------------------------------
 

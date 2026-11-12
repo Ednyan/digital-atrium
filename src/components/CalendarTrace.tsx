@@ -4,7 +4,8 @@
 // which month or week, this screen's alone -- it opens on today's.
 
 import { useEffect, useMemo, useState, type CSSProperties } from 'react'
-import { calendarFile, calendarLook, calendarSvg, daysShown, HEADER, stepped, weekStartFor, type Calendar, type CalendarView } from '../lib/calendar'
+import { calendarLook, calendarSvg, daysShown, HEADER, stepped, weekStartFor, type Calendar, type CalendarView } from '../lib/calendar'
+import { calendarOf } from '../lib/calendarLink'
 import { baseSizeOf } from '../lib/traceGeometry'
 import { useTranslation } from '../lib/i18n'
 import type { Trace } from '../types/database'
@@ -20,17 +21,25 @@ export default function CalendarTrace({ trace, onView }: {
   const { t, language } = useTranslation()
   // Undefined while it's read; null when it can't be.
   const [calendar, setCalendar] = useState<Calendar | null | undefined>(undefined)
+  // Its link's calendar as it is now, where it follows one; its file's otherwise.
+  const link = trace.calendar?.link
+  const [again, setAgain] = useState(0)
+  const [reading, setReading] = useState(false)
   useEffect(() => {
     const url = trace.mediaUrl
-    if (!url) { setCalendar(null); return }
+    if (!url && !link) { setCalendar(null); return }
     let live = true
-    const load = () => void calendarFile(url).then(read => { if (live) setCalendar(read) })
-    load()
+    const load = (fresh = false) => {
+      setReading(true)
+      void calendarOf({ mediaUrl: url, calendar: trace.calendar }, fresh).then(read => { if (live) { setCalendar(read); setReading(false) } })
+    }
+    load(again > 0)
     // A file still being written to the vault is read again once it's there.
     const written = (e: Event) => { if ((e as CustomEvent).detail?.localUrl === url) load() }
     window.addEventListener('atrium:vault-write-complete', written)
     return () => { live = false; window.removeEventListener('atrium:vault-write-complete', written) }
-  }, [trace.mediaUrl])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trace.mediaUrl, link, again])
 
   const [anchor, setAnchor] = useState(() => new Date())
   const [ownView, setOwnView] = useState<CalendarView | null>(null)
@@ -73,6 +82,11 @@ export default function CalendarTrace({ trace, onView }: {
         onTouchStart={keep}
         onDoubleClick={keep}
       >
+        {link && (
+          <button type="button" data-calendar-refresh="" aria-label={t('atrium.calendar.refresh')} title={t('atrium.calendar.refresh')} className={BUTTON} style={button} disabled={reading} onClick={() => setAgain(n => n + 1)}>
+            <span className={reading ? 'inline-block animate-spin' : 'inline-block'}>↻</span>
+          </button>
+        )}
         <button type="button" data-calendar-back="" aria-label={t('atrium.calendar.back')} title={t('atrium.calendar.back')} className={BUTTON} style={button} onClick={() => setAnchor(at => stepped(view, at, -1))}>‹</button>
         <button type="button" data-calendar-today="" className={BUTTON} style={button} onClick={() => setAnchor(new Date())}>{t('atrium.calendar.today')}</button>
         <button type="button" data-calendar-next="" aria-label={t('atrium.calendar.next')} title={t('atrium.calendar.next')} className={BUTTON} style={button} onClick={() => setAnchor(at => stepped(view, at, 1))}>›</button>

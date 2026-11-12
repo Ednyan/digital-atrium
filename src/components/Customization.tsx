@@ -17,7 +17,7 @@ import type { Trace } from '../types/database'
 import { MenuIcon, SlideLabel } from './AtriumMenu'
 import { useGamePick } from '../store/gameStore'
 
-export type SectionId = 'values' | 'slots' | 'name' | 'title' | 'model' | 'motion' | 'style' | 'fill' | 'outline' | 'text' | 'shape' | 'content' | 'effects' | 'size' | 'brush' | 'colour' | 'stroke' | 'exr' | 'look'
+export type SectionId = 'values' | 'slots' | 'name' | 'title' | 'model' | 'motion' | 'calendar' | 'style' | 'fill' | 'outline' | 'text' | 'shape' | 'content' | 'effects' | 'size' | 'brush' | 'colour' | 'stroke' | 'exr' | 'look'
   | 'background' | 'border' | 'shadow' | 'light' | 'captions' | 'arrange'
   // Atrium Themes (ThemeCustomization).
   | 'presets' | 'mine' | 'grid' | 'room' | 'particles' | 'ground'

@@ -384,8 +384,9 @@ async function sheetPicture(trace: Trace, density: number): Promise<Picture | nu
 
 // A calendar as it's shown: its month or week of today.
 async function calendarPicture(trace: Trace, density: number): Promise<Picture | null> {
-  const { calendarFile, calendarLook, calendarSvg, daysShown, weekStartFor } = await import('./calendar')
-  const calendar = trace.mediaUrl ? await calendarFile(trace.mediaUrl) : null
+  const { calendarLook, calendarSvg, daysShown, weekStartFor } = await import('./calendar')
+  const { calendarOf } = await import('./calendarLink')
+  const calendar = await calendarOf(trace)
   if (!calendar) return null
   const { width, height } = baseSizeOf(trace)
   const view = trace.calendar?.view ?? 'month', language = currentLanguage(), now = new Date(), weekStart = weekStartFor(language)

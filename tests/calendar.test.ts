@@ -74,3 +74,17 @@ test('settings read only as one', () => {
   assert.deepEqual(asCalendarSettings('{"view":"nonsense"}'), { view: 'month' })
   assert.equal(asCalendarSettings(null), undefined)
 })
+
+test('a calendar address, known as one and read as one', async () => {
+  const { asCalendarLink, looksLikeCalendarLink } = await import('../src/lib/calendar.ts')
+  assert.equal(asCalendarLink(' webcal://p01-caldav.icloud.com/published/2/abc '), 'https://p01-caldav.icloud.com/published/2/abc')
+  assert.equal(asCalendarLink('ftp://x/y.ics'), null)
+  assert.equal(asCalendarLink('not a link'), null)
+  assert.ok(looksLikeCalendarLink('https://calendar.google.com/calendar/ical/abc%40group.calendar.google.com/private-123/basic.ics'))
+  assert.ok(looksLikeCalendarLink('webcal://example.org/team'))
+  assert.ok(looksLikeCalendarLink('https://outlook.office365.com/owa/calendar/x/y/calendar.ics'))
+  assert.ok(!looksLikeCalendarLink('https://example.org/page'))
+  assert.ok(!looksLikeCalendarLink('see https://example.org/a.ics today'))
+  assert.deepEqual(asCalendarSettings({ view: 'week', link: 'https://e.org/c.ics' }), { view: 'week', link: 'https://e.org/c.ics' })
+  assert.deepEqual(asCalendarSettings({ view: 'month', link: 'javascript:alert(1)' }), { view: 'month' })
+})

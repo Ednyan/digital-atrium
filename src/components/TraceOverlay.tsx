@@ -95,6 +95,7 @@ import { overPanel, panelDrop } from '../lib/panelDrop'
 import { firstFreeName } from '../lib/traceNames'
 import SheetTrace from './SheetTrace'
 import CalendarTrace from './CalendarTrace'
+import CalendarLinkSection from './CalendarLinkSection'
 import ExrGradePanel from './ExrGradePanel'
 import LookFilter, { LookControls } from './LookFilter'
 import { isNeutral, NEUTRAL_LOOK, takesLook, takesWiggle, DEFAULT_WIGGLE } from '../lib/traceLook'
@@ -10241,6 +10242,12 @@ return (
             )}
             {contentSection}
 
+            {/* A calendar's iCal address: followed, or let go of. */}
+            {editingTrace.type === 'calendar' && (
+              <Section id="calendar" title={t('atrium.trace.type.calendar')} summary={editingTrace.calendar?.link ? t('atrium.calendar.following') : null}>
+                <CalendarLinkSection settings={editingTrace.calendar ?? { view: 'month' }} onChange={calendar => change({ calendar })} />
+              </Section>
+            )}
             {/* A 3D model's light and colour: its still made again from them. */}
             {isModelTrace(editingTrace) && (
               <Section id="model" title={t('atrium.model.badge')} summary={t(`atrium.model.light.${(editingTrace.model?.look ?? DEFAULT_LOOK).light}` as TranslationKey)}>
