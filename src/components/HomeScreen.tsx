@@ -80,7 +80,7 @@ const HERO_HEIGHT = 'sm:h-[clamp(14rem,34vh,21rem)]'
 const RECENT_PLACES = 4
 // Home's tiles: big for making, finding and learning one's atriums, smaller for files and help.
 const TILE = 'welcome-action hall-ground flex items-center gap-3.5 w-full px-4 text-left border uppercase leading-snug'
-const TILE_BIG = 'min-h-[4rem] py-2.5 border-nier-border/50 hover:border-nier-border/90 text-[12px] tracking-[0.16em] text-nier-strong'
+const TILE_BIG = 'min-h-[4rem] py-2.5 border-nier-border/50 hover:border-nier-border/90 text-[13px] tracking-[0.16em] text-nier-strong'
 const TILE_SMALL = 'min-h-[3.25rem] py-2 gap-3 border-nier-border/35 hover:border-nier-border/80 text-[11px] tracking-[0.14em] text-nier-bg/85 hover:text-nier-strong'
 const TILE_MARK = 'flex items-center justify-center w-9 h-9 shrink-0'
 // Drawn on a 24 grid.
@@ -101,7 +101,7 @@ const BigTileWords = ({ icon, label, note, filled = false }: { icon: string; lab
   <>
     <span className={`${TILE_MARK} ${filled ? 'bg-nier-strong text-nier-black' : 'border border-nier-border/40'}`}><TileIcon d={icon} /></span>
     <span className="min-w-0">
-      <span className="block">{label}</span>
+      <span className="block font-medium">{label}</span>
       <span data-tile-note="" className="block mt-1 truncate normal-case text-[11px] tracking-[0.03em] text-nier-bg/70">{note}</span>
     </span>
   </>
