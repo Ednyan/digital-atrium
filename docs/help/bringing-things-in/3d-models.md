@@ -46,17 +46,20 @@ it > **Turn in 3D**.
 | Your last move back, or on again | **Ctrl+Z**, **Ctrl+Shift+Z** |
 | A picture of this view, beside it | **Snapshot** |
 | Back to how it arrived | **Reset view** |
-| Keep this view | **Done**, **Escape**, or click anywhere else |
+| Posing, moving its parts, everything else | **More tools** |
+| Keep this view | **Escape**, or click anywhere else |
 
-Done, the model's picture becomes the new view: one step, **Ctrl+Z** takes it
-back. Only one model turns at a time.
+Above it: **Snapshot**, **Reset view** and **More tools**; what dragging does
+shows at the foot of the screen. Let go, the model's picture becomes the new
+view: one step, **Ctrl+Z** takes it back. Only one model turns at a time.
 
-**Full screen** takes it out of its box onto the whole window, to work on it
-there; **Back to the trace**, **Escape** or a click beside it puts it back.
+**More tools** takes it out of its box onto the whole window, with all of its
+tools. **Back to the trace**, **Escape** or a click beside it puts it back in its
+box, still turning; **Done** keeps what you did and lets go.
 
 ## Move, turn or scale it
 
-The strip of tools down its left, while it's turning:
+In **More tools**, the strip of tools down its left:
 
 | Tool | What dragging does |
 |---|---|
@@ -73,8 +76,8 @@ every part back as it came. **Done** keeps them with the view: one step,
 
 ## Pose it
 
-A model with a skeleton (a rigged character, an armature) shows **Pose** while
-it's turning. Press it: its joints show as dots, its root is chosen, and the
+A model with a skeleton (a rigged character, an armature) shows **Pose** in
+**More tools**. Press it: its joints show as dots, its root is chosen, and the
 tools work on joints.
 
 | You want | Do this |
@@ -99,6 +102,10 @@ elbow bends toward it. Click it, then drag its arrows to set which way the limb
 bends; the hand or foot stays where it is. A straight knee starts bending
 forward, a straight elbow back. With IK off, **Move** moves the joint alone.
 
+**Hide gizmos** (while posing or moving) hides the arrows and rings to see the
+model clean; its joints still show, and can still be chosen. **Show gizmos**
+brings them back.
+
 **Done** keeps the pose with the view: one step, **Ctrl+Z** takes it back. Its
 picture, and any new one made by its light or colour, shows it posed.
 
@@ -110,8 +117,8 @@ Customize it, then the **3D model** section:
 |---|---|
 | **Light** | **Studio**, **Soft**, **Sun** or **Night** (a cold light from behind it) |
 | **Exposure** | Brighter or darker; kept when you let go |
-| **Textures** | On, the pictures on its surfaces show; off, it's all one material. On by default when it came with textures |
-| **Colour** | With its textures off: its colour. **Reset** gives its parts their own back |
+| **Its own colours and textures** | On (at first), its parts' own colours and pictures show; off, it's all one colour |
+| **Colour** | With its own colours off: that one colour (grey until you pick one) |
 | **Choose a model file…** | Another model in its place (with its textures, chosen together) |
 
 Each change makes its picture again: one step, **Ctrl+Z** takes it back. While
@@ -122,8 +129,9 @@ it's turning, you see the change there too.
 - A .gltf missing its .bin can't be read: drop the .bin with it, or export it as **.glb**, one file.
 - A Draco-compressed model can't be read yet.
 - An FBX older than 7.0 (some Mixamo downloads are 6.1) can't be read: download it again as **FBX for Unity** or **Collada (.dae)**, or export it as **.glb**.
-- A VRM shows as plainly lit as any model: its toon shading, expressions and swinging hair aren't read.
-- An .obj without its .mtl, an .stl, or any model without textures is grey, its textures off: give it a **Colour**.
+- A VRM shows toon-shaded, outlined, as its maker made it; its expressions and swinging hair don't play. Its bones are the ones the VRM names, so **Poses** work on it.
+- An .stl has no colours of its own: it's grey, its own colours off; give it a **Colour**.
+- Made wider or taller, a model's box shows the model as it is, never stretched.
 - Animations don't play: a model shows its rest pose, or the pose you give it.
 - Everything else a picture can do (crop, flip, export) works on it, from its picture. See [Pictures](pictures.md).
 

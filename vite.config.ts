@@ -33,7 +33,7 @@ export default defineConfig({
   optimizeDeps: {
     // three's parts a 3D model trace fetches only when it's used (lib/model3d): bundled
     // up front, or the dev server finds them mid-session and serves a stale copy.
-    include: ['pixi.js', '@supabase/supabase-js', 'three', 'three/examples/jsm/loaders/GLTFLoader.js', 'three/examples/jsm/loaders/FBXLoader.js', 'three/examples/jsm/loaders/OBJLoader.js', 'three/examples/jsm/loaders/STLLoader.js', 'three/examples/jsm/environments/RoomEnvironment.js', 'three/examples/jsm/controls/OrbitControls.js', 'three/examples/jsm/controls/TransformControls.js', 'three/examples/jsm/utils/BufferGeometryUtils.js', 'three/examples/jsm/loaders/ColladaLoader.js', 'three/examples/jsm/loaders/MTLLoader.js', 'three/examples/jsm/exporters/GLTFExporter.js'],
+    include: ['pixi.js', '@supabase/supabase-js', 'three', 'three/examples/jsm/loaders/GLTFLoader.js', 'three/examples/jsm/loaders/FBXLoader.js', 'three/examples/jsm/loaders/OBJLoader.js', 'three/examples/jsm/loaders/STLLoader.js', 'three/examples/jsm/environments/RoomEnvironment.js', 'three/examples/jsm/controls/OrbitControls.js', 'three/examples/jsm/controls/TransformControls.js', 'three/examples/jsm/utils/BufferGeometryUtils.js', 'three/examples/jsm/loaders/ColladaLoader.js', '@pixiv/three-vrm', 'three/examples/jsm/loaders/MTLLoader.js', 'three/examples/jsm/exporters/GLTFExporter.js'],
     exclude: ['@tauri-apps/api', '@tauri-apps/plugin-sql', '@tauri-apps/plugin-fs', '@tauri-apps/plugin-dialog', '@tauri-apps/plugin-shell', '@sqlite.org/sqlite-wasm'],
   },
 })

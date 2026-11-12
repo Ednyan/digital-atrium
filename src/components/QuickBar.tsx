@@ -54,7 +54,7 @@
 // its own above the bar (TemplateWorkshop), S: a slot dragged out as a frame is.
 
 import { PAN_ICON } from './AtriumInfo'
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type HTMLAttributes, type ReactNode } from 'react'
 import { useHistoryReach } from '../lib/actionHistory'
 import { BOX_SHAPES, isBoxShape, type BoxShape } from '../lib/shapeStyle'
 import { SlideLabel } from './AtriumMenu'
@@ -949,14 +949,17 @@ export function ToolHint({ armed, laser, drawing, panning, selecting, connecting
     : armed ? t('atrium.tools.hintBox')
     : null
   if (!text) return null
+  return <FootHint data-tool-hint="">{text}</FootHint>
+}
+
+/** A hint at the foot of the screen, in the middle: the tool in hand's, a 3D model's. */
+export function FootHint(props: HTMLAttributes<HTMLParagraphElement> & Record<`data-${string}`, string>) {
   return (
     <p
-      data-tool-hint=""
+      {...props}
       className="panel-in px-3 py-1.5 border font-mono text-[11px] tracking-wider whitespace-nowrap"
       style={{ color: 'rgb(var(--c-fg))', background: 'rgb(var(--c-ground) / 0.92)', borderColor: 'rgb(var(--c-fg) / 0.3)' }}
-    >
-      {text}
-    </p>
+    />
   )
 }
 

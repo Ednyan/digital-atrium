@@ -37,7 +37,10 @@ export function asLook(value: unknown): TraceLook | undefined {
 }
 
 /** The traces whose lines can boil: drawings, and pictures -- a drawing made a picture too. */
-export const takesWiggle = (trace: Trace) => trace.type === 'image' && !trace.model && !isPin(trace)
+export const takesWiggle = (trace: Pick<Trace, 'type' | 'model' | 'linkUrl'>) => trace.type === 'image' && !trace.model && !isPin(trace)
+/** Its look with its lines boiling so (a change to how they do: the rest kept), or not (null). */
+export const withWiggle = (look: TraceLook | undefined, next: Partial<Wiggle> | null): TraceLook =>
+  ({ ...(look ?? NEUTRAL_LOOK), wiggle: next ? { ...(look?.wiggle ?? DEFAULT_WIGGLE), ...next } : undefined })
 
 export const isNeutral = (look?: TraceLook) => !look || (look.exposure === 0 && look.brightness === 0 && look.contrast === 0)
 

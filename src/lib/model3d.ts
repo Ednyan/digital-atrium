@@ -14,7 +14,8 @@
 import type { Bone, Object3D, PerspectiveCamera, Scene, Vector3 } from 'three'
 import type { Trace } from '../types/database'
 
-// .vrm: an avatar, a .glb underneath (its toon look and hair's swing aren't read).
+// .vrm: an avatar, a .glb underneath, with its toon look (MToon, by @pixiv/three-vrm); its
+// hair's swing and its expressions aren't played.
 export const MODEL_FORMATS = ['glb', 'gltf', 'fbx', 'obj', 'stl', 'dae', 'vrm'] as const
 export type ModelFormat = typeof MODEL_FORMATS[number]
 
@@ -22,8 +23,8 @@ export type ModelFormat = typeof MODEL_FORMATS[number]
  *  radians, how far away, as a share of the distance its whole sphere fits at,
  *  and what it turns about, moved from its middle (pan, in its sphere's radii). */
 export interface ModelView { yaw: number; pitch: number; distance: number; pan?: [number, number, number] }
-/** How it's lit: a kind of light and how bright; whether its textures show; and,
- *  with them off, a colour for all of it. */
+/** How it's lit: a kind of light and how bright; whether its own colours and
+ *  textures show (`textures`); and, with them off, one colour for all of it. */
 export const MODEL_LIGHTS = ['studio', 'soft', 'sun', 'night'] as const
 export type ModelLight = typeof MODEL_LIGHTS[number]
 export interface ModelLook { light: ModelLight; exposure: number; textures?: boolean; colour?: string }
@@ -33,14 +34,15 @@ export const DEFAULT_LOOK: ModelLook = { light: 'studio', exposure: 1 }
  *  [x, y, z, w]), and where it's moved (t) and how it's scaled (s), in its parent's units. */
 export interface BonePose { r: [number, number, number, number]; t?: [number, number, number]; s?: [number, number, number] }
 export type ModelPose = Record<string, BonePose>
-// `textured`: whether it came with textures (pictures on its surfaces).
 /** `parts`: the model moved, turned or scaled whole ("0"), or its parts each (Stage.parts), kept as a pose is. */
-export interface ModelRecord { format: ModelFormat; view: ModelView; look?: ModelLook; pose?: ModelPose; parts?: ModelPose; textured?: boolean }
+export interface ModelRecord { format: ModelFormat; view: ModelView; look?: ModelLook; pose?: ModelPose; parts?: ModelPose }
 
-/** Whether its textures show: as its look says, else whether it has any to show. A
- *  model kept before that was known: an STL or a plain OBJ never had them. */
-export const texturesOn = (record: Pick<ModelRecord, 'look' | 'textured' | 'format'>) =>
-  record.look?.textures ?? record.textured ?? !(record.format === 'stl' || record.format === 'obj')
+/** Whether its own colours and textures show: as its look says; else yes -- but an
+ *  STL has none, and a colour chosen before this was asked was chosen over them. */
+export const texturesOn = (record: Pick<ModelRecord, 'look' | 'format'>) =>
+  record.look?.textures ?? (!record.look?.colour && record.format !== 'stl')
+/** Its one colour, with its own off, when none is chosen. */
+export const PLAIN_COLOUR = '#bdbdbd'
 
 export const MODEL_ACCEPT = MODEL_FORMATS.map(format => `.${format}`).join(',')
 export const DEFAULT_VIEW: ModelView = { yaw: Math.PI / 5, pitch: 0.32, distance: 1 }
@@ -91,7 +93,6 @@ export function asModelRecord(raw: unknown): ModelRecord | undefined {
     } : {}),
     ...(pose ? { pose } : {}),
     ...(parts ? { parts } : {}),
-    ...(typeof (value as { textured?: unknown }).textured === 'boolean' ? { textured: (value as { textured: boolean }).textured } : {}),
   }
 }
 
@@ -177,6 +178,8 @@ export async function parseModel(data: ArrayBuffer, format: ModelFormat, sides =
 // light glTF's read, they came out flat white. Each is made the kind glTF's are, its
 // colour and pictures kept; an OBJ with no materials of its own (plain white) a grey.
 async function sameLight(object: Object3D, format: ModelFormat): Promise<Object3D> {
+  // An avatar's are its own on purpose: toon-shaded, its unlit parts unlit.
+  if (format === 'vrm') return object
   const { MeshStandardMaterial } = await import('three')
   object.traverse(part => {
     const mesh = part as Object3D & { isMesh?: boolean; material?: unknown }
@@ -206,8 +209,22 @@ async function parseAny(data: ArrayBuffer, format: ModelFormat, manager: import(
   }
   if (format === 'glb' || format === 'gltf' || format === 'vrm') {
     const { GLTFLoader } = await import('three/examples/jsm/loaders/GLTFLoader.js')
+    const loader = new GLTFLoader(manager)
+    // An avatar's own materials -- toon-shaded, outlined -- as VRM makes them.
+    const vrmKit = format === 'vrm' ? await import('@pixiv/three-vrm') : null
+    if (vrmKit) loader.register(parser => new vrmKit.VRMLoaderPlugin(parser))
     try {
-      return (await new GLTFLoader(manager).parseAsync(data, '')).scene
+      const gltf = await loader.parseAsync(data, '')
+      const vrm = gltf.userData.vrm as import('@pixiv/three-vrm').VRM | undefined
+      if (vrmKit && vrm) {
+        // A VRM 0 faces away: turned to face the eye, as a VRM 1 does.
+        vrmKit.VRMUtils.rotateVRM0(vrm)
+        // Its second, "normalized" skeleton is for playing animations: none play here.
+        vrm.humanoid?.normalizedHumanBonesRoot.removeFromParent()
+        // Which bone is which, as the file says (lib/modelHumanoid reads it).
+        for (const [name, bone] of Object.entries(vrm.humanoid?.humanBones ?? {})) if (bone?.node) bone.node.userData.humanBone = name
+      }
+      return gltf.scene
     } catch (error) {
       throw new ModelUnreadable(/draco/i.test(String(error)) ? 'it is Draco-compressed, which can\'t be read here yet' : String((error as Error)?.message ?? error))
     }
@@ -270,10 +287,8 @@ export interface Stage {
   readonly center: Vector3
   /** What it turns about: its middle, moved by the view's pan (OrbitControls takes this one). */
   readonly target: Vector3
-  /** Lit as the look says; its textures shown or not -- off, in the look's colour, or their own. */
+  /** Lit as the look says; its own colours and textures shown, or one colour (the look's, or plain) for all of it. */
   setLook(look: ModelLook, textures?: boolean): void
-  /** Whether any of it has a texture. */
-  readonly textured: boolean
   /** What's drawn: the model and, for posing, what's shown with it. */
   readonly scene: Scene
   readonly object: Object3D
@@ -308,6 +323,11 @@ export async function makeStage(object: Object3D, canvas: HTMLCanvasElement = do
   const { WebGLRenderer, Scene, PerspectiveCamera, Box3, Vector3, Sphere, PMREMGenerator, HemisphereLight, DirectionalLight, NeutralToneMapping } = await import('three')
   const { RoomEnvironment } = await import('three/examples/jsm/environments/RoomEnvironment.js')
 
+  // Every part always drawn: three leaves out what its bounding sphere -- worked out
+  // once, at rest -- says is off the view, and a posed or turned character's horns,
+  // hair or hands are outside it: they went missing as the view moved. One model on
+  // screen; leaving parts out saves nothing.
+  object.traverse(part => { part.frustumCulled = false })
   const box = new Box3().setFromObject(object)
   if (box.isEmpty()) throw new ModelUnreadable('there is nothing in it to show')
   const center = box.getCenter(new Vector3())
@@ -373,7 +393,6 @@ export async function makeStage(object: Object3D, canvas: HTMLCanvasElement = do
   object.traverse(part => {
     for (const material of [(part as { material?: unknown }).material].flat() as (Colourful | undefined)[]) if (material?.color) materials.push(material)
   })
-  const textured = materials.some(material => !!material.map)
   // Its bones and parts, and how each is at rest, to pose from and go back to.
   const bones: Bone[] = []
   const meshes: Object3D[] = []
@@ -450,7 +469,7 @@ export async function makeStage(object: Object3D, canvas: HTMLCanvasElement = do
       lamp.color.setHex(light.colour)
       lamp.position.set(light.at[0] * radius, light.at[1] * radius, light.at[2] * radius)
       renderer.toneMappingExposure = look.exposure
-      const showing = textures ?? look.textures ?? textured
+      const showing = textures ?? look.textures ?? true
       for (const material of materials) {
         if (!own.has(material)) own.set(material, { colour: material.color.getHex(), map: material.map ?? null, vertexColors: !!material.vertexColors })
         const its = own.get(material)!
@@ -460,12 +479,11 @@ export async function makeStage(object: Object3D, canvas: HTMLCanvasElement = do
           material.vertexColors = vertexColors
           material.needsUpdate = true
         }
-        // A colour of its own only with its textures off.
-        if (!showing && look.colour) material.color.set(look.colour)
+        // One colour for all of it with its own off: the one shown in its panel.
+        if (!showing) material.color.set(look.colour ?? PLAIN_COLOUR)
         else material.color.setHex(its.colour)
       }
     },
-    textured,
     framed: view => {
       // As near as it can be with every corner of its box in the frame, a margin
       // round it: found by halving, the whole sphere's distance being always far enough.
@@ -526,10 +544,10 @@ export async function makeStage(object: Object3D, canvas: HTMLCanvasElement = do
 // ---- Files -----------------------------------------------------------------------
 
 /** A model's still, framed from the usual angle, and the view it's kept with. */
-async function firstStill(object: Object3D): Promise<{ png: Blob; view: ModelView; textured: boolean }> {
+async function firstStill(object: Object3D): Promise<{ png: Blob; view: ModelView }> {
   const stage = await makeStage(object)
   try {
-    stage.setLook(DEFAULT_LOOK, stage.textured)
+    stage.setLook(DEFAULT_LOOK, true)
     // A person seen from the front, whichever way its file has it face.
     const { humanoidOf, facingOf } = await import('./modelHumanoid')
     const rig = humanoidOf(stage.bones), facing = rig && facingOf(rig)
@@ -538,7 +556,7 @@ async function firstStill(object: Object3D): Promise<{ png: Blob; view: ModelVie
     stage.setSize(width, height)
     const view = stage.framed(first)
     stage.place(view)
-    return { png: await stage.picture(width, height), view, textured: stage.textured }
+    return { png: await stage.picture(width, height), view }
   } finally {
     stage.dispose()
   }
@@ -587,9 +605,9 @@ export async function withModelsAsPng(files: File[], onUnreadable: (file: File, 
       const object = await parseModel(await file.arrayBuffer(), format, sides, used)
       const bundled = used.size > before && format !== 'glb'
       const source = bundled ? new File([await asOneFile(object)], file.name.replace(/\.[^.]+$/, '.glb'), { type: 'model/gltf-binary' }) : file
-      const { png, view, textured } = await firstStill(object)
+      const { png, view } = await firstStill(object)
       const still = new File([png], file.name.replace(/\.[^.]+$/, '.png'), { type: 'image/png' })
-      origins.set(still, { source, record: { format: bundled ? 'glb' : format, view, textured } })
+      origins.set(still, { source, record: { format: bundled ? 'glb' : format, view } })
       out.push(still)
     } catch (error) {
       onUnreadable(file, error)

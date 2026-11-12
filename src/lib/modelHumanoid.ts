@@ -28,7 +28,7 @@ const PARENT = Object.fromEntries(BODY.map(part => {
 
 // ---- Finding them -----------------------------------------------------------------
 
-const NOT_BODY = /\b(twist|roll|end|nub|top|tip|leaf|helper|ik|pole|target|ctrl|control|mch|thumb|index|middle|ring|pinky|little|finger|toe|ball|eye|jaw|tongue|teeth|breast|ear|hair)/
+const NOT_BODY = /\b(twist|roll|aim|sec|adj|end|nub|top|tip|leaf|helper|ik|pole|target|ctrl|control|mch|thumb|index|middle|ring|pinky|little|finger|toe|ball|eye|jaw|tongue|teeth|breast|ear|hair)/
 const PART_WORDS: [RegExp, string][] = [
   [/\b(hips?|pelvis)\b/, 'Hips'],
   [/\bneck/, 'Neck'],
@@ -62,11 +62,28 @@ const isAbove = (upper: Object3D, lower: Object3D) => {
   return false
 }
 
-/** A person's skeleton found among these bones (as they're met, parents first), or none. */
+// A VRM's own names for its bones (userData.humanBone, set as it's read): ours.
+const VRM_PARTS: Record<string, BodyPart> = {
+  hips: 'Hips', spine: 'Spine', chest: 'Chest', upperChest: 'Chest', neck: 'Neck', head: 'Head',
+  ...Object.fromEntries((['Left', 'Right'] as const).flatMap(side => {
+    const s = side.toLowerCase()
+    return [[`${s}Shoulder`, `${side}Shoulder`], [`${s}UpperArm`, `${side}Arm`], [`${s}LowerArm`, `${side}ForeArm`], [`${s}Hand`, `${side}Hand`], [`${s}UpperLeg`, `${side}UpLeg`], [`${s}LowerLeg`, `${side}Leg`], [`${s}Foot`, `${side}Foot`]]
+  })),
+}
+
+/** A person's skeleton found among these bones (as they're met, parents first), or none.
+ *  A VRM says which is which; any other rig is read by its bones' names. */
 export function humanoidOf(bones: Bone[]): Humanoid | null {
   const rig: Humanoid = {}
   const spine: Bone[] = []
+  const said = bones.some(bone => bone.userData?.humanBone)
   for (const bone of bones) {
+    // (A VRM's upper chest is met after its chest, and taken over it.)
+    if (said) {
+      const part = VRM_PARTS[bone.userData?.humanBone]
+      if (part) rig[part] = bone
+      continue
+    }
     const part = partOf(bone.name)
     if (part === 'spine') spine.push(bone)
     else if (part && !rig[part]) rig[part] = bone

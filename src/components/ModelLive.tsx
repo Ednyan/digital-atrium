@@ -3,10 +3,12 @@
 // shows through, as through its still. One at a time: a browser keeps only so
 // many live 3D views, and the rest of the atrium needs none.
 //
-// Full screen, it's taken out of its box onto the whole window to work on, and
-// put back as it's left -- the same drawing, its canvas moved, never made anew.
+// In its box: turned, panned and zoomed, with Snapshot, Reset view and More
+// tools; what dragging does said at the foot of the screen, as a tool's is.
+// More tools takes it out of its box onto the whole window to work on, and puts
+// it back as it's left -- the same drawing, its canvas moved, never made anew.
 //
-// Its tools, down its left: View (dragging turns it), and Multi (move and turn
+// There, its tools, down its left: View (dragging turns it), and Multi (move and turn
 // at once), Move, Rotate and Scale -- for the whole model, or a part of it
 // clicked or chosen from its list. A model with a skeleton can be posed: Pose
 // shows its joints, the tools working on the joint clicked or chosen. With IK, a
@@ -27,6 +29,7 @@ import { useTranslation } from '../lib/i18n'
 import { bendOf, chainOf, reach, reachTwo } from '../lib/modelIk'
 import { bendFor, humanoidOf, poseHumanoid, POSES, type Humanoid, type PoseName } from '../lib/modelHumanoid'
 import type { TranslationKey } from '../locales/en'
+import { FootHint } from './QuickBar'
 
 // Its drawing's longer side at most, in pixels, however near the atrium is.
 const MOST_PIXELS = 2048
@@ -66,9 +69,10 @@ const TOOL_WORD: Record<Tool, TranslationKey> = { view: 'atrium.model.toolView',
 const POLE = 0x4cc9f0
 
 // What's being worked on: posing (a joint, or its pole) or not (a part: 0, the
-// whole model), with which tool, and how far IK reaches.
-interface Editing { posing: boolean; tool: Tool; joint: number | null; part: number; ik: boolean; ikLength: number; onPole: boolean }
-const FIRST: Editing = { posing: false, tool: 'view', joint: null, part: 0, ik: true, ikLength: 2, onPole: false }
+// whole model), with which tool, how far IK reaches, and whether its gizmos show
+// (hidden, to see it clean: the joints still show, and can still be chosen).
+interface Editing { posing: boolean; tool: Tool; joint: number | null; part: number; ik: boolean; ikLength: number; onPole: boolean; gizmos: boolean }
+const FIRST: Editing = { posing: false, tool: 'view', joint: null, part: 0, ik: true, ikLength: 2, onPole: false, gizmos: true }
 
 interface Gizmo { mode: GizmoMode; object?: Object3D; attach(o: Object3D): void; detach(): void; dragging: boolean; axis: string | null; enabled: boolean; dispose(): void; setSize(size: number): void; getHelper(): Object3D }
 // What's shown over the model to work on it: its skeleton and a dot at each joint
@@ -131,11 +135,20 @@ export default function ModelLive({ trace, scale, editable, style, onReady, onDo
 
   // Where it's drawn now: its box, or the full screen's room.
   const holder = () => (whole ? room.current : host.current)
+  // Its gizmos as near as the model is -- bigger nearer, smaller further, as it is --
+  // never past easy reach; moving and turning at once, the rings inside the arrows.
+  const sizeGizmos = () => {
+    const at = stage.current, tools = kit.current
+    if (!at || !tools) return
+    const near = Math.min(1.6, Math.max(0.4, (at.base() * 0.65) / (at.camera.position.distanceTo(at.target) || 1)))
+    for (const gizmo of tools.gizmos) gizmo.setSize(near * (editingRef.current.tool === 'multi' && gizmo.mode === 'rotate' ? 0.5 : 0.7))
+  }
   // Drawn, and while posing, its joints (and pole) told where they are on the screen.
   const draw = () => {
     const at = stage.current
     if (!at) return
     kit.current?.placeDots()
+    sizeGizmos()
     at.render()
     const box = host.current
     if (!box) return
@@ -283,10 +296,8 @@ export default function ModelLive({ trace, scale, editable, style, onReady, onDo
       const target = onPole ? (gizmo.mode === 'translate' ? tools.pole : null)
         : !subject || !GIZMOS[e.tool].includes(gizmo.mode) ? null
         : gizmo.mode === 'translate' && reaching ? tools.goal : subject
-      if (target) gizmo.attach(target)
+      if (target && e.gizmos) gizmo.attach(target)
       else gizmo.detach()
-      // Move and turn together: the rings inside the arrows.
-      gizmo.setSize(e.tool === 'multi' && gizmo.mode === 'rotate' ? 0.6 : 0.85)
     }
     draw()
   }
@@ -309,7 +320,7 @@ export default function ModelLive({ trace, scale, editable, style, onReady, onDo
     if (!at) return
     const { TransformControls } = await import('three/examples/jsm/controls/TransformControls.js')
     if (kit.current || stage.current !== at) return
-    const size = new Box3().setFromObject(at.object).getBoundingSphere(new Sphere()).radius * 0.025 || 0.02
+    const size = new Box3().setFromObject(at.object).getBoundingSphere(new Sphere()).radius * 0.018 || 0.015
     const skeleton = new SkeletonHelper(at.object)
     const dot = new SphereGeometry(1, 12, 8)
     const paint = new MeshBasicMaterial({ color: 0xff8a3d, depthTest: false, transparent: true, opacity: 0.9 })
@@ -391,14 +402,17 @@ export default function ModelLive({ trace, scale, editable, style, onReady, onDo
       const onGizmo = gizmos.some(gizmo => gizmo.dragging || (!!gizmo.object && gizmo.axis !== null))
       press = { x: event.clientX, y: event.clientY, onGizmo }
       const e = editingRef.current
-      if (!e.posing || onGizmo) return
+      if (!e.posing) return
       aim(event)
       placeDots()
-      if (pole.visible && ray.intersectObject(pole, false).length) {
+      // The pole first, even under the gizmo's handles (it sits by the limb, often
+      // where the hand's gizmo is drawn) -- unless it's chosen: then its gizmo's press.
+      if (pole.visible && !e.onPole && ray.intersectObject(pole, false).length) {
         event.stopImmediatePropagation()
         editRef.current({ onPole: true })
         return
       }
+      if (onGizmo) return
       const hit = ray.intersectObjects(markers, false)[0]
       if (!hit) return
       event.stopImmediatePropagation()
@@ -417,6 +431,13 @@ export default function ModelLive({ trace, scale, editable, style, onReady, onDo
     kit.current = { shown: [skeleton, ...markers], pole, poleLine, gizmos: gizmos as unknown as Gizmo[], goal, placeDots, pick, release }
   })())
 
+  // Back in its box: what's shown to work on it put away, what was done to it kept.
+  const toBox = () => {
+    setWhole(false)
+    edit({ posing: false, tool: 'view', onPole: false })
+  }
+  const toBoxRef = useRef(toBox)
+  toBoxRef.current = toBox
   const pose = (on: boolean) => {
     const e = editingRef.current
     // The joint chosen before is chosen again; the first time, a person's hips or
@@ -509,7 +530,7 @@ export default function ModelLive({ trace, scale, editable, style, onReady, onDo
     const key = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         // Out of the full screen first; then let go.
-        if (wholeRef.current) { event.stopImmediatePropagation(); setWhole(false); return }
+        if (wholeRef.current) { event.stopImmediatePropagation(); toBoxRef.current(); return }
         void finishRef.current()
         return
       }
@@ -555,13 +576,16 @@ export default function ModelLive({ trace, scale, editable, style, onReady, onDo
   }
 
   const ready = status === 'ready'
-  const { posing, tool, joint, part, ik, ikLength, onPole } = editing
+  const { posing, tool, joint, part, ik, ikLength, onPole, gizmos } = editing
   const poleShown = ready && reachOf(editing).twoBone
   const shaping = !posing && tool !== 'view'
   const keep = (event: { stopPropagation(): void }) => event.stopPropagation()
   const layer = whole ? 'var(--layer-dialog)' : 'var(--layer-menu)'
   const hint: TranslationKey = posing ? (onPole && poleShown ? 'atrium.model.poleHint' : poleShown ? 'atrium.model.poleShown' : 'atrium.model.poseHint')
     : shaping ? 'atrium.model.partHint' : 'atrium.model.hint'
+  const hintChip = <FootHint data-model-status="">{status === 'loading' ? t('atrium.model.loading') : ready ? t(hint) : status.error}</FootHint>
+  // The foot of the atrium's screen (LobbyScene's), where the tools' hints are.
+  const foot = document.querySelector('[data-hud-foot]')
   return (
     <div
       ref={host}
@@ -586,13 +610,14 @@ export default function ModelLive({ trace, scale, editable, style, onReady, onDo
               data-model-whole={trace.id}
               className="fixed inset-0 flex items-center justify-center"
               style={{ zIndex: 'var(--layer-dialog)', background: 'rgb(0 0 0 / 0.72)' }}
-              onPointerDown={event => { if (event.target === event.currentTarget) setWhole(false) }}
+              onPointerDown={event => { if (event.target === event.currentTarget) toBox() }}
               onWheel={keep}
             >
               <div ref={room} className="relative w-[94vw] h-[86vh] border border-nier-border/30" style={{ background: 'rgb(var(--c-ground) / 0.6)' }} />
+              <div className="absolute bottom-[2vh] left-1/2 -translate-x-1/2 pointer-events-none">{hintChip}</div>
             </div>
           )}
-          {ready && editable && (
+          {ready && editable && whole && (
             <div
               ref={strip}
               data-ui-element=""
@@ -623,10 +648,15 @@ export default function ModelLive({ trace, scale, editable, style, onReady, onDo
             className="fixed left-0 top-0 flex items-center gap-1.5"
             style={{ zIndex: layer, pointerEvents: 'none' }}
           >
-            <span data-model-status="" className="px-2 h-7 flex items-center bg-nier-black/85 border border-nier-border/40 text-[11px] tracking-[0.08em] text-nier-bg/85 whitespace-nowrap">
-              {status === 'loading' ? t('atrium.model.loading') : ready ? t(hint) : status.error}
-            </span>
-            {ready && editable && bones.length > 0 && (
+            {/* In its box: a picture of it, its view back, and the rest on the full screen. */}
+            {!whole && ready && editable && onSnapshot && (
+              <button type="button" data-model-snapshot="" onClick={() => void snapshot()} className={QUIET}>{t('atrium.model.snapshot')}</button>
+            )}
+            {!whole && ready && <button type="button" data-model-reset="" onClick={reset} className={QUIET}>{t('atrium.model.reset')}</button>}
+            {!whole && ready && (
+              <button type="button" data-model-whole-switch="" onClick={() => setWhole(true)} className={QUIET}>{t('atrium.model.moreTools')}</button>
+            )}
+            {whole && ready && editable && bones.length > 0 && (
               <button type="button" data-model-pose="" aria-pressed={posing} onClick={() => pose(!posing)} className={posing ? ON : QUIET}>{t('atrium.model.pose')}</button>
             )}
             {posing && (
@@ -660,20 +690,22 @@ export default function ModelLive({ trace, scale, editable, style, onReady, onDo
                 <button type="button" data-model-reset-parts="" onClick={resetShape} className={QUIET}>{t('atrium.model.resetParts')}</button>
               </>
             )}
-            {ready && editable && onSnapshot && !posing && !shaping && (
+            {whole && ready && editable && onSnapshot && !posing && !shaping && (
               <button type="button" data-model-snapshot="" onClick={() => void snapshot()} className={QUIET}>{t('atrium.model.snapshot')}</button>
             )}
-            {ready && !posing && !shaping && <button type="button" data-model-reset="" onClick={reset} className={QUIET}>{t('atrium.model.reset')}</button>}
-            {ready && (
-              <button type="button" data-model-whole-switch="" aria-pressed={whole} onClick={() => setWhole(was => !was)} className={whole ? ON : QUIET}>
-                {t(whole ? 'atrium.model.backToTrace' : 'atrium.model.fullScreen')}
-              </button>
+            {whole && ready && !posing && !shaping && <button type="button" data-model-reset="" onClick={reset} className={QUIET}>{t('atrium.model.reset')}</button>}
+            {whole && (posing || shaping) && (
+              <button type="button" data-model-gizmos="" aria-pressed={!gizmos} onClick={() => edit({ gizmos: !gizmos })} className={gizmos ? QUIET : ON}>{t(gizmos ? 'atrium.model.hideGizmos' : 'atrium.model.showGizmos')}</button>
             )}
-            <button type="button" data-model-done="" onClick={() => void finish()} className={ON}>{t('atrium.model.done')}</button>
+            {whole && <button type="button" data-model-back="" onClick={toBox} className={QUIET}>{t('atrium.model.backToTrace')}</button>}
+            {whole && <button type="button" data-model-done="" onClick={() => void finish()} className={ON}>{t('atrium.model.done')}</button>}
           </div>
+          {/* What dragging does, at the foot of the screen among the tools' hints. */}
+          {!whole && !foot && <div className="fixed bottom-4 left-1/2 -translate-x-1/2 pointer-events-none" style={{ zIndex: layer }}>{hintChip}</div>}
         </>,
         // Inside the atrium's screen, where its own cursor is the only one (index.css).
         scene)}
+      {!whole && foot && createPortal(hintChip, foot)}
     </div>
   )
 }

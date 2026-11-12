@@ -17,6 +17,8 @@ test('a bone is known by its name, as the usual rigs name them', () => {
     'J_Bip_L_UpperArm': 'LeftArm', 'J_Bip_R_LowerLeg': 'RightLeg', 'J_Bip_C_UpperChest': 'spine', 'J_Sec_Hair1_01': null,
     'upper_arm.L': 'LeftArm', 'forearm.R': 'RightForeArm', 'shin.L': 'LeftLeg', 'Bip01 L Thigh': 'LeftUpLeg', 'CC_Base_L_Upperarm': 'LeftArm',
     LeftArmTwist: null, Hips: 'Hips', Head: 'Head', root: null,
+    // A VRoid model's helpers and its clothes' bones: none of them a limb.
+    J_Aim_L_UpperLeg: null, J_Roll_R_UpperLeg: null, J_Sec_L_TopsUpperLegBack: null, J_Adj_L_FaceEye: null,
   }
   for (const [name, part] of Object.entries(cases)) assert.equal(partOf(name), part, name)
 })
@@ -87,4 +89,25 @@ test('a knee bends forward and an elbow back, toward its pole, and the foot gets
   reachTwo(rig.LeftFoot!, goal, knee.clone().add(new Vector3(0, 0, -1)))
   assert.ok(at(rig.LeftFoot!).distanceTo(goal) < 1e-3, 'foot still there')
   assert.ok(at(rig.LeftLeg!).z < knee.z - 0.1, 'knee back')
+})
+
+test('a VRM says which bone is which: its word taken over any name', () => {
+  // Named to mislead (helpers first), marked as the VRM reader marks them.
+  const make = (name: string, humanBone?: string) => { const bone = new Bone(); bone.name = name; if (humanBone) bone.userData.humanBone = humanBone; return bone }
+  const hips = make('A', 'hips'), spine = make('B', 'spine'), chest = make('C', 'chest'), upper = make('D', 'upperChest'), neck = make('E', 'neck'), head = make('F', 'head')
+  hips.add(spine); spine.add(chest); chest.add(upper); upper.add(neck); neck.add(head)
+  const bones = [hips, spine, chest, upper, neck, head]
+  for (const side of ['left', 'right']) {
+    const helper = make(`J_Aim_${side}_UpperLeg`)
+    const thigh = make('x', `${side}UpperLeg`), shin = make('y', `${side}LowerLeg`), foot = make('z', `${side}Foot`)
+    hips.add(helper, thigh); thigh.add(shin); shin.add(foot)
+    const arm = make('p', `${side}UpperArm`), fore = make('q', `${side}LowerArm`), hand = make('r', `${side}Hand`)
+    upper.add(arm); arm.add(fore); fore.add(hand)
+    bones.push(helper, thigh, shin, foot, arm, fore, hand)
+  }
+  const rig = humanoidOf(bones)
+  assert.ok(rig)
+  assert.equal(rig.Chest, upper, 'its upper chest')
+  assert.equal(rig.LeftUpLeg!.userData.humanBone, 'leftUpperLeg')
+  assert.equal(rig.RightForeArm!.userData.humanBone, 'rightLowerArm')
 })

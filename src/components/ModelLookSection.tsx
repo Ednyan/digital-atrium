@@ -4,19 +4,17 @@
 // Exposure is kept as the slider is let go, a colour once it has stopped
 // changing -- not a new still at every step of a drag.
 //
-// Its textures are on when it came with any, off when it didn't (or can't); a
-// colour is given only with them off.
+// Its own colours and textures show unless they're switched off; then it's all
+// one colour -- the one its Colour field shows, plain grey until one is chosen.
 
 import { useEffect, useRef, useState } from 'react'
-import { DEFAULT_LOOK, MODEL_ACCEPT, MODEL_LIGHTS, texturesOn, type ModelLight, type ModelLook, type ModelRecord } from '../lib/model3d'
+import { DEFAULT_LOOK, MODEL_ACCEPT, MODEL_LIGHTS, PLAIN_COLOUR, texturesOn, type ModelLight, type ModelLook, type ModelRecord } from '../lib/model3d'
 import { STARTERS, type Starter } from '../lib/modelStarters'
 import { Choices, Row } from './Customization'
 import { Check, ColourField } from './ShapeStyleControls'
 import { useTranslation } from '../lib/i18n'
 import type { TranslationKey } from '../locales/en'
 
-// The colour of a part with none of its own, shown when none is chosen.
-const PLAIN = '#bdbdbd'
 const BUTTON = 'w-full h-8 border border-nier-border/40 text-nier-bg text-xs tracking-[0.1em] uppercase hover:border-nier-border/80 disabled:opacity-40'
 
 export default function ModelLookSection({ record, busy, onLook, onReplace, onStarter }: {
@@ -63,19 +61,15 @@ export default function ModelLookSection({ record, busy, onLook, onReplace, onSt
           <span className="w-12 shrink-0 text-right text-[11px] text-nier-strong tabular-nums">{exposure.toFixed(2)}</span>
         </div>
       </Row>
-      {record.textured === false ? (
-        <p data-model-no-textures="" className="mt-2 text-[11px] text-nier-bg/60">{t('atrium.model.noTextures')}</p>
-      ) : (
-        <div data-model-textures="">
-          <Check row label={t('atrium.model.textures')} checked={textures} onChange={on => onLook({ ...look, textures: on })} />
-        </div>
-      )}
+      <div data-model-textures="">
+        <Check row label={t('atrium.model.ownLook')} checked={textures} onChange={on => onLook({ ...look, textures: on })} />
+      </div>
       {textures ? (
         <p className="mt-1 text-[11px] text-nier-bg/60">{t('atrium.model.colourNeedsOff')}</p>
       ) : (
         <ColourField
           label={t('atrium.model.colour')}
-          value={look.colour ?? PLAIN}
+          value={look.colour ?? PLAIN_COLOUR}
           onChange={pickColour}
           onReset={look.colour ? () => { const { colour: _, ...own } = look; onLook(own) } : undefined}
         />

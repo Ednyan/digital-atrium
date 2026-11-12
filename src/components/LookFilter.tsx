@@ -8,7 +8,7 @@
 
 import { useTranslation } from '../lib/i18n'
 import { Slider } from './ShapeStyleControls'
-import { lookSteps, NEUTRAL_LOOK, type TraceLook } from '../lib/traceLook'
+import { lookSteps, NEUTRAL_LOOK, type TraceLook, type Wiggle } from '../lib/traceLook'
 
 export default function LookFilter({ id, look }: { id: string; look: TraceLook }) {
   const { gain, slope, intercept } = lookSteps(look)
@@ -31,6 +31,18 @@ export default function LookFilter({ id, look }: { id: string; look: TraceLook }
 }
 
 const signed = (v: number, digits = 0) => `${v > 0 ? '+' : ''}${v.toFixed(digits)}`
+
+/** How its lines boil (lib/wiggle): how far, how often, how fine -- each a change of its own. */
+export function MotionControls({ wiggle, onChange }: { wiggle: Wiggle; onChange: (change: Partial<Wiggle>) => void }) {
+  const { t } = useTranslation()
+  return (
+    <>
+      <Slider label={t('atrium.customize.wiggleAmount')} min={0.5} max={20} step={0.5} value={wiggle.amount} shown={`${wiggle.amount}`} onChange={amount => onChange({ amount })} />
+      <Slider label={t('atrium.customize.wiggleSpeed')} min={1} max={24} step={1} value={wiggle.speed} shown={`${wiggle.speed} / s`} onChange={speed => onChange({ speed })} />
+      <Slider label={t('atrium.customize.wiggleDetail')} min={0.005} max={0.12} step={0.005} value={wiggle.detail} shown={`${Math.round(wiggle.detail * 1000)}`} onChange={detail => onChange({ detail })} />
+    </>
+  )
+}
 
 /** Its three controls, as an EXR's (ExrGradePanel), and Reset: each move a
  *  new look, shown at once. Reset is the neutral look, kept as such. */

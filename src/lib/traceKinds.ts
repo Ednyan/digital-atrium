@@ -14,6 +14,7 @@
 // another the fields of every setting both have.
 
 import { isDrawingTrace } from './brushes.ts'
+import { takesWiggle } from './traceLook.ts'
 import type { Trace } from '../types/database'
 
 export type TraceKind = 'text' | 'image' | 'drawing' | 'embed' | 'document' | 'audio' | 'video' | 'frame' | 'shape' | 'path' | 'sheet' | 'chart' | 'calendar'
@@ -29,14 +30,15 @@ export type Setting =
   | 'light'     // the light it gives off; a glow along a path
   | 'bars'      // a sound's bars: their colour
   | 'title'     // a frame's title: its font, size and weight
+  | 'motion'    // its lines boiling, as a hand-drawn film's (a picture's or a drawing's; no 3D model's)
 
 // Everything drawn in the usual box: every trace that isn't a shape.
 const BOXED: readonly Setting[] = ['frame', 'captions', 'light']
 
 export const SETTINGS: Record<TraceKind, readonly Setting[]> = {
   text: ['font', 'link', ...BOXED],
-  image: BOXED,
-  drawing: ['strokes', ...BOXED],
+  image: [...BOXED, 'motion'],
+  drawing: ['strokes', ...BOXED, 'motion'],
   embed: ['link', ...BOXED],
   document: BOXED,
   sheet: BOXED,
@@ -49,7 +51,7 @@ export const SETTINGS: Record<TraceKind, readonly Setting[]> = {
   path: ['line', 'link', 'light'],
 }
 
-type Kinded = { type: string; shapeType?: string | null; mediaUrl?: string | null; content?: string | null }
+type Kinded = { type: string; shapeType?: string | null; mediaUrl?: string | null; content?: string | null; model?: unknown; linkUrl?: string }
 
 export function kindOf(trace: Kinded): TraceKind {
   if (trace.type === 'shape') return trace.shapeType === 'path' ? 'path' : 'shape'
@@ -59,8 +61,9 @@ export function kindOf(trace: Kinded): TraceKind {
 
 // What each setting is made of: the fields a trace's look is kept in. Not a
 // link (each trace's own address) nor a drawing's strokes, which are kept in
-// its stroke data rather than in fields (lib/drawingFiles changeStrokes).
-export const SETTING_FIELDS: Record<Exclude<Setting, 'link' | 'strokes'>, readonly (keyof Trace)[]> = {
+// its stroke data rather than in fields (lib/drawingFiles changeStrokes); nor
+// its motion, kept in its look with its colour grade.
+export const SETTING_FIELDS: Record<Exclude<Setting, 'link' | 'strokes' | 'motion'>, readonly (keyof Trace)[]> = {
   frame: ['showBorder', 'borderColor', 'borderOpacity', 'borderWidth', 'strokeStyle', 'showBackground', 'fillColor', 'fillOpacity', 'borderRadius', 'showShadow'],
   captions: ['showFilename', 'showDescription'],
   font: ['fontFamily', 'fontSize', 'textColor', 'textBold', 'textItalic', 'textUnderline', 'textAlign', 'textScaleWithBox', 'textFit', 'textValign'],
@@ -81,11 +84,13 @@ export function styleFieldsOf(trace: Kinded): Set<keyof Trace> {
   return fields
 }
 
-// Whether a trace has a setting. A type nothing here knows has none.
-export const has = (trace: Kinded, setting: Setting): boolean => SETTINGS[kindOf(trace)]?.includes(setting) ?? false
+// Whether a trace has a setting. A type nothing here knows has none; a picture
+// that's a 3D model's still or a pin, no motion.
+export const has = (trace: Kinded, setting: Setting): boolean =>
+  (SETTINGS[kindOf(trace)]?.includes(setting) ?? false) && (setting !== 'motion' || takesWiggle(trace as Pick<Trace, 'type' | 'model' | 'linkUrl'>))
 
 // What Batch Edit offers, in the order it shows it.
-export const BATCH_SETTINGS: readonly Setting[] = ['strokes', 'bars', 'shape', 'line', 'font', 'frame', 'captions', 'light']
+export const BATCH_SETTINGS: readonly Setting[] = ['strokes', 'bars', 'shape', 'line', 'font', 'frame', 'motion', 'captions', 'light']
 
 // Each of `order`'s settings that any of the traces has, with the ones that
 // have it.

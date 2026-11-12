@@ -59,7 +59,8 @@ Customize it, then switch on **Motion**: its lines boil, as in a hand-drawn
 film. **Wiggle** is how far they move, **Speed** how many times a second,
 **Detail** how fine the movement is.
 
-It works on a rasterized drawing and on any picture too. It moves only while
+It works on a rasterized drawing and on any picture too; select several and
+**Batch Edit** switches it on for them all. It moves only while
 it's on screen, and stays still for anyone whose system asks for less motion.
 An export shows it still.
 

@@ -5911,7 +5911,7 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
       {/* At the foot of the screen, in the middle: what's true of this visit
           (hidden, view only), how many are selected, and what the tool in
           hand does (QuickBar's ToolHint). */}
-      <div data-hud="true" className={`hud-in-bottom fixed ${narrow ? 'bottom-[7.75rem]' : 'bottom-4'} left-1/2 -translate-x-1/2 z-[var(--layer-hud)] pointer-events-none flex flex-col items-center gap-1`} style={{ '--base': '180ms', '--i': 2 } as CSSProperties}>
+      <div data-hud="true" data-hud-foot="" className={`hud-in-bottom fixed ${narrow ? 'bottom-[7.75rem]' : 'bottom-4'} left-1/2 -translate-x-1/2 z-[var(--layer-hud)] pointer-events-none flex flex-col items-center gap-1`} style={{ '--base': '180ms', '--i': 2 } as CSSProperties}>
             {previewDraft && (
               <button
                 type="button"

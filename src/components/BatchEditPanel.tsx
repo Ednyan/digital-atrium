@@ -19,6 +19,8 @@ import { TRACE_PRESETS, rememberTracePreset } from '../lib/tracePresets'
 import { rememberShapeStyle, shapeStyleOf, type ShapeStyle } from '../lib/shapeStyle'
 import ShapeStyleControls, { Check, ColourField, SectionRule, Slider } from './ShapeStyleControls'
 import StrokeStyleField from './StrokeStyleField'
+import { MotionControls } from './LookFilter'
+import { DEFAULT_WIGGLE, withWiggle, type Wiggle } from '../lib/traceLook'
 
 export type BatchChange = { ids: string[]; patch: Partial<Trace> }
 
@@ -191,6 +193,19 @@ export default function BatchEditPanel({ traces, lobbyId, userId, fontOptions, b
         ]
       }
 
+      // Their lines boiling: on or off for all; a slider for those already boiling.
+      case 'motion': {
+        const boiling = switchOf(targets, tr => !!tr.look?.wiggle)
+        const shown = targets.find(tr => tr.look?.wiggle)?.look?.wiggle ?? DEFAULT_WIGGLE
+        const setWiggle = (among: Trace[], next: Partial<Wiggle> | null) => onChange(among.map(tr => ({ ids: [tr.id], patch: { look: withWiggle(tr.look, next) } })))
+        return [{ id: 'motion', node: (
+          <>
+            <Check row {...boiling} label={t('atrium.customize.sectionMotion')} hint={t('atrium.customize.motionHint')} onChange={on => setWiggle(targets, on ? {} : null)} />
+            {(boiling.checked || boiling.mixed) && <MotionControls wiggle={shown} onChange={change => setWiggle(targets.filter(tr => tr.look?.wiggle), change)} />}
+          </>
+        ) }]
+      }
+
       case 'captions':
         return [{ id: 'content', node: (
           <div className="space-y-2.5">
@@ -248,8 +263,10 @@ export default function BatchEditPanel({ traces, lobbyId, userId, fontOptions, b
     content: t('atrium.customize.sectionContent'),
     effects: t('atrium.customize.sectionEffects'),
     look: t('atrium.customize.sectionLook'),
+    motion: t('atrium.customize.sectionMotion'),
   }
-  const ORDER: SectionId[] = ['look', 'style', 'fill', 'outline', 'text', 'shape', 'content', 'effects']
+  // Motion after the border, as on one trace.
+  const ORDER: SectionId[] = ['look', 'style', 'fill', 'outline', 'motion', 'text', 'shape', 'content', 'effects']
 
   return (
     <CustomizationPanel

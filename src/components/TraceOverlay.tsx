@@ -98,8 +98,8 @@ import CalendarTrace from './CalendarTrace'
 import CalendarLinkSection from './CalendarLinkSection'
 import { keepCalendarFile, readCalendar } from '../lib/calendar'
 import ExrGradePanel from './ExrGradePanel'
-import LookFilter, { LookControls } from './LookFilter'
-import { isNeutral, NEUTRAL_LOOK, takesLook, takesWiggle, DEFAULT_WIGGLE } from '../lib/traceLook'
+import LookFilter, { LookControls, MotionControls } from './LookFilter'
+import { isNeutral, NEUTRAL_LOOK, takesLook, takesWiggle, withWiggle } from '../lib/traceLook'
 import { CUSTOM_FONTS } from '../lib/customFonts'
 import { BUILT_IN_FONTS } from '../lib/fontNames'
 import { vaultWriteProgress, watchVaultWrites } from '../lib/vaultWrites'
@@ -7652,6 +7652,14 @@ return (
               height: '100%',
               transform: flipInBox(trace) || undefined,
               transformOrigin: 'top left',
+            } : isModelTrace(trace) ? {
+              // A 3D model's box at its own size, scaled alike both ways: made
+              // wider or taller, it shows the model as it is -- the still fitted
+              // in it, the live view drawn to its shape -- never stretched.
+              transform: `scale(${zoom}) translate(${-cropX * 100}%, ${-cropY * 100}%) ${flipInBox(trace)}`,
+              transformOrigin: 'top left',
+              width: `${width * Math.abs((transform as any).scaleX)}px`,
+              height: `${height * Math.abs((transform as any).scaleY)}px`,
             } : {
               transform: `scale(${(transform as any).scaleX * zoom}, ${(transform as any).scaleY * zoom}) translate(${-cropX * 100}%, ${-cropY * 100}%) ${flipInBox(trace)}`,
               transformOrigin: 'top left',
@@ -7725,7 +7733,8 @@ return (
         <Suspense fallback={null}>
           <ModelLive
             trace={trace}
-            scale={zoom * Math.abs(transform.scaleX ?? 1)}
+            // Its box is drawn at its own size (above): one of its pixels, the zoom's.
+            scale={zoom}
             editable={canEdit && !isLockedTrace(trace)}
             style={{ clipPath: cropClip(shownCrop), filter: lookFilter }}
             onReady={() => setTurning(now => (now?.id === trace.id ? { id: trace.id, ready: true } : now))}
@@ -10430,23 +10439,6 @@ return (
                 <LookControls look={editingTrace.look ?? NEUTRAL_LOOK} onChange={look => change({ look })} />
               </Section>
             )}
-            {/* Its lines boiling, as a hand-drawn film's (lib/wiggle): a drawing's, or any picture's. */}
-            {takesWiggle(editingTrace) && (() => {
-              const look = editingTrace.look ?? NEUTRAL_LOOK
-              const wiggled = look.wiggle
-              const setWiggle = (next: Partial<typeof DEFAULT_WIGGLE> | null) => change({ look: { ...look, wiggle: next ? { ...(wiggled ?? DEFAULT_WIGGLE), ...next } : undefined } })
-              return (
-                <Section id="motion" title={t('atrium.customize.sectionMotion')} note={t('atrium.customize.motionHint')} on={!!wiggled} onSwitch={on => setWiggle(on ? {} : null)}>
-                  {wiggled && (
-                    <>
-                      <Slider label={t('atrium.customize.wiggleAmount')} min={0.5} max={20} step={0.5} value={wiggled.amount} shown={`${wiggled.amount}`} onChange={amount => setWiggle({ amount })} />
-                      <Slider label={t('atrium.customize.wiggleSpeed')} min={1} max={24} step={1} value={wiggled.speed} shown={`${wiggled.speed} / s`} onChange={speed => setWiggle({ speed })} />
-                      <Slider label={t('atrium.customize.wiggleDetail')} min={0.005} max={0.12} step={0.005} value={wiggled.detail} shown={`${Math.round(wiggled.detail * 1000)}`} onChange={detail => setWiggle({ detail })} />
-                    </>
-                  )}
-                </Section>
-              )
-            })()}
             {/* An EXR's colour, graded from its original (lib/exr). */}
             {editingTrace.type === 'image' && editingTrace.exr && (
               <Section id="exr" title={t('atrium.customize.sectionExr')}>
@@ -10555,6 +10547,12 @@ return (
                 />
                 <StrokeStylePicker value={editingTrace.strokeStyle} onChange={strokeStyle => change({ strokeStyle })} />
                 {!background && corners}
+              </Section>
+            )}
+            {/* Its lines boiling, as a hand-drawn film's (lib/wiggle): a drawing's, or any picture's. */}
+            {has(editingTrace, 'motion') && (
+              <Section id="motion" title={t('atrium.customize.sectionMotion')} note={t('atrium.customize.motionHint')} on={!!editingTrace.look?.wiggle} onSwitch={on => change({ look: withWiggle(editingTrace.look, on ? {} : null) })}>
+                {editingTrace.look?.wiggle && <MotionControls wiggle={editingTrace.look.wiggle} onChange={next => change({ look: withWiggle(editingTrace.look, next) })} />}
               </Section>
             )}
             {framed && (
