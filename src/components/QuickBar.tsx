@@ -30,7 +30,7 @@
 // Shapes holds the shapes drawn in a box -- rectangle, triangle, circle,
 // diamond, parallelogram -- in a flyout, the button showing the one in use;
 // Other holds the kinds of file a trace can be besides a picture -- sound,
-// video, a PDF, a spreadsheet, a 3D model -- each picked and placed at once, as a drop is.
+// video, a PDF, a spreadsheet, a 3D model, a calendar -- each picked and placed at once, as a drop is.
 // Embed is a tool like Text: a click says where, and a box asks for the link
 // (EmbedLinkBox).
 //
@@ -68,8 +68,8 @@ import { ColourInput } from './ColourPicker'
 
 export type PlaceTool = 'text' | BoxShape | 'path' | 'frame' | 'slot' | 'embed'
 // The kinds of file the Other button offers.
-export type OtherTrace = 'sound' | 'video' | 'document' | 'sheet' | 'model'
-const OTHER_TRACES: OtherTrace[] = ['sound', 'video', 'document', 'sheet', 'model']
+export type OtherTrace = 'sound' | 'video' | 'document' | 'sheet' | 'model' | 'calendar'
+const OTHER_TRACES: OtherTrace[] = ['sound', 'video', 'document', 'sheet', 'model', 'calendar']
 // What the bar does: take a tool up, or act.
 export type QuickAction = 'select' | 'marquee' | 'pan' | 'connect' | PlaceTool | 'draw' | 'image' | 'laser' | 'pinterest' | OtherTrace
 // What the bar shows: a button each. Shapes and Other each hold several.
@@ -131,6 +131,8 @@ const ICONS: Record<QuickAction | 'other', ReactNode> = {
       <path d="M4 10 H20 M4 14.5 H20 M10 5 V19" />
     </>
   ),
+  // A calendar: a page of days, two rings at its top.
+  calendar: <path d="M4.5 6 H19.5 V19.5 H4.5 Z M4.5 10 H19.5 M8.5 4 V7.5 M15.5 4 V7.5 M8 13 H9.5 M11.25 13 H12.75 M14.5 13 H16 M8 16 H9.5 M11.25 16 H12.75" strokeLinejoin="round" />,
   // A 3D model: a cube seen from a corner.
   model: <path d="M12 3.5 L19.5 7.75 V16.25 L12 20.5 L4.5 16.25 V7.75 Z M4.5 7.75 L12 12 L19.5 7.75 M12 12 V20.5" strokeLinejoin="round" />,
   path: (
@@ -399,6 +401,7 @@ export default function QuickBar({ armed, drawing, laser, panning, selecting, co
     document: t('atrium.trace.type.document'),
     sheet: t('atrium.trace.type.spreadsheet'),
     model: t('atrium.model.badge'),
+    calendar: t('atrium.trace.type.calendar'),
     path: t('atrium.trace.shape.path'),
     draw: t('atrium.draw.button'),
     image: t('atrium.trace.type.image'),

@@ -1,0 +1,97 @@
+// What a calendar trace shows (lib/calendar): its .ics drawn as a month or a
+// week, with the last and next of them, Today, and Month / Week over its top
+// right. Month or week is the trace's (Trace.calendar), kept as a setting is;
+// which month or week, this screen's alone -- it opens on today's.
+
+import { useEffect, useMemo, useState, type CSSProperties } from 'react'
+import { calendarFile, calendarLook, calendarSvg, daysShown, HEADER, stepped, weekStartFor, type Calendar, type CalendarView } from '../lib/calendar'
+import { baseSizeOf } from '../lib/traceGeometry'
+import { useTranslation } from '../lib/i18n'
+import type { Trace } from '../types/database'
+
+const FILL = 'absolute inset-0 [&>svg]:w-full [&>svg]:h-full [&>svg]:block'
+
+export default function CalendarTrace({ trace, onView }: {
+  trace: Trace
+  // Month or week chosen, kept on the trace; without it (an atrium one can't
+  // change), chosen for this screen only.
+  onView?: (view: CalendarView) => void
+}) {
+  const { t, language } = useTranslation()
+  // Undefined while it's read; null when it can't be.
+  const [calendar, setCalendar] = useState<Calendar | null | undefined>(undefined)
+  useEffect(() => {
+    const url = trace.mediaUrl
+    if (!url) { setCalendar(null); return }
+    let live = true
+    const load = () => void calendarFile(url).then(read => { if (live) setCalendar(read) })
+    load()
+    // A file still being written to the vault is read again once it's there.
+    const written = (e: Event) => { if ((e as CustomEvent).detail?.localUrl === url) load() }
+    window.addEventListener('atrium:vault-write-complete', written)
+    return () => { live = false; window.removeEventListener('atrium:vault-write-complete', written) }
+  }, [trace.mediaUrl])
+
+  const [anchor, setAnchor] = useState(() => new Date())
+  const [ownView, setOwnView] = useState<CalendarView | null>(null)
+  const view = ownView ?? trace.calendar?.view ?? 'month'
+  const size = baseSizeOf(trace)
+  const weekStart = weekStartFor(language)
+  const look = calendarLook(trace)
+  const svg = useMemo(() => {
+    if (!calendar) return ''
+    const { from, to } = daysShown(view, anchor, weekStart)
+    return calendarSvg(calendar.between(from, to), view, anchor, size.width, size.height, look, language, new Date(), weekStart)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [calendar, view, anchor, size.width, size.height, look.ink, look.surface, language, weekStart])
+
+  if (!calendar) {
+    return (
+      <div className="w-full h-full flex items-center justify-center pointer-events-none select-none" style={{ background: look.surface }}>
+        <span className="text-[10px] tracking-wider uppercase" style={{ color: `${look.ink}99` }}>
+          {calendar === null ? t('atrium.calendar.unreadable') : t('atrium.controls.rendering')}
+        </span>
+      </div>
+    )
+  }
+
+  const choose = (next: CalendarView) => {
+    if (next === view) return
+    if (onView) { setOwnView(null); onView(next) } else setOwnView(next)
+  }
+  // Its own buttons are its: never the start of a drag, nor a double-click on the trace.
+  const keep = (e: { stopPropagation(): void }) => e.stopPropagation()
+  const button: CSSProperties = { color: look.ink, borderColor: `${look.ink}55`, height: 26 }
+  const BUTTON = 'px-2.5 border text-[11px] tracking-[0.1em] uppercase leading-none hover:opacity-80'
+  return (
+    <div className="w-full h-full relative select-none" data-calendar={trace.id} data-view={view}>
+      <div className={FILL} dangerouslySetInnerHTML={{ __html: svg }} />
+      <div
+        className="absolute right-[14px] flex items-center gap-1.5"
+        style={{ top: (HEADER - 26) / 2 - 4, pointerEvents: 'auto' }}
+        onMouseDown={keep}
+        onTouchStart={keep}
+        onDoubleClick={keep}
+      >
+        <button type="button" data-calendar-back="" aria-label={t('atrium.calendar.back')} title={t('atrium.calendar.back')} className={BUTTON} style={button} onClick={() => setAnchor(at => stepped(view, at, -1))}>‹</button>
+        <button type="button" data-calendar-today="" className={BUTTON} style={button} onClick={() => setAnchor(new Date())}>{t('atrium.calendar.today')}</button>
+        <button type="button" data-calendar-next="" aria-label={t('atrium.calendar.next')} title={t('atrium.calendar.next')} className={BUTTON} style={button} onClick={() => setAnchor(at => stepped(view, at, 1))}>›</button>
+        <span className="flex border ml-1.5" style={{ borderColor: `${look.ink}55` }}>
+          {(['month', 'week'] as const).map(kind => (
+            <button
+              key={kind}
+              type="button"
+              data-calendar-view={kind}
+              aria-pressed={view === kind}
+              className="px-2.5 text-[11px] tracking-[0.1em] uppercase leading-none"
+              style={{ height: 24, color: view === kind ? (look.surface ?? '#191919') : look.ink, background: view === kind ? look.ink : 'transparent' }}
+              onClick={() => choose(kind)}
+            >
+              {t(kind === 'month' ? 'atrium.calendar.month' : 'atrium.calendar.week')}
+            </button>
+          ))}
+        </span>
+      </div>
+    </div>
+  )
+}

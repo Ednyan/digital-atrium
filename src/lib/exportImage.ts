@@ -382,6 +382,18 @@ async function sheetPicture(trace: Trace, density: number): Promise<Picture | nu
   return pictureOf(new Blob([markup], { type: 'image/svg+xml' }))
 }
 
+// A calendar as it's shown: its month or week of today.
+async function calendarPicture(trace: Trace, density: number): Promise<Picture | null> {
+  const { calendarFile, calendarLook, calendarSvg, daysShown, weekStartFor } = await import('./calendar')
+  const calendar = trace.mediaUrl ? await calendarFile(trace.mediaUrl) : null
+  if (!calendar) return null
+  const { width, height } = baseSizeOf(trace)
+  const view = trace.calendar?.view ?? 'month', language = currentLanguage(), now = new Date(), weekStart = weekStartFor(language)
+  const { from, to } = daysShown(view, now, weekStart)
+  const markup = calendarSvg(calendar.between(from, to), view, now, width, height, calendarLook(trace), language, now, weekStart, density)
+  return pictureOf(new Blob([markup], { type: 'image/svg+xml' }))
+}
+
 // A deck's first slide, drawn `density` pixels to a unit, its pictures written in.
 async function deckPicture(trace: Trace, density: number): Promise<Picture | null> {
   const deck = trace.mediaUrl ? await deckFile(trace.mediaUrl) : null
@@ -791,6 +803,8 @@ export async function exportImage(traces: Trace[], links: TraceLink[], layers: L
       if (!picture) images.missed++
     } else if (trace.type === 'sheet' || trace.type === 'chart') {
       picture = await sheetPicture(trace, fine)
+    } else if (trace.type === 'calendar') {
+      picture = await calendarPicture(trace, fine)
     } else if (trace.type === 'document' && isDeckFile(trace.mediaUrl)) {
       picture = await deckPicture(trace, fine)
     } else if ((trace.type === 'embed' || trace.type === 'video') && !isPin(trace)) {

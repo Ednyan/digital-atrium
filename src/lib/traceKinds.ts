@@ -16,7 +16,7 @@
 import { isDrawingTrace } from './brushes.ts'
 import type { Trace } from '../types/database'
 
-export type TraceKind = 'text' | 'image' | 'drawing' | 'embed' | 'document' | 'audio' | 'video' | 'frame' | 'shape' | 'path' | 'sheet' | 'chart'
+export type TraceKind = 'text' | 'image' | 'drawing' | 'embed' | 'document' | 'audio' | 'video' | 'frame' | 'shape' | 'path' | 'sheet' | 'chart' | 'calendar'
 
 export type Setting =
   | 'frame'     // the box it sits in: border, background, rounded corners, shadow
@@ -40,6 +40,7 @@ export const SETTINGS: Record<TraceKind, readonly Setting[]> = {
   document: BOXED,
   sheet: BOXED,
   chart: BOXED,
+  calendar: BOXED,
   audio: ['bars', ...BOXED],
   video: BOXED,
   frame: ['frame', 'light'],

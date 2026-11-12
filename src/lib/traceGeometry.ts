@@ -67,6 +67,8 @@ export function baseSizeOf(trace: Trace, natural?: { width: number; height: numb
     case 'sheet':
     case 'chart':
       return { width: trace.width || 600, height: trace.height || 400 }
+    case 'calendar':
+      return { width: trace.width || 720, height: trace.height || 540 }
     default:
       return { width: 120, height: 80 }
   }

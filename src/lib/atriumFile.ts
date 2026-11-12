@@ -119,7 +119,7 @@ export interface ImportIntoResult { added: number; missing: number; failed: numb
 
 // The kinds of trace this app draws. One of another kind -- from a newer
 // version -- can't be had here, nor can one a database turns away.
-const KNOWN_TYPES: readonly Trace['type'][] = ['text', 'image', 'audio', 'video', 'embed', 'shape', 'document', 'frame', 'sheet', 'chart']
+const KNOWN_TYPES: readonly Trace['type'][] = ['text', 'image', 'audio', 'video', 'embed', 'shape', 'document', 'frame', 'sheet', 'chart', 'calendar']
 export const isKnownTraceType = (type: unknown): boolean => (KNOWN_TYPES as readonly unknown[]).includes(type)
 
 // Force import (the import's option, remembered here): what can't be had

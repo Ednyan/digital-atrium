@@ -2,6 +2,7 @@ import type { StrokeStyle } from '../lib/strokeStyle'
 import type { StrokeData } from '../lib/brushes'
 import type { ExrGrade } from '../lib/exr'
 import type { ModelRecord } from '../lib/model3d'
+import type { CalendarSettings } from '../lib/calendar'
 import type { TraceLook } from '../lib/traceLook'
 import type { TemplateValues, ValueLinks } from '../lib/templateValues'
 import type { SlotFit } from '../lib/frames'
@@ -14,7 +15,7 @@ export interface Database {
           created_at: string
           user_id: string
           username: string
-          type: 'text' | 'image' | 'audio' | 'video' | 'embed' | 'shape' | 'document' | 'frame' | 'sheet' | 'chart'
+          type: 'text' | 'image' | 'audio' | 'video' | 'embed' | 'shape' | 'document' | 'frame' | 'sheet' | 'chart' | 'calendar'
           content: string
           position_x: number
           position_y: number
@@ -28,7 +29,7 @@ export interface Database {
           created_at?: string
           user_id: string
           username: string
-          type: 'text' | 'image' | 'audio' | 'video' | 'embed' | 'shape' | 'document' | 'frame' | 'sheet' | 'chart'
+          type: 'text' | 'image' | 'audio' | 'video' | 'embed' | 'shape' | 'document' | 'frame' | 'sheet' | 'chart' | 'calendar'
           content: string
           position_x: number
           position_y: number
@@ -42,7 +43,7 @@ export interface Database {
           created_at?: string
           user_id?: string
           username?: string
-          type?: 'text' | 'image' | 'audio' | 'video' | 'embed' | 'shape' | 'document' | 'frame' | 'sheet' | 'chart'
+          type?: 'text' | 'image' | 'audio' | 'video' | 'embed' | 'shape' | 'document' | 'frame' | 'sheet' | 'chart' | 'calendar'
           content?: string
           position_x?: number
           position_y?: number
@@ -77,7 +78,7 @@ export interface Trace {
   id: string
   userId: string
   username: string
-  type: 'text' | 'image' | 'audio' | 'video' | 'embed' | 'shape' | 'document' | 'frame' | 'sheet' | 'chart'
+  type: 'text' | 'image' | 'audio' | 'video' | 'embed' | 'shape' | 'document' | 'frame' | 'sheet' | 'chart' | 'calendar'
   content: string
   x: number
   y: number
@@ -106,6 +107,8 @@ export interface Trace {
   // A 3D model (lib/model3d): its picture is a still of it, its file is in
   // imageUrl, and this says which format that is and how it's turned.
   model?: ModelRecord
+  // A calendar trace's (lib/calendar): shown as a month or a week.
+  calendar?: CalendarSettings
   // Any other picture's colour -- exposure, brightness, contrast -- drawn
   // over it, not into its file (lib/traceLook).
   look?: TraceLook

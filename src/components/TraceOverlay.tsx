@@ -92,6 +92,7 @@ import { feelRest, feelSpring, feelStep, type FeelSpring } from '../lib/dragFeel
 import { overPanel, panelDrop } from '../lib/panelDrop'
 import { firstFreeName } from '../lib/traceNames'
 import SheetTrace from './SheetTrace'
+import CalendarTrace from './CalendarTrace'
 import ExrGradePanel from './ExrGradePanel'
 import LookFilter, { LookControls } from './LookFilter'
 import { isNeutral, NEUTRAL_LOOK, takesLook } from '../lib/traceLook'
@@ -6327,6 +6328,8 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
         return t('atrium.trace.type.shape')
       case 'frame':
         return t('atrium.trace.type.frame')
+      case 'calendar':
+        return t('atrium.trace.type.calendar')
       default:
         return t('atrium.controls.trace')
     }
@@ -7229,6 +7232,8 @@ return (
           else editCell()
           return
         }
+        // A calendar is read where it is: its own buttons page it.
+        if (trace.type === 'calendar') return
         // A 3D model turns where it is (ModelLive).
         if (isModelTrace(trace)) {
           setSelectedTraceId(trace.id)
@@ -7742,6 +7747,14 @@ return (
         />
       )}
 
+
+      {/* A calendar, drawn from its .ics: a month or a week, kept as a setting. */}
+      {trace.type === 'calendar' && (
+        <CalendarTrace
+          trace={trace}
+          onView={canEdit && !isLockedTrace(trace) ? view => on.updateTraceCustomization(trace.id, { calendar: { ...trace.calendar, view } }) : undefined}
+        />
+      )}
 
       {/* A spreadsheet's sheet or chart, drawn from its file. */}
       {(trace.type === 'sheet' || trace.type === 'chart') && (

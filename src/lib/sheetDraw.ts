@@ -5,6 +5,7 @@
 
 import { asSheetFile, DEFAULT_PALETTE, formatNumber, isDateFormat, type ChartData, type ChartSeries, type SheetData } from './spreadsheet'
 import { tCount } from './i18n'
+import { ATRIUM_FONT, atriumInk } from './atriumLook'
 
 const FONT = 'Calibri, Carlito, Arial, sans-serif'
 // The font the drawing in hand measures and writes in: a sheet's, or a chart's
@@ -133,16 +134,11 @@ let gradients = 0
 // colour -- with the Atrium's palette and its monospace, not the file's.
 export interface ChartLook { ink: string; surface?: string; palette: readonly string[] }
 export const ATRIUM_CHART_PALETTE = ['#d9823b', '#6d9bb5', '#c7b27c', '#87a874', '#b5655f', '#9886b8', '#5c958f', '#a39d90'] as const
-const ATRIUM_FONT = "Consolas, Monaco, 'Lucida Console', 'Liberation Mono', monospace"
 
 // The look for a trace of this fill and text colour: its text colour, or ink
 // that reads on its fill.
 export function atriumChartLook(fill: string | null | undefined, text: string | null | undefined): ChartLook {
-  const m = /^#?([0-9a-f]{6})$/i.exec(fill ?? '')
-  const n = m ? parseInt(m[1], 16) : 0x191919
-  const light = (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255 > 0.55
-  const ink = /^#[0-9a-f]{6}$/i.test(text ?? '') ? text! : light ? '#2b2722' : '#e6e1d3'
-  return { ink, surface: m ? `#${m[1]}` : undefined, palette: ATRIUM_CHART_PALETTE }
+  return { ...atriumInk(fill, text), palette: ATRIUM_CHART_PALETTE }
 }
 
 export function chartSvg(c: ChartData, W: number, H: number, scale = 1, lang?: string, look?: ChartLook): string {

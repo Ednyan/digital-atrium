@@ -98,6 +98,8 @@ export function buildTraceInsertRow(
   if (trace.exr) newTrace.exr = trace.exr
   // A 3D model's format and view (lib/model3d), the same: only when it is one.
   if (trace.model) newTrace.model = trace.model
+  // A calendar's view (lib/calendar), the same.
+  if (trace.calendar) newTrace.calendar = trace.calendar
   // Another picture's look (lib/traceLook): the same, once it's been set.
   if (trace.look) newTrace.look = trace.look
   // Its links to its group's values (lib/templateValues), once it has any.
@@ -224,6 +226,8 @@ export function traceColumns(trace: Trace): Record<string, any> {
   if (trace.exr) columns.exr = trace.exr
   // Turned, a 3D model's still is a new file and this its new view.
   if (trace.model) columns.model = trace.model
+  // A calendar shown as a month or a week.
+  if (trace.calendar) columns.calendar = trace.calendar
   // Reset is a neutral look, not none: written only once set, as above.
   if (trace.look) columns.look = trace.look
   // Linked, or unlinked again (null): a trace never linked sends nothing, so an

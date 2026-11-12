@@ -39,6 +39,7 @@ export const KIND_LABEL: Record<TraceKind, TranslationKey> = {
   path: 'atrium.trace.shape.path',
   sheet: 'atrium.trace.type.sheet',
   chart: 'atrium.trace.type.chart',
+  calendar: 'atrium.trace.type.calendar',
 }
 
 // A trace's kind as the panel names it: a shape by its own (Diamond), not

@@ -60,6 +60,7 @@ import { defaultEmbedBox, embedSourcesIn } from '../lib/embedUrl'
 import { hasTransparency } from '../lib/imageAlpha'
 import { exrOrigin, isExr, withExrAsPng } from '../lib/exr'
 import { isModelFile, MODEL_ACCEPT, modelOrigin, withModelsAsPng } from '../lib/model3d'
+import { isCalendarFile, keepCalendarFile, readCalendar } from '../lib/calendar'
 import { asStrokeData, BUILTIN_BRUSHES, customBrushKey, drawingOf, drawPlacedPicture, drawStroke, erasePicture, eraseStrokeData, fitBox, localToWorldDelta, strokeToLocal, isCustomBrush, makeBrushTip, newStrokeSeed, rasterizeStroke, registerCustomBrush, type CustomBrush, type Piece, type Stroke, type StrokeData, type StrokePoint } from '../lib/brushes'
 import { createWheelGestures } from '../lib/canvasGestures'
 import { PINTEREST_CONNECTED_EVENT, getPinterestConnectionStatus, importAfterPinterestConnect, isPin, takeImportAfterPinterestConnect } from '../lib/pinterest'
@@ -182,7 +183,7 @@ function DrawSlider({ label, value, min, max, unit = '', onChange }: {
 }
 
 // What the quick bar's file buttons pick from.
-const TRACE_FILE_ACCEPT = { model: MODEL_ACCEPT, image: 'image/*,.exr', audio: 'audio/*', sound: 'audio/*', video: 'video/*', document: '.pdf,application/pdf,.pptx' } as const
+const TRACE_FILE_ACCEPT = { model: MODEL_ACCEPT, calendar: '.ics,text/calendar', image: 'image/*,.exr', audio: 'audio/*', sound: 'audio/*', video: 'video/*', document: '.pdf,application/pdf,.pptx' } as const
 
 // Any colour at all: the palette's hues round a wheel.
 const ANY_COLOUR = 'conic-gradient(#e87a6d, #e8c15a, #7fd1a6, #9ad4c4, #a8b6d9, #c77dff, #e87a6d)'
@@ -2705,7 +2706,7 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
       toggleDrawing()
     } else if (action === 'pinterest') {
       openPinterestImport(centre)
-    } else if (action === 'image' || action === 'sound' || action === 'video' || action === 'document' || action === 'sheet' || action === 'model') {
+    } else if (action === 'image' || action === 'sound' || action === 'video' || action === 'document' || action === 'sheet' || action === 'model' || action === 'calendar') {
       // A file: picked, then placed in the middle of the view as a drop would
       // be (placeFilesAsTraces; a spreadsheet as its sheets). The web app
       // can't take files from the computer yet: said, as a dropped file has it.
@@ -4515,6 +4516,25 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
   // picker, so selecting six images in the picker lands them exactly as
   // dragging the same six in would.
   const placeFilesAsTraces = async (files: File[], worldX: number, worldY: number) => {
+    // A calendar (.ics) is a calendar trace, read here first: one that isn't a
+    // calendar is said so, not placed as its text.
+    const calendars = files.filter(isCalendarFile)
+    if (calendars.length > 0) {
+      files = files.filter(file => !isCalendarFile(file))
+      for (const [i, file] of calendars.entries()) {
+        try {
+          const text = await file.text()
+          const read = await readCalendar(text)
+          const url = await uploadFile(file)
+          keepCalendarFile(url, text)
+          await insertDroppedTrace('calendar', read.name ?? (fileTitle(file.name) || file.name), url, worldX + i * 760 / zoomRef.current, worldY, undefined, undefined, undefined, { calendar: { view: 'month' } })
+        } catch (error) {
+          console.error('Calendar unreadable:', file.name, error)
+          showToast(t('atrium.error.calendarUnreadable', { name: file.name }))
+        }
+      }
+      if (files.length === 0) return
+    }
     // EXRs become PNGs before anything else sees them: no browser can show
     // one, and left as they are they would be classified as text and read as
     // such. The import count is up while they convert -- a large one takes
@@ -6385,6 +6405,7 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
                 { label: `${t('atrium.trace.type.document')}`, type: 'document' as const, shape: undefined },
                 { label: `${t('atrium.trace.type.spreadsheet')}`, type: 'sheet' as const, shape: undefined },
                 { label: `${t('atrium.model.badge')}`, type: 'model' as const, shape: undefined },
+                { label: `${t('atrium.trace.type.calendar')}`, type: 'calendar' as const, shape: undefined },
               ] : []),
             ]).map((item) => (
               <button

@@ -106,6 +106,7 @@ first. Web and Desktop mean only there; no mark means both.
 | [`pdf-and-slides`](bringing-things-in/pdf-and-slides.md) | **Written.** Paging, Extract Pages, PowerPoint | 2 | |
 | [`spreadsheets-and-charts`](bringing-things-in/spreadsheets-and-charts.md) | **Written.** What comes in, editing cells, charts, limits | 2 | Yes |
 | [`live-files`](bringing-things-in/live-files.md) | **Written.** Desktop. What follows its file, seeing it, stopping | 3 | |
+| [`calendars`](bringing-things-in/calendars.md) | **Written.** .ics in, month and week, paging, Today, what it reads | 2 | |
 
 **3.5 From elsewhere**
 
