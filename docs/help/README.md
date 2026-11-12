@@ -68,7 +68,7 @@ first. Web and Desktop mean only there; no mark means both.
 | [`keyboard-shortcuts`](moving-around/keyboard-shortcuts.md) | **Written.** Every key, one page | 1 | |
 | [`minimap-and-view`](moving-around/minimap-and-view.md) | **Written.** Minimap, off-screen arrows, fade at the edge, hide UI, fullscreen | 3 | |
 | [`locations-and-presenting`](moving-around/locations-and-presenting.md) | **Written.** Saved views, locking, presentation mode, export as slides or web page | 2 | Yes |
-| `phones-and-tablets` | The bar along the foot, what changes with touch | 3 | |
+| [`phones-and-tablets`](moving-around/phones-and-tablets.md) | **Written.** The bar along the foot, touch, what changes | 3 | |
 
 ### 3. Bringing things in (`bringing-things-in/`)
 
@@ -94,7 +94,7 @@ first. Web and Desktop mean only there; no mark means both.
 | Article | Covers | Order | Video |
 |---|---|---|---|
 | [`pictures`](bringing-things-in/pictures.md) | **Written.** Formats, GIFs, crop, flip, reset | 1 | |
-| `exr-grading` | View transform, colour space, exposure, presets, LUTs | 3 | Yes |
+| [`exr-grading`](bringing-things-in/exr-grading.md) | **Written.** View transform, colour space, exposure, looks, LUTs | 3 | Yes |
 | [`video-and-sound`](bringing-things-in/video-and-sound.md) | **Written.** Files; their controls; a sound's bars; spatial sound | 2 | |
 | [`embeds-and-links`](bringing-things-in/embeds-and-links.md) | **Written.** Pasting links, several at once, interaction on and off, iframes, what can't be framed, Convert to Image | 1 | |
 
@@ -111,7 +111,7 @@ first. Web and Desktop mean only there; no mark means both.
 | Article | Covers | Order | Video |
 |---|---|---|---|
 | [`pinterest-import`](bringing-things-in/pinterest-import.md) | **Written.** Connecting, importing a board; pins read from Pinterest each time (never kept, cropped, recoloured or exported); the mark, always shown; secret boards; disconnecting | 2 | |
-| `browser-extension` | Installing it, sending things to the atrium | 3 | |
+| [`browser-extension`](bringing-things-in/browser-extension.md) | **Written.** Send to Atrium: what it sends, installing it by hand | 3 | |
 
 ### 4. Arranging (`arranging/`)
 
@@ -131,14 +131,14 @@ first. Web and Desktop mean only there; no mark means both.
 | [`frames`](arranging/frames.md) | **Written.** | 1 | Yes |
 | [`groups-and-layers`](arranging/groups-and-layers.md) | **Written.** The Layers panel, groups, Move to Group, lock, go to | 1 | Yes |
 | [`stacking-order`](arranging/stacking-order.md) | **Written.** One stack; Move Layer; Order buttons; the Layers panel | 2 | |
-| `tidying-up` | Reorganize Selected, rectangular or rounded | 3 | |
+| [`tidying-up`](arranging/tidying-up.md) | **Written.** Reorganize Selected, square or circle | 3 | |
 
 **4.3 Connecting**
 
 | Article | Covers | Order | Video |
 |---|---|---|---|
 | [`connections`](arranging/connections.md) | **Written.** Threads: making, label, line style, arrows, ends | 2 | Yes |
-| `clickable-traces` | Clickable, the link, the hover button to turn it off | 3 | |
+| [`clickable-traces`](arranging/clickable-traces.md) | **Written.** Clickable, the link, the button to turn it off | 3 | |
 
 ### 5. Making it look right (`making-it-look-right/`)
 
@@ -147,7 +147,7 @@ first. Web and Desktop mean only there; no mark means both.
 | [`customization-panel`](making-it-look-right/customization-panel.md) | **Written.** Sections and switches, quick presets, your own footer buttons, Batch Edit | 1 | Yes |
 | [`batch-edit`](making-it-look-right/batch-edit.md) | **Written.** Several at once, which each setting is for, mixed values | 2 | |
 | [`colours-and-palette`](making-it-look-right/colours-and-palette.md) | **Written.** Your palette, I to take a colour, copy and paste style | 2 | |
-| `light-glow-effects` | Light, emit from, pulse, soft shadow, Colour (look) | 3 | Yes |
+| [`light-glow-effects`](making-it-look-right/light-glow-effects.md) | **Written.** Light, emit from, pulse, soft shadow | 3 | Yes |
 | [`atrium-themes`](making-it-look-right/atrium-themes.md) | **Written.** Presets, your own (grid, room, particles, ground), the atrium's theme | 2 | Yes |
 
 ### 6. Working together (`working-together/`)
@@ -177,7 +177,8 @@ first. Web and Desktop mean only there; no mark means both.
 |---|---|---|---|
 | [`preferences`](account-and-settings/preferences.md) | **Written.** User Preferences, one by one: profile, how you work, moving, seeing, people, sound, animations | 2 | |
 | [`profile-and-account`](account-and-settings/profile-and-account.md) | **Written.** Picture, achievements, finding people, settings, password, deleting | 3 | |
-| `language-and-theme` | The 11 languages, light and dark | 3 | |
+| [`achievements`](account-and-settings/achievements.md) | **Written.** All 20, how each is earned, how they're counted, showing three | 3 | |
+| [`language-and-theme`](account-and-settings/language-and-theme.md) | **Written.** The 11 languages, light and dark | 3 | |
 
 ### 9. Help and support (`help-and-support/`)
 
@@ -185,7 +186,7 @@ first. Web and Desktop mean only there; no mark means both.
 |---|---|---|---|
 | [`report-or-suggest`](help-and-support/report-or-suggest.md) | **Written.** Reporting a problem, suggesting a feature | 1 | |
 | [`when-something-breaks`](help-and-support/when-something-breaks.md) | **Written.** Broken traces, saving, signing in, the desktop app | 2 | |
-| `supporting-the-atrium` | Donating, monthly, the contributors wall | 3 | |
+| [`supporting-the-atrium`](help-and-support/supporting-the-atrium.md) | **Written.** Donating, monthly, the contributors wall | 3 | |
 
 ## Left out on purpose
 

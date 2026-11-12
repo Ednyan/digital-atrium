@@ -31,7 +31,7 @@ There are 20, earned by what you do: your first trace, a hundred traces, coming
 back on two days in a row, and more. One not earned yet shows how far along you
 are.
 
-Press one you've earned to show it beside your name, up to 3.
+Press one you've earned to show it beside your name, up to 3. Every one, and how it's earned: [Achievements](achievements.md).
 
 ## Other people's profiles
 
@@ -74,4 +74,5 @@ It can't be undone.
 
 - [Accounts](../getting-started/accounts.md): signing in, usernames and display names.
 - [User Preferences](preferences.md): the settings inside an atrium.
+- [Achievements](achievements.md): all 20, and how each is earned.
 - [Language and theme](language-and-theme.md): the app's language, light and dark.
