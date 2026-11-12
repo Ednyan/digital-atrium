@@ -102,8 +102,8 @@ first. Web and Desktop mean only there; no mark means both.
 
 | Article | Covers | Order | Video |
 |---|---|---|---|
-| `pdf-and-slides` | Paging, Extract Pages, PowerPoint | 2 | |
-| `spreadsheets-and-charts` | Reading, editing cells, charts | 2 | Yes |
+| [`pdf-and-slides`](bringing-things-in/pdf-and-slides.md) | **Written.** Paging, Extract Pages, PowerPoint | 2 | |
+| [`spreadsheets-and-charts`](bringing-things-in/spreadsheets-and-charts.md) | **Written.** What comes in, editing cells, charts, limits | 2 | Yes |
 | [`live-files`](bringing-things-in/live-files.md) | **Written.** Desktop. What follows its file, seeing it, stopping | 3 | |
 
 **3.5 From elsewhere**
