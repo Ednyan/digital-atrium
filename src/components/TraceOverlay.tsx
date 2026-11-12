@@ -10,7 +10,8 @@ import { hexToRgb } from '../lib/cursorLook'
 import { dashProps } from '../lib/strokeStyle'
 import { TRACES_PLACED_EVENT, UNSUPPORTED } from '../lib/atriumFile'
 import React, { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo, useSyncExternalStore, lazy, Suspense } from 'react'
-import { isModelTrace, type ModelView } from '../lib/model3d'
+import { DEFAULT_LOOK, isModelTrace, renderStill, type ModelLook, type ModelView } from '../lib/model3d'
+import ModelLookSection from './ModelLookSection'
 import { uploadTraceFile } from '../lib/traceUpload'
 // A 3D model turning live: three and its loaders, fetched only when one is opened.
 const ModelLive = lazy(() => import('./ModelLive'))
@@ -6763,6 +6764,41 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
         setStillPreview(prev => { const { [traceId]: _, ...rest } = prev; return rest })
       })
   }
+  // A model's light or colour changed (ModelLookSection): its still made again
+  // from its file and kept, one step of undo. One at a time a trace; asked again
+  // meanwhile, only the latest is made after.
+  const restyling = useRef(new Map<string, { running: boolean; next: ModelLook | null }>())
+  const [modelBusy, setModelBusy] = useState<string | null>(null)
+  const restyleModel = async (traceId: string, look: ModelLook) => {
+    const entry = restyling.current.get(traceId) ?? { running: false, next: null }
+    restyling.current.set(traceId, entry)
+    if (entry.running) { entry.next = look; return }
+    entry.running = true
+    setModelBusy(traceId)
+    try {
+      for (let wanted: ModelLook | null = look; wanted; wanted = entry.next) {
+        entry.next = null
+        const trace = useGameStore.getState().traces.find(tr => tr.id === traceId)
+        if (!trace?.model || !trace.imageUrl || !lobbyId) break
+        const { fetchMedia } = await import('../lib/exportImage')
+        const file = await fetchMedia(trace.imageUrl)
+        if (!file) throw new Error(t('atrium.model.missing'))
+        const size = baseSizeOf(trace)
+        const png = await renderStill(file, { ...trace.model, look: wanted }, size.width / size.height)
+        const src = URL.createObjectURL(png)
+        setStillPreview(prev => ({ ...prev, [traceId]: { src } }))
+        const url = await uploadTraceFile(new File([png], `${(trace.content || 'model').replace(/[^\w.-]+/g, '_')}.png`, { type: 'image/png' }), lobbyId, userId)
+        updateTraceCustomization(traceId, { mediaUrl: url, model: { ...trace.model, look: wanted } })
+        setStillPreview(prev => ({ ...prev, [traceId]: { src, for: url } }))
+      }
+    } catch (error) {
+      console.error('3D model restyle failed:', error)
+      showToast(t('atrium.model.notSaved'))
+    } finally {
+      entry.running = false
+      setModelBusy(null)
+    }
+  }
   // A snapshot of it, as a picture beside it.
   const snapshotModel = (traceId: string, png: Blob) => {
     const trace = traces.find(tr => tr.id === traceId)
@@ -10199,6 +10235,12 @@ return (
             )}
             {contentSection}
 
+            {/* A 3D model's light and colour: its still made again from them. */}
+            {isModelTrace(editingTrace) && (
+              <Section id="model" title={t('atrium.model.badge')} summary={t(`atrium.model.light.${(editingTrace.model?.look ?? DEFAULT_LOOK).light}` as TranslationKey)}>
+                <ModelLookSection look={editingTrace.model?.look ?? DEFAULT_LOOK} busy={modelBusy === editingTrace.id} onLook={look => void restyleModel(editingTrace.id, look)} />
+              </Section>
+            )}
             {/* A frame's title: its font, size and weight, in the world as the frame is. */}
             {has(editingTrace, 'title') && !isSlot(editingTrace) && (
               <Section id="title" title={t('atrium.customize.sectionTitle')} summary={[FONT_FAMILY_OPTIONS.find(font => font.value === (editingTrace.fontFamily ?? 'mono'))?.label, `${frameTitleFont(editingTrace).size} px`].filter(Boolean).join(' · ')}>

@@ -9,7 +9,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
 import type { Trace } from '../types/database'
-import { DEFAULT_VIEW, makeStage, parseModel, sameView, stillSize, STILL_SIDE, type ModelView, type Stage } from '../lib/model3d'
+import { DEFAULT_LOOK, DEFAULT_VIEW, makeStage, parseModel, sameView, stillSize, STILL_SIDE, type ModelView, type Stage } from '../lib/model3d'
 import { fetchMedia } from '../lib/exportImage'
 import { useTranslation } from '../lib/i18n'
 
@@ -35,6 +35,18 @@ export default function ModelLive({ trace, scale, editable, style, onReady, onDo
   const controls = useRef<{ update(): void } | null>(null)
   const [status, setStatus] = useState<'loading' | 'ready' | { error: string }>('loading')
   const started = useRef<ModelView>(trace.model?.view ?? DEFAULT_VIEW)
+  // Its views while it's open, each move let go of one: Ctrl+Z steps back through
+  // them, Ctrl+Shift+Z (or Ctrl+Y) on again -- the atrium's own undo is Done's.
+  const history = useRef<ModelView[]>([])
+  const future = useRef<ModelView[]>([])
+  const remember = () => {
+    const now = stage.current?.viewNow()
+    if (!now || (history.current.length && sameView(history.current[history.current.length - 1], now))) return
+    history.current.push(now)
+    future.current = []
+  }
+  const look = trace.model?.look ?? DEFAULT_LOOK
+  const lookKey = JSON.stringify(look)
 
   // Its drawing as big as it's shown, no bigger than it need be.
   const fit = () => {
@@ -62,16 +74,20 @@ export default function ModelLive({ trace, scale, editable, style, onReady, onDo
         if (!live) { made.dispose(); return }
         stage.current = made
         fitRef.current()
+        made.setLook(look)
         made.place(started.current)
+        history.current = [started.current]
         const { OrbitControls } = await import('three/examples/jsm/controls/OrbitControls.js')
         if (!live) return
         const turning = new OrbitControls(made.camera, canvas.current)
-        turning.target.copy(made.center)
-        turning.enablePan = false
+        // Turned about its stage's own point, which a pan moves (and the view keeps).
+        turning.target = made.target
+        turning.enablePan = true
         turning.minDistance = made.base() * 0.05
         turning.maxDistance = made.base() * 20
         const drawn = made
         turning.addEventListener('change', () => drawn.render())
+        turning.addEventListener('end', remember)
         turning.update()
         orbit = turning
         controls.current = turning
@@ -94,6 +110,11 @@ export default function ModelLive({ trace, scale, editable, style, onReady, onDo
   }, [trace.id, trace.imageUrl])
 
   useEffect(() => { fit() }, [scale, status])
+  useEffect(() => {
+    stage.current?.setLook(look)
+    stage.current?.render()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lookKey])
 
   // Let go of, once.
   const finished = useRef(false)
@@ -142,7 +163,22 @@ export default function ModelLive({ trace, scale, editable, style, onReady, onDo
       const on = event.target as Node
       if (!box.contains(on) && !bar.current?.contains(on)) void finishRef.current()
     }
-    const key = (event: KeyboardEvent) => { if (event.key === 'Escape') void finishRef.current() }
+    const key = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') { void finishRef.current(); return }
+      const now = stage.current
+      if (!now || !(event.ctrlKey || event.metaKey) || !/^[zy]$/i.test(event.key)) return
+      const back = event.key.toLowerCase() === 'z' && !event.shiftKey
+      const from = back ? history.current : future.current
+      if (back ? from.length < 2 : from.length === 0) return
+      // Its own, then: never the atrium's undo as well.
+      event.preventDefault()
+      event.stopImmediatePropagation()
+      if (back) future.current.push(history.current.pop()!)
+      else history.current.push(future.current.pop()!)
+      now.place(history.current[history.current.length - 1])
+      controls.current?.update()
+      now.render()
+    }
     window.addEventListener('pointerdown', away, true)
     window.addEventListener('keydown', key, true)
     return () => {
@@ -158,6 +194,7 @@ export default function ModelLive({ trace, scale, editable, style, onReady, onDo
     now.place(now.framed(DEFAULT_VIEW))
     controls.current?.update()
     now.render()
+    remember()
   }
   const snapshot = async () => {
     const now = stage.current, box = host.current

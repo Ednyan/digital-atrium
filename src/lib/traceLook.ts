@@ -25,10 +25,10 @@ export function asLook(value: unknown): TraceLook | undefined {
 
 export const isNeutral = (look?: TraceLook) => !look || (look.exposure === 0 && look.brightness === 0 && look.contrast === 0)
 
-/** The traces it's for: pictures of things -- not a drawing, nor an EXR,
- *  which grades its own original (ExrGradePanel). */
+/** The traces it's for: pictures of things -- not a drawing, nor an EXR, which
+ *  grades its own original (ExrGradePanel), nor a 3D model, lit in its own (ModelLookSection). */
 export const takesLook = (trace: Trace) =>
-  ((trace.type === 'image' && !trace.exr && !trace.strokeData) || trace.type === 'video' || trace.type === 'embed' || trace.type === 'document')
+  ((trace.type === 'image' && !trace.exr && !trace.strokeData && !trace.model) || trace.type === 'video' || trace.type === 'embed' || trace.type === 'document')
   // Never a pin: Pinterest's pictures are shown as delivered (lib/pins).
   && !isPin(trace)
 

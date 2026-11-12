@@ -18,9 +18,15 @@ export const MODEL_FORMATS = ['glb', 'gltf', 'fbx', 'obj', 'stl'] as const
 export type ModelFormat = typeof MODEL_FORMATS[number]
 
 /** How it's turned: round the model (yaw), up from level (pitch), both in
- *  radians, and how far away, as a share of the distance its whole sphere fits at. */
-export interface ModelView { yaw: number; pitch: number; distance: number }
-export interface ModelRecord { format: ModelFormat; view: ModelView }
+ *  radians, how far away, as a share of the distance its whole sphere fits at,
+ *  and what it turns about, moved from its middle (pan, in its sphere's radii). */
+export interface ModelView { yaw: number; pitch: number; distance: number; pan?: [number, number, number] }
+/** How it's lit: a kind of light, how bright, and a colour for its parts that have no picture on them. */
+export const MODEL_LIGHTS = ['studio', 'soft', 'sun', 'night'] as const
+export type ModelLight = typeof MODEL_LIGHTS[number]
+export interface ModelLook { light: ModelLight; exposure: number; colour?: string }
+export const DEFAULT_LOOK: ModelLook = { light: 'studio', exposure: 1 }
+export interface ModelRecord { format: ModelFormat; view: ModelView; look?: ModelLook }
 
 export const MODEL_ACCEPT = MODEL_FORMATS.map(format => `.${format}`).join(',')
 export const DEFAULT_VIEW: ModelView = { yaw: Math.PI / 5, pitch: 0.32, distance: 1 }
@@ -46,18 +52,32 @@ export function asModelRecord(raw: unknown): ModelRecord | undefined {
   const view = (value as { view?: Record<string, unknown> }).view ?? {}
   const number = (x: unknown, least: number, most: number, otherwise: number) =>
     typeof x === 'number' && Number.isFinite(x) ? Math.min(most, Math.max(least, x)) : otherwise
+  const pan = Array.isArray(view.pan) && view.pan.length === 3 && view.pan.every(v => typeof v === 'number' && Number.isFinite(v))
+    ? view.pan.map(v => Math.min(50, Math.max(-50, v as number))) as [number, number, number]
+    : undefined
+  const look = (value as { look?: Record<string, unknown> }).look
+  const light = MODEL_LIGHTS.find(one => one === look?.light)
   return {
     format,
     view: {
       yaw: number(view.yaw, -Math.PI * 64, Math.PI * 64, DEFAULT_VIEW.yaw) % (Math.PI * 2),
       pitch: number(view.pitch, -PITCH_MOST, PITCH_MOST, DEFAULT_VIEW.pitch),
       distance: number(view.distance, DISTANCE.least, DISTANCE.most, DEFAULT_VIEW.distance),
+      ...(pan && pan.some(Boolean) ? { pan } : {}),
     },
+    ...(look && typeof look === 'object' ? {
+      look: {
+        light: light ?? DEFAULT_LOOK.light,
+        exposure: number(look.exposure, 0.1, 8, DEFAULT_LOOK.exposure),
+        ...(typeof look.colour === 'string' && /^#[0-9a-f]{6}$/i.test(look.colour) ? { colour: look.colour } : {}),
+      },
+    } : {}),
   }
 }
 
 export const sameView = (a: ModelView, b: ModelView) =>
-  Math.abs(a.yaw - b.yaw) < 1e-4 && Math.abs(a.pitch - b.pitch) < 1e-4 && Math.abs(a.distance - b.distance) < 1e-4
+  Math.abs(a.yaw - b.yaw) < 1e-4 && Math.abs(a.pitch - b.pitch) < 1e-4 && Math.abs(a.distance - b.distance) < 1e-4 &&
+  [0, 1, 2].every(i => Math.abs((a.pan?.[i] ?? 0) - (b.pan?.[i] ?? 0)) < 1e-4)
 
 /** A still's size in pixels for a box of this shape. */
 export function stillSize(aspect: number, side = STILL_SIDE): { width: number; height: number } {
@@ -70,18 +90,46 @@ export function stillSize(aspect: number, side = STILL_SIDE): { width: number; h
 /** Why a file couldn't be shown, in words for a person. */
 export class ModelUnreadable extends Error {}
 
-// A file that points at others beside it (a .gltf's .bin and textures, an FBX's
-// textures) has none of them here: each such address is answered with nothing,
-// quietly, rather than asked of this site, which would answer with its own page.
-async function quietManager() {
+// A file that points at others beside it (a .gltf's .bin and textures, an OBJ's
+// .mtl, an FBX's textures) is given them from `sides` -- the files dropped with
+// it, by name -- and every other such address is answered with nothing, quietly,
+// rather than asked of this site, which would answer with its own page.
+const nameOf = (url: string) => { try { return decodeURIComponent(url.split(/[?#]/)[0].split(/[\\/]/).pop() ?? '').toLowerCase() } catch { return '' } }
+async function sideManager(sides: Map<string, Blob>, used: Set<string>) {
   const { LoadingManager } = await import('three')
-  const manager = new LoadingManager()
-  manager.setURLModifier(url => (/^(data|blob):/.test(url) ? url : 'data:,'))
-  return manager
+  const urls = new Map<string, string>()
+  // Everything it asked for, there: its pictures load after the model is read.
+  let pending = 0
+  const settled: Array<() => void> = []
+  const done = () => { if (--pending <= 0) settled.splice(0).forEach(go => go()) }
+  const manager = new LoadingManager(undefined, undefined, done)
+  manager.onStart = () => {}
+  manager.itemStart = (start => (url: string) => { pending++; start.call(manager, url) })(manager.itemStart)
+  manager.itemEnd = (end => (url: string) => { end.call(manager, url); done() })(manager.itemEnd)
+  manager.setURLModifier(url => {
+    if (/^(data|blob):/.test(url)) return url
+    const name = nameOf(url), side = sides.get(name)
+    if (!side) return 'data:,'
+    used.add(name)
+    if (!urls.has(name)) urls.set(name, URL.createObjectURL(side))
+    return urls.get(name)!
+  })
+  const loaded = () => (pending <= 0 ? Promise.resolve() : Promise.race([new Promise<void>(go => settled.push(go)), new Promise<void>(go => setTimeout(go, 15_000))]))
+  const letGo = () => urls.forEach(url => URL.revokeObjectURL(url))
+  return { manager, loaded, letGo }
 }
 
-export async function parseModel(data: ArrayBuffer, format: ModelFormat): Promise<Object3D> {
-  return sameLight(await parseAny(data, format), format)
+/** A model read, its side files from `sides` (lower-case names), each one used named in `used`. */
+export async function parseModel(data: ArrayBuffer, format: ModelFormat, sides = new Map<string, Blob>(), used = new Set<string>()): Promise<Object3D> {
+  const { manager, loaded, letGo } = await sideManager(sides, used)
+  try {
+    const object = await parseAny(data, format, manager, sides, used)
+    await loaded()
+    return await sameLight(object, format)
+  } finally {
+    // Its pictures are read by now; the addresses they were read from go.
+    setTimeout(letGo, 1000)
+  }
 }
 
 // OBJ's and FBX's materials are an older kind, lit by lamps alone: under the room's
@@ -108,13 +156,12 @@ async function sameLight(object: Object3D, format: ModelFormat): Promise<Object3
   return object
 }
 
-async function parseAny(data: ArrayBuffer, format: ModelFormat): Promise<Object3D> {
-  const manager = await quietManager()
+async function parseAny(data: ArrayBuffer, format: ModelFormat, manager: import('three').LoadingManager, sides: Map<string, Blob>, used: Set<string>): Promise<Object3D> {
   if (format === 'gltf') {
     let json: { buffers?: { uri?: string }[]; images?: { uri?: string }[] }
     try { json = JSON.parse(new TextDecoder().decode(data)) } catch { throw new ModelUnreadable('not a glTF file') }
-    const outside = [...(json.buffers ?? []), ...(json.images ?? [])].some(part => part.uri && !part.uri.startsWith('data:'))
-    if (outside) throw new ModelUnreadable('this .gltf needs files kept beside it -- export it as .glb, one file')
+    const missing = (json.buffers ?? []).some(part => part.uri && !part.uri.startsWith('data:') && !sides.has(nameOf(part.uri)))
+    if (missing) throw new ModelUnreadable('this .gltf needs the files kept beside it -- drop them with it, or export it as .glb, one file')
   }
   if (format === 'glb' || format === 'gltf') {
     const { GLTFLoader } = await import('three/examples/jsm/loaders/GLTFLoader.js')
@@ -130,21 +177,48 @@ async function parseAny(data: ArrayBuffer, format: ModelFormat): Promise<Object3
   }
   if (format === 'obj') {
     const { OBJLoader } = await import('three/examples/jsm/loaders/OBJLoader.js')
-    return new OBJLoader(manager).parse(new TextDecoder().decode(data))
+    const text = new TextDecoder().decode(data)
+    const loader = new OBJLoader(manager)
+    // Its materials from its .mtl, where that was dropped with it.
+    const library = /^mtllib\s+(.+)$/m.exec(text)?.[1].trim()
+    const mtlName = (library && sides.has(nameOf(library)) ? nameOf(library) : undefined) ?? [...sides.keys()].find(name => name.endsWith('.mtl'))
+    if (mtlName) {
+      const { MTLLoader } = await import('three/examples/jsm/loaders/MTLLoader.js')
+      const materials = new MTLLoader(manager).parse(await sides.get(mtlName)!.text(), '')
+      materials.preload()
+      loader.setMaterials(materials)
+      used.add(mtlName)
+    }
+    return loader.parse(text)
   }
   const { STLLoader } = await import('three/examples/jsm/loaders/STLLoader.js')
   const { Mesh, MeshStandardMaterial } = await import('three')
-  const geometry = new STLLoader(manager).parse(data)
+  const geometry = new STLLoader().parse(data)
   const coloured = !!(geometry as { hasColors?: boolean }).hasColors
   return new Mesh(geometry, new MeshStandardMaterial({ color: coloured ? 0xffffff : 0xbdbdbd, vertexColors: coloured, roughness: 0.55, metalness: 0.05 }))
 }
 
 // ---- The stage -------------------------------------------------------------------
 
+// The lights: the room's all round, a sky, and a lamp beside the eye -- placed in
+// the camera's own space (x right, y up, z behind it), so it follows the view.
+const LIGHTS: Record<ModelLight, { room: number; sky: number; lamp: number; colour: number; at: [number, number, number] }> = {
+  studio: { room: 1, sky: 0.35, lamp: 0.9, colour: 0xffffff, at: [0.6, 1.2, 0] },
+  soft: { room: 1.35, sky: 0.6, lamp: 0.25, colour: 0xffffff, at: [0, 1, 0.4] },
+  sun: { room: 0.35, sky: 0.3, lamp: 2.4, colour: 0xfff0d8, at: [1.6, 2.4, 0.6] },
+  // From beyond it, cold: a rim of light, the rest in shadow.
+  night: { room: 0.12, sky: 0.08, lamp: 1.6, colour: 0xa9c1ff, at: [-1.2, 1, -2.2] },
+}
+type Colourful = { color: { getHex(): number; setHex(hex: number): void; set(value: string): void } }
+
 export interface Stage {
   readonly canvas: HTMLCanvasElement
   readonly camera: PerspectiveCamera
   readonly center: Vector3
+  /** What it turns about: its middle, moved by the view's pan (OrbitControls takes this one). */
+  readonly target: Vector3
+  /** Lit as the look says, its parts with no picture in its colour (or their own again). */
+  setLook(look: ModelLook): void
   /** The distance the model's whole sphere fits at: what ModelView.distance is a share of. */
   base(): number
   place(view: ModelView): void
@@ -180,7 +254,8 @@ export async function makeStage(object: Object3D, canvas: HTMLCanvasElement = do
   const pmrem = new PMREMGenerator(renderer)
   const environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture
   scene.environment = environment
-  scene.add(new HemisphereLight(0xffffff, 0x3a3a3a, 0.35))
+  const sky = new HemisphereLight(0xffffff, 0x3a3a3a, 0.35)
+  scene.add(sky)
   const camera = new PerspectiveCamera(30, 1, radius / 200, radius * 200)
   const lamp = new DirectionalLight(0xffffff, 0.9)
   lamp.position.set(radius * 0.6, radius * 1.2, 0)
@@ -188,15 +263,18 @@ export async function makeStage(object: Object3D, canvas: HTMLCanvasElement = do
   camera.add(lamp)
   scene.add(camera, lamp.target, object)
 
+  const target = center.clone()
   const halfAngle = () => {
     const up = (camera.fov * Math.PI) / 360
     return Math.min(up, Math.atan(Math.tan(up) * camera.aspect))
   }
   const base = () => radius / Math.sin(halfAngle())
   const place = (view: ModelView) => {
+    const [px, py, pz] = view.pan ?? [0, 0, 0]
+    target.set(center.x + px * radius, center.y + py * radius, center.z + pz * radius)
     const d = base() * view.distance, level = Math.cos(view.pitch)
-    camera.position.set(center.x + d * level * Math.sin(view.yaw), center.y + d * Math.sin(view.pitch), center.z + d * level * Math.cos(view.yaw))
-    camera.lookAt(center)
+    camera.position.set(target.x + d * level * Math.sin(view.yaw), target.y + d * Math.sin(view.pitch), target.z + d * level * Math.cos(view.yaw))
+    camera.lookAt(target)
     camera.updateMatrixWorld()
   }
   // How far across and up the model reaches on screen (-1..1 is the frame), seen as placed.
@@ -211,25 +289,50 @@ export async function makeStage(object: Object3D, canvas: HTMLCanvasElement = do
     return { x, y, behind }
   }
   const withView = <T,>(view: ModelView, read: () => T): T => {
-    const was = camera.position.clone()
+    const was = camera.position.clone(), wasTarget = target.clone()
     place(view)
     const answer = read()
     camera.position.copy(was)
-    camera.lookAt(center)
+    target.copy(wasTarget)
+    camera.lookAt(target)
     camera.updateMatrixWorld()
     return answer
   }
+  // Each part's own colour, kept the first time another is given, to go back to.
+  const own = new Map<Colourful, number>()
 
   const stage: Stage = {
     canvas,
     camera,
     center,
+    target,
     base,
     place,
     viewNow: () => {
-      const offset = camera.position.clone().sub(center)
+      const offset = camera.position.clone().sub(target)
       const d = offset.length() || 1
-      return { yaw: Math.atan2(offset.x, offset.z), pitch: Math.asin(Math.max(-1, Math.min(1, offset.y / d))), distance: d / base() }
+      const pan = target.clone().sub(center).divideScalar(radius)
+      return {
+        yaw: Math.atan2(offset.x, offset.z), pitch: Math.asin(Math.max(-1, Math.min(1, offset.y / d))), distance: d / base(),
+        ...(pan.lengthSq() > 1e-8 ? { pan: [pan.x, pan.y, pan.z] as [number, number, number] } : {}),
+      }
+    },
+    setLook: look => {
+      const light = LIGHTS[look.light] ?? LIGHTS.studio
+      scene.environmentIntensity = light.room
+      sky.intensity = light.sky
+      lamp.intensity = light.lamp
+      lamp.color.setHex(light.colour)
+      lamp.position.set(light.at[0] * radius, light.at[1] * radius, light.at[2] * radius)
+      renderer.toneMappingExposure = look.exposure
+      object.traverse(part => {
+        for (const material of [(part as { material?: unknown }).material].flat() as ((Colourful & { map?: unknown }) | undefined)[]) {
+          if (!material?.color || material.map) continue
+          if (!own.has(material)) own.set(material, material.color.getHex())
+          if (look.colour) material.color.set(look.colour)
+          else material.color.setHex(own.get(material)!)
+        }
+      })
     },
     framed: view => {
       // As near as it can be with every corner of its box in the frame, a margin
@@ -290,18 +393,40 @@ export async function makeStage(object: Object3D, canvas: HTMLCanvasElement = do
 
 // ---- Files -----------------------------------------------------------------------
 
-/** A model's still, framed from the usual angle, and the record it's kept with. */
-export async function modelStill(data: ArrayBuffer, format: ModelFormat): Promise<{ png: Blob; record: ModelRecord }> {
-  const stage = await makeStage(await parseModel(data, format))
+/** A model's still, framed from the usual angle, and the view it's kept with. */
+async function firstStill(object: Object3D): Promise<{ png: Blob; view: ModelView }> {
+  const stage = await makeStage(object)
   try {
+    stage.setLook(DEFAULT_LOOK)
     const { width, height } = stillSize(stage.silhouette(DEFAULT_VIEW))
     stage.setSize(width, height)
     const view = stage.framed(DEFAULT_VIEW)
     stage.place(view)
-    return { png: await stage.picture(width, height), record: { format, view } }
+    return { png: await stage.picture(width, height), view }
   } finally {
     stage.dispose()
   }
+}
+
+/** A model's still again, as its record says -- turned, lit, coloured -- for a box of this shape. */
+export async function renderStill(file: Blob, record: ModelRecord, aspect: number): Promise<Blob> {
+  const stage = await makeStage(await parseModel(await file.arrayBuffer(), record.format))
+  try {
+    stage.setLook(record.look ?? DEFAULT_LOOK)
+    const { width, height } = stillSize(aspect)
+    stage.setSize(width, height)
+    stage.place(record.view)
+    return await stage.picture(width, height)
+  } finally {
+    stage.dispose()
+  }
+}
+
+// A model read with files from beside it, made one .glb holding them all: what's
+// kept needs nothing beside it ever again.
+async function asOneFile(object: Object3D): Promise<ArrayBuffer> {
+  const { GLTFExporter } = await import('three/examples/jsm/exporters/GLTFExporter.js')
+  return await new GLTFExporter().parseAsync(object, { binary: true }) as ArrayBuffer
 }
 
 // Each model as a PNG of the same name, for the picture import -- its file and
@@ -309,21 +434,28 @@ export async function modelStill(data: ArrayBuffer, format: ModelFormat): Promis
 const origins = new WeakMap<File, { source: File; record: ModelRecord }>()
 export const modelOrigin = (png: File) => origins.get(png)
 
-/** A batch of files with every model among them made its still. One that can't
- *  be read is left out, and reported. */
+/** A batch of files with every model among them made its still. Files dropped with
+ *  a model that it reads (its textures, .mtl, .bin) go into it -- one .glb -- and
+ *  aren't placed themselves. One that can't be read is left out, and reported. */
 export async function withModelsAsPng(files: File[], onUnreadable: (file: File, error: unknown) => void): Promise<File[]> {
   const out: File[] = []
+  const sides = new Map(files.filter(file => !formatOf(file.name)).map(file => [file.name.toLowerCase(), file as Blob]))
+  const used = new Set<string>()
   for (const file of files) {
     const format = formatOf(file.name)
     if (!format) { out.push(file); continue }
     try {
-      const { png, record } = await modelStill(await file.arrayBuffer(), format)
+      const before = used.size
+      const object = await parseModel(await file.arrayBuffer(), format, sides, used)
+      const bundled = used.size > before && format !== 'glb'
+      const source = bundled ? new File([await asOneFile(object)], file.name.replace(/\.[^.]+$/, '.glb'), { type: 'model/gltf-binary' }) : file
+      const { png, view } = await firstStill(object)
       const still = new File([png], file.name.replace(/\.[^.]+$/, '.png'), { type: 'image/png' })
-      origins.set(still, { source: file, record })
+      origins.set(still, { source, record: { format: bundled ? 'glb' : format, view } })
       out.push(still)
     } catch (error) {
       onUnreadable(file, error)
     }
   }
-  return out
+  return out.filter(file => !used.has(file.name.toLowerCase()))
 }

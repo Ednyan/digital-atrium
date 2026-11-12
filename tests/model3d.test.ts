@@ -42,3 +42,14 @@ test('a still is the box\'s shape, its longer side the one given', () => {
   assert.ok(sameView(DEFAULT_VIEW, { ...DEFAULT_VIEW, yaw: DEFAULT_VIEW.yaw + 1e-6 }))
   assert.ok(!sameView(DEFAULT_VIEW, { ...DEFAULT_VIEW, distance: 2 }))
 })
+
+test('its pan and look are read only as they can be', () => {
+  const read = asModelRecord({ format: 'glb', view: { yaw: 0, pitch: 0, distance: 1, pan: [0.5, -0.2, 0] }, look: { light: 'sun', exposure: 1.4, colour: '#ff8a3d' } })!
+  assert.deepEqual(read.view.pan, [0.5, -0.2, 0])
+  assert.deepEqual(read.look, { light: 'sun', exposure: 1.4, colour: '#ff8a3d' })
+  const wild = asModelRecord({ format: 'glb', view: { pan: [1, 'x', 2] }, look: { light: 'disco', exposure: 99, colour: 'red' } })!
+  assert.equal(wild.view.pan, undefined)
+  assert.deepEqual(wild.look, { light: 'studio', exposure: 8 })
+  assert.equal(asModelRecord({ format: 'glb', view: { pan: [0, 0, 0] } })!.view.pan, undefined, 'no pan is none')
+  assert.ok(!sameView({ ...DEFAULT_VIEW, pan: [0.3, 0, 0] }, DEFAULT_VIEW))
+})
