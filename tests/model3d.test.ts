@@ -53,3 +53,10 @@ test('its pan and look are read only as they can be', () => {
   assert.equal(asModelRecord({ format: 'glb', view: { pan: [0, 0, 0] } })!.view.pan, undefined, 'no pan is none')
   assert.ok(!sameView({ ...DEFAULT_VIEW, pan: [0.3, 0, 0] }, DEFAULT_VIEW))
 })
+
+test('a pose is read only as bones turned: whole quaternions, by place', () => {
+  const read = asModelRecord({ format: 'glb', view: DEFAULT_VIEW, pose: { 0: [0, 0, 0, 2], 3: [0, 0.7071, 0, 0.7071], bad: [0, 0, 0, 1], 4: [0, 0, 0], 5: [0, 0, 0, 0] } })!
+  assert.deepEqual(Object.keys(read.pose!), ['0', '3'])
+  assert.deepEqual(read.pose!['0'], [0, 0, 0, 1])
+  assert.equal(asModelRecord({ format: 'glb', pose: { x: 1 } })!.pose, undefined)
+})

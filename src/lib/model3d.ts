@@ -11,7 +11,7 @@
 // function, destructured where it's awaited, so the bundler keeps only the
 // parts used (lib/exr does the same).
 
-import type { Object3D, PerspectiveCamera, Vector3 } from 'three'
+import type { Bone, Object3D, PerspectiveCamera, Scene, Vector3 } from 'three'
 import type { Trace } from '../types/database'
 
 export const MODEL_FORMATS = ['glb', 'gltf', 'fbx', 'obj', 'stl'] as const
@@ -26,7 +26,10 @@ export const MODEL_LIGHTS = ['studio', 'soft', 'sun', 'night'] as const
 export type ModelLight = typeof MODEL_LIGHTS[number]
 export interface ModelLook { light: ModelLight; exposure: number; colour?: string }
 export const DEFAULT_LOOK: ModelLook = { light: 'studio', exposure: 1 }
-export interface ModelRecord { format: ModelFormat; view: ModelView; look?: ModelLook }
+/** How it's posed: each bone turned from its rest, by its place among the model's
+ *  bones (as they're met, in the file's order), as a quaternion [x, y, z, w]. */
+export type ModelPose = Record<string, [number, number, number, number]>
+export interface ModelRecord { format: ModelFormat; view: ModelView; look?: ModelLook; pose?: ModelPose }
 
 export const MODEL_ACCEPT = MODEL_FORMATS.map(format => `.${format}`).join(',')
 export const DEFAULT_VIEW: ModelView = { yaw: Math.PI / 5, pitch: 0.32, distance: 1 }
@@ -57,6 +60,7 @@ export function asModelRecord(raw: unknown): ModelRecord | undefined {
     : undefined
   const look = (value as { look?: Record<string, unknown> }).look
   const light = MODEL_LIGHTS.find(one => one === look?.light)
+  const pose = asPose((value as { pose?: unknown }).pose)
   return {
     format,
     view: {
@@ -72,7 +76,21 @@ export function asModelRecord(raw: unknown): ModelRecord | undefined {
         ...(typeof look.colour === 'string' && /^#[0-9a-f]{6}$/i.test(look.colour) ? { colour: look.colour } : {}),
       },
     } : {}),
+    ...(pose ? { pose } : {}),
   }
+}
+
+// Each turn a bone's, by a place it could have, its quaternion made whole (length 1).
+function asPose(raw: unknown): ModelPose | undefined {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined
+  const pose: ModelPose = {}
+  for (const [key, turn] of Object.entries(raw as Record<string, unknown>)) {
+    if (!/^\d{1,4}$/.test(key) || !Array.isArray(turn) || turn.length !== 4 || !turn.every(v => typeof v === 'number' && Number.isFinite(v))) continue
+    const length = Math.hypot(...(turn as number[]))
+    if (length < 1e-6) continue
+    pose[key] = (turn as number[]).map(v => v / length) as [number, number, number, number]
+  }
+  return Object.keys(pose).length ? pose : undefined
 }
 
 export const sameView = (a: ModelView, b: ModelView) =>
@@ -219,6 +237,15 @@ export interface Stage {
   readonly target: Vector3
   /** Lit as the look says, its parts with no picture in its colour (or their own again). */
   setLook(look: ModelLook): void
+  /** What's drawn: the model and, for posing, what's shown with it. */
+  readonly scene: Scene
+  readonly object: Object3D
+  /** Its bones, as they're met in the file: what a pose's keys count. */
+  readonly bones: Bone[]
+  /** Posed so (none: at rest). */
+  setPose(pose?: ModelPose): void
+  /** Its pose now: the bones turned from their rest. */
+  poseNow(): ModelPose | undefined
   /** The distance the model's whole sphere fits at: what ModelView.distance is a share of. */
   base(): number
   place(view: ModelView): void
@@ -300,14 +327,36 @@ export async function makeStage(object: Object3D, canvas: HTMLCanvasElement = do
   }
   // Each part's own colour, kept the first time another is given, to go back to.
   const own = new Map<Colourful, number>()
+  // Its bones, and how each is at rest, to pose from and go back to.
+  const bones: Bone[] = []
+  object.traverse(part => { if ((part as Bone).isBone) bones.push(part as Bone) })
+  const rest = bones.map(bone => bone.quaternion.clone())
 
   const stage: Stage = {
     canvas,
     camera,
     center,
     target,
+    scene,
+    object,
+    bones,
     base,
     place,
+    setPose: pose => {
+      bones.forEach((bone, i) => {
+        const turn = pose?.[i]
+        if (turn) bone.quaternion.set(turn[0], turn[1], turn[2], turn[3])
+        else bone.quaternion.copy(rest[i])
+      })
+      object.updateMatrixWorld(true)
+    },
+    poseNow: () => {
+      const pose: ModelPose = {}
+      bones.forEach((bone, i) => {
+        if (bone.quaternion.angleTo(rest[i]) > 1e-4) pose[i] = [bone.quaternion.x, bone.quaternion.y, bone.quaternion.z, bone.quaternion.w]
+      })
+      return Object.keys(pose).length ? pose : undefined
+    },
     viewNow: () => {
       const offset = camera.position.clone().sub(target)
       const d = offset.length() || 1
@@ -413,6 +462,7 @@ export async function renderStill(file: Blob, record: ModelRecord, aspect: numbe
   const stage = await makeStage(await parseModel(await file.arrayBuffer(), record.format))
   try {
     stage.setLook(record.look ?? DEFAULT_LOOK)
+    stage.setPose(record.pose)
     const { width, height } = stillSize(aspect)
     stage.setSize(width, height)
     stage.place(record.view)
