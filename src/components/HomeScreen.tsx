@@ -471,7 +471,7 @@ export default function HomeScreen({ view, onGo, onOpenAtrium, guest = false, on
         {atriumsThere && (
           <div ref={atriumsWall} data-atriums-wall="" data-away={view !== 'atriums' || undefined} className="home-wall">
             <div className="relative max-w-[90rem] mx-auto px-5 sm:px-10 xl:px-16 pt-2">
-              {LobbyBrowser && <LobbyBrowser onJoinLobby={onOpenAtrium} onReady={atriumsReady} inSight={view === 'atriums'} onCardsKnown={() => setCardsTold(told => told + 1)} guest={guest} onSignIn={onSignIn} onHelp={() => setShowHelp(true)} onAbout={onAbout} />}
+              {LobbyBrowser && <LobbyBrowser onJoinLobby={onOpenAtrium} onReady={atriumsReady} inSight={view === 'atriums'} onCardsKnown={() => setCardsTold(told => told + 1)} guest={guest} onSignIn={onSignIn} onHelp={() => setShowHelp(true)} />}
             </div>
           </div>
         )}

@@ -273,12 +273,11 @@ interface LobbyBrowserProps {
   /** Without an account: this browser's atriums only. */
   guest?: boolean
   onSignIn?: () => void
-  // Help and About, beside the Tutorial: what's there to learn, together (HomeScreen has their windows).
+  // Help, beside the Tutorial: what's there to learn, together (HomeScreen has its window).
   onHelp?: () => void
-  onAbout?: () => void
 }
 
-export function LobbyBrowser({ onJoinLobby, onReady, inSight = true, onCardsKnown, guest = false, onSignIn, onHelp, onAbout }: LobbyBrowserProps) {
+export function LobbyBrowser({ onJoinLobby, onReady, inSight = true, onCardsKnown, guest = false, onSignIn, onHelp }: LobbyBrowserProps) {
   const { t, language } = useTranslation()
   const [lobbies, setLobbies] = useState<LobbyWithOwner[]>([])
   // Everyone's public Drive atriums (phase 8), shown to anyone, a guest too.
@@ -1706,7 +1705,7 @@ export function LobbyBrowser({ onJoinLobby, onReady, inSight = true, onCardsKnow
           >
             ◇ {t('browser.create')}
           </button>
-          {/* What there is to learn, as one group: the tour, the articles, the app itself. */}
+          {/* What there is to learn, as one group: the tour and the articles. */}
           <div role="group" className="flex border border-nier-border/40 divide-x divide-nier-border/40">
             <button
               type="button"
@@ -1718,7 +1717,6 @@ export function LobbyBrowser({ onJoinLobby, onReady, inSight = true, onCardsKnow
               {t('tutorial.button')}
             </button>
             {onHelp && <button type="button" data-atriums-help="" onClick={onHelp} className={LEARN_BUTTON}>{t('help.title')}</button>}
-            {onAbout && <button type="button" data-atriums-about="" onClick={onAbout} className={LEARN_BUTTON}>{t('welcome.about')}</button>}
           </div>
           {/* The lists as cards or as rows: the one in use lit, the light sliding to it. */}
           <div role="group" aria-label={t('browser.view.label')} className="relative flex border border-nier-border/30">
