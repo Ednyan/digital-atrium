@@ -110,7 +110,7 @@ first. Web and Desktop mean only there; no mark means both.
 
 | Article | Covers | Order | Video |
 |---|---|---|---|
-| `pinterest-import` | Connecting, importing a board; pins read from Pinterest each time (never kept, cropped, recoloured or exported); the mark, always shown; secret boards; disconnecting | 2 | |
+| [`pinterest-import`](bringing-things-in/pinterest-import.md) | **Written.** Connecting, importing a board; pins read from Pinterest each time (never kept, cropped, recoloured or exported); the mark, always shown; secret boards; disconnecting | 2 | |
 | `browser-extension` | Installing it, sending things to the atrium | 3 | |
 
 ### 4. Arranging (`arranging/`)
