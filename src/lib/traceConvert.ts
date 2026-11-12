@@ -1,6 +1,7 @@
 import { supabase, isDesktop, isLocalData } from './supabase'
 import { useGameStore } from '../store/gameStore'
 import { isUrlAnImage } from './imageDetection'
+import { isPin } from './pins'
 
 // What the bytes actually are, from the bytes themselves.
 //
@@ -78,6 +79,10 @@ export async function convertEmbedToInternalImage(traceId: string): Promise<{ ok
   const trace = store.traces.find(t => t.id === traceId)
   if (!trace) return { ok: false, error: 'Trace not found' }
   if (trace.type !== 'embed') return { ok: false, error: 'Only embed traces can be converted' }
+  // Never a pin: Pinterest's pictures aren't to be kept (docs/PINTEREST.md). Its
+  // trace in the store carries the picture's address while the atrium is open
+  // (lib/pinShow), so Store Embeds Locally took pins into the vault with the rest.
+  if (isPin(trace)) return { ok: false, error: 'A pin stays on Pinterest' }
 
   const url = trace.mediaUrl || trace.imageUrl
   if (!url) return { ok: false, error: 'This trace has no media URL' }
