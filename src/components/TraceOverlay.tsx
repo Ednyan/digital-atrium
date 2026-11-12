@@ -12,6 +12,7 @@ import { TRACES_PLACED_EVENT, UNSUPPORTED } from '../lib/atriumFile'
 import React, { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo, useSyncExternalStore, lazy, Suspense } from 'react'
 import { DEFAULT_LOOK, isModelTrace, renderStill, type ModelLook, type ModelView } from '../lib/model3d'
 import ModelLookSection from './ModelLookSection'
+import WiggleFilter from './WiggleFilter'
 import { uploadTraceFile } from '../lib/traceUpload'
 // A 3D model turning live: three and its loaders, fetched only when one is opened.
 const ModelLive = lazy(() => import('./ModelLive'))
@@ -96,7 +97,7 @@ import SheetTrace from './SheetTrace'
 import CalendarTrace from './CalendarTrace'
 import ExrGradePanel from './ExrGradePanel'
 import LookFilter, { LookControls } from './LookFilter'
-import { isNeutral, NEUTRAL_LOOK, takesLook } from '../lib/traceLook'
+import { isNeutral, NEUTRAL_LOOK, takesLook, takesWiggle, DEFAULT_WIGGLE } from '../lib/traceLook'
 import { CUSTOM_FONTS } from '../lib/customFonts'
 import { BUILT_IN_FONTS } from '../lib/fontNames'
 import { vaultWriteProgress, watchVaultWrites } from '../lib/vaultWrites'
@@ -6955,6 +6956,9 @@ const shownCrop = isCropping ? { ...trace, cropX, cropY, cropWidth, cropHeight }
 // background as they are.
 const lookId = `look-${trace.id}`
 const lookFilter = takesLook(trace) && !isNeutral(trace.look) ? `url(#${lookId})` : undefined
+// Its lines boiling (lib/wiggle), through a filter on all it shows: strokes, or a picture.
+const wiggle = takesWiggle(trace) ? displayTrace.look?.wiggle : undefined
+const wiggleId = `wiggle-${trace.id}`
 // An embedded page (an <iframe>, below), not an embed that's a picture.
 const embedPage = trace.type === 'embed' && !!trace.mediaUrl && !PICTURE_LINK.test(trace.mediaUrl) && !confirmedImageIds.has(trace.id)
 
@@ -7608,6 +7612,7 @@ return (
               transformOrigin: 'top left',
               width: `${width}px`,
               height: `${height}px`,
+              filter: wiggle ? `url(#${wiggleId})` : undefined,
             }}
           >
       {/* A drawing stroke seen closer than its picture was drawn: painted
@@ -7637,6 +7642,7 @@ return (
       )}
 
       {lookFilter && <LookFilter id={lookId} look={trace.look!} />}
+      {wiggle && <WiggleFilter id={wiggleId} traceId={trace.id} wiggle={wiggle} />}
 
       {/* Image Content */}
       {!paintStroke && trace.type === 'image' && (trace.mediaUrl || trace.imageUrl) && !failedImages.has(trace.id) && (
@@ -10347,6 +10353,23 @@ return (
                 <LookControls look={editingTrace.look ?? NEUTRAL_LOOK} onChange={look => change({ look })} />
               </Section>
             )}
+            {/* Its lines boiling, as a hand-drawn film's (lib/wiggle): a drawing's, or any picture's. */}
+            {takesWiggle(editingTrace) && (() => {
+              const look = editingTrace.look ?? NEUTRAL_LOOK
+              const wiggled = look.wiggle
+              const setWiggle = (next: Partial<typeof DEFAULT_WIGGLE> | null) => change({ look: { ...look, wiggle: next ? { ...(wiggled ?? DEFAULT_WIGGLE), ...next } : undefined } })
+              return (
+                <Section id="motion" title={t('atrium.customize.sectionMotion')} note={t('atrium.customize.motionHint')} on={!!wiggled} onSwitch={on => setWiggle(on ? {} : null)}>
+                  {wiggled && (
+                    <>
+                      <Slider label={t('atrium.customize.wiggleAmount')} min={0.5} max={20} step={0.5} value={wiggled.amount} shown={`${wiggled.amount}`} onChange={amount => setWiggle({ amount })} />
+                      <Slider label={t('atrium.customize.wiggleSpeed')} min={1} max={24} step={1} value={wiggled.speed} shown={`${wiggled.speed} / s`} onChange={speed => setWiggle({ speed })} />
+                      <Slider label={t('atrium.customize.wiggleDetail')} min={0.005} max={0.12} step={0.005} value={wiggled.detail} shown={`${Math.round(wiggled.detail * 1000)}`} onChange={detail => setWiggle({ detail })} />
+                    </>
+                  )}
+                </Section>
+              )
+            })()}
             {/* An EXR's colour, graded from its original (lib/exr). */}
             {editingTrace.type === 'image' && editingTrace.exr && (
               <Section id="exr" title={t('atrium.customize.sectionExr')}>

@@ -8,7 +8,14 @@
 import { isPin } from './pins.ts'
 import type { Trace } from '../types/database'
 
-export interface TraceLook { exposure: number; brightness: number; contrast: number }
+export interface TraceLook {
+  exposure: number; brightness: number; contrast: number
+  // Its lines boiling, as a hand-drawn film's do (lib/wiggle): how far they're
+  // pushed (world units), how many times a second, how fine the push is.
+  wiggle?: Wiggle
+}
+export interface Wiggle { amount: number; speed: number; detail: number }
+export const DEFAULT_WIGGLE: Wiggle = { amount: 3, speed: 8, detail: 0.03 }
 export const NEUTRAL_LOOK: TraceLook = { exposure: 0, brightness: 0, contrast: 0 }
 
 const clamp = (value: unknown, least: number, most: number) =>
@@ -20,8 +27,17 @@ export function asLook(value: unknown): TraceLook | undefined {
   if (typeof v === 'string') { try { v = JSON.parse(v) } catch { return undefined } }
   if (!v || typeof v !== 'object') return undefined
   const look = v as Record<string, unknown>
-  return { exposure: clamp(look.exposure, -6, 6), brightness: clamp(look.brightness, -1, 1), contrast: clamp(look.contrast, -1, 1) }
+  const wiggle = look.wiggle as Record<string, unknown> | undefined
+  return {
+    exposure: clamp(look.exposure, -6, 6), brightness: clamp(look.brightness, -1, 1), contrast: clamp(look.contrast, -1, 1),
+    ...(wiggle && typeof wiggle === 'object' && typeof wiggle.amount === 'number' && wiggle.amount > 0
+      ? { wiggle: { amount: clamp(wiggle.amount, 0.25, 40), speed: clamp(wiggle.speed, 1, 24) || DEFAULT_WIGGLE.speed, detail: clamp(wiggle.detail, 0.002, 0.3) || DEFAULT_WIGGLE.detail } }
+      : {}),
+  }
 }
+
+/** The traces whose lines can boil: drawings, and pictures -- a drawing made a picture too. */
+export const takesWiggle = (trace: Trace) => trace.type === 'image' && !trace.model && !isPin(trace)
 
 export const isNeutral = (look?: TraceLook) => !look || (look.exposure === 0 && look.brightness === 0 && look.contrast === 0)
 

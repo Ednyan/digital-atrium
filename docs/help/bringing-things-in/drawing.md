@@ -3,8 +3,8 @@ id: drawing
 title: Drawing
 section: 3.2 Bringing things in > Words, shapes and drawing
 summary: Draw (5) draws freehand with a pen, pencil, marker, airbrush or calligraphy brush, or one of your own; a session's strokes are one drawing trace, edited again or split into strokes.
-keywords: draw, drawing, freehand, sketch, pen, pencil, marker, airbrush, calligraphy, brush, custom brush, import brush, eraser, stroke, strokes, split into strokes, edit drawing, rasterize, pressure
-where: Quick bar > Draw (5); trace right-click menu > Edit Drawing, Split into Strokes, Rasterize
+keywords: draw, drawing, freehand, sketch, pen, pencil, marker, airbrush, calligraphy, brush, custom brush, import brush, eraser, stroke, strokes, split into strokes, edit drawing, rasterize, pressure, animate, animated, wiggle, boil, line boil, jitter, motion
+where: Quick bar > Draw (5); trace right-click menu > Edit Drawing, Split into Strokes, Rasterize; Customization panel > Motion
 works_on: web, desktop, phone
 related: quick-bar, paths-and-arrows, colours-and-palette, undo-and-saving, groups-and-layers
 video: planned
@@ -52,6 +52,16 @@ background, or a dark shape on white. It's kept in your vault.
 | Each stroke a trace of its own | Right-click it > **Split into Strokes**: they're put in a group named after the drawing |
 | One flat picture | Right-click > **Rasterize**: its strokes can no longer be edited |
 | Its colour changed | Select it and click a colour in your palette |
+
+## Make it move
+
+Customize it, then switch on **Motion**: its lines boil, as in a hand-drawn
+film. **Wiggle** is how far they move, **Speed** how many times a second,
+**Detail** how fine the movement is.
+
+It works on a rasterized drawing and on any picture too. It moves only while
+it's on screen, and stays still for anyone whose system asks for less motion.
+An export shows it still.
 
 ## Good to know
 
