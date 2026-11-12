@@ -13,6 +13,7 @@ import CalendarEventEditor from './CalendarEventEditor'
 import { calendarOf } from '../lib/calendarLink'
 import { baseSizeOf } from '../lib/traceGeometry'
 import { useTranslation } from '../lib/i18n'
+import { useLandingTheme } from '../lib/useLandingTheme'
 import type { Trace } from '../types/database'
 
 const FILL = 'absolute inset-0 [&>svg]:w-full [&>svg]:h-full [&>svg]:block'
@@ -53,14 +54,17 @@ export default function CalendarTrace({ trace, onView, onSave }: {
   const view = ownView ?? trace.calendar?.view ?? 'month'
   const size = baseSizeOf(trace)
   const weekStart = weekStartFor(language)
-  const look = calendarLook(trace)
+  // Light or dark as it's set -- or, set to Auto, as this person has the atrium.
+  const { resolved: mode } = useLandingTheme()
+  const look = calendarLook(trace, mode)
+  const weekWord = t('atrium.calendar.weekShort')
   const { svg, events } = useMemo(() => {
     if (!calendar) return { svg: '', events: [] as Occurrence[] }
     const { from, to } = daysShown(view, anchor, weekStart)
     const shown = calendar.between(from, to)
-    return { svg: calendarSvg(shown, view, anchor, size.width, size.height, look, language, new Date(), weekStart), events: shown }
+    return { svg: calendarSvg(shown, view, anchor, size.width, size.height, look, language, new Date(), weekStart, 1, weekWord), events: shown }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [calendar, view, anchor, size.width, size.height, look.ink, look.surface, language, weekStart])
+  }, [calendar, view, anchor, size.width, size.height, look.ink, look.surface, language, weekStart, weekWord])
 
   // An event being made or changed: where, from what, and whether it's only shown.
   const [editing, setEditing] = useState<{ at: { x: number; y: number }; draft: EventDraft; uid?: string; readOnly: boolean } | null>(null)
@@ -74,7 +78,7 @@ export default function CalendarTrace({ trace, onView, onSave }: {
   const draftOf = (e: Occurrence): EventDraft => {
     // A repeat is changed as its whole series: from when it began.
     const { start, end } = e.series ?? e
-    return { title: e.title === '—' ? '' : e.title, date: dayKey(start), allDay: e.allDay, from: timeKey(start), to: timeKey(end), repeat: e.repeat ?? 'none' }
+    return { title: e.title === '—' ? '' : e.title, date: dayKey(start), allDay: e.allDay, from: timeKey(start), to: timeKey(end), repeat: e.repeat ?? 'none', colour: e.colour }
   }
   // A day (or an hour of one) double-clicked: an event made there.
   const makeAt = (event: MouseEvent) => {

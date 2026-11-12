@@ -391,7 +391,9 @@ async function calendarPicture(trace: Trace, density: number): Promise<Picture |
   const { width, height } = baseSizeOf(trace)
   const view = trace.calendar?.view ?? 'month', language = currentLanguage(), now = new Date(), weekStart = weekStartFor(language)
   const { from, to } = daysShown(view, now, weekStart)
-  const markup = calendarSvg(calendar.between(from, to), view, now, width, height, calendarLook(trace), language, now, weekStart, density)
+  const { resolveThemeNow } = await import('./useLandingTheme')
+  const { t } = await import('./i18n')
+  const markup = calendarSvg(calendar.between(from, to), view, now, width, height, calendarLook(trace, resolveThemeNow()), language, now, weekStart, density, t('atrium.calendar.weekShort'))
   return pictureOf(new Blob([markup], { type: 'image/svg+xml' }))
 }
 

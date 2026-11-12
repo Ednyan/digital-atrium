@@ -113,3 +113,28 @@ test('events made, changed and taken away in the atrium, written as a calendar f
   const backwards = (await readCalendar(await withEvent(empty, { title: 'x', date: '2026-11-12', allDay: false, from: '10:00', to: '09:00', repeat: 'none' }))).between(new Date(2026, 10, 12), new Date(2026, 10, 13))[0]
   assert.equal(backwards.end.getHours(), 11)
 })
+
+test('weeks numbered as calendars in Europe number them; colours and looks kept', async () => {
+  const { isoWeek, emptyCalendarFile, withEvent, calendarLook } = await import('../src/lib/calendar.ts')
+  assert.equal(isoWeek(new Date(2026, 0, 1)), 1)
+  assert.equal(isoWeek(new Date(2026, 10, 12)), 46)
+  assert.equal(isoWeek(new Date(2027, 0, 1)), 53)
+  assert.equal(isoWeek(new Date(2024, 11, 30)), 1)
+  const anchor = new Date(2026, 10, 12)
+  const look = { ink: '#e6e1d3', surface: '#191919', accent: '#ff8a3d', font: 'monospace' }
+  const week = calendarSvg([], 'week', anchor, 720, 540, look, 'en', anchor, 1, 1, 'CW')
+  assert.ok(week.includes('(CW46)'))
+  const month = calendarSvg([], 'month', anchor, 720, 540, look, 'en', anchor, 1, 1, 'KW')
+  assert.ok(month.includes('>KW44<') && month.includes('>KW49<'))
+  // A highlight, kept in the file, drawn with words readable on it.
+  const text = await withEvent(await emptyCalendarFile('x').text(), { title: 'Yellow', date: '2026-11-12', allDay: true, from: '', to: '', repeat: 'none', colour: '#c7b27c' })
+  assert.match(text, /X-ATRIUM-COLOR:#c7b27c/i)
+  const [yellow] = (await readCalendar(text)).between(new Date(2026, 10, 12), new Date(2026, 10, 13))
+  assert.equal(yellow.colour, '#c7b27c')
+  const drawn = calendarSvg([yellow], 'month', anchor, 720, 540, look, 'en', anchor, 1)
+  assert.ok(drawn.includes('fill="#1a1a1a">Yellow'), 'dark words on a light highlight')
+  // Its paper: light, dark, or the one looking's mode.
+  assert.equal(calendarLook({ calendar: { view: 'month', theme: 'dark' } }).surface, '#18181b')
+  assert.equal(calendarLook({ calendar: { view: 'month', theme: 'auto' } }, 'light').surface, '#f7f4ee')
+  assert.deepEqual(asCalendarSettings({ view: 'week', theme: 'auto' }), { view: 'week', theme: 'auto' })
+})

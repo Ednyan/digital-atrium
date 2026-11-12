@@ -5,7 +5,9 @@
 
 import { useRef, useState } from 'react'
 import { asCalendarLink, fetchCalendarText } from '../lib/calendarLink'
-import { readCalendar, type CalendarSettings } from '../lib/calendar'
+import { CALENDAR_THEMES, readCalendar, type CalendarSettings, type CalendarTheme } from '../lib/calendar'
+import { Choices, Row } from './Customization'
+import type { TranslationKey } from '../locales/en'
 import { useTranslation } from '../lib/i18n'
 
 const BUTTON = 'px-3 h-8 border border-nier-border/40 text-nier-bg text-xs tracking-[0.1em] uppercase hover:border-nier-border/80 disabled:opacity-40'
@@ -33,19 +35,34 @@ export default function CalendarLinkSection({ settings, onChange, onFile }: {
       setStatus('wrong')
     }
   }
+  // Its paper: light, dark, as the one looking has the atrium, or the trace's own colours.
+  const looks = (
+    <Row stacked label={t('atrium.calendar.look')}>
+      <Choices
+        name="calendar-look"
+        value={settings.theme ?? 'own'}
+        onChange={(theme: CalendarTheme | 'own') => { const { theme: _, ...rest } = settings; onChange(theme === 'own' ? rest : { ...rest, theme }) }}
+        options={(['own', ...CALENDAR_THEMES] as const).map(one => ({ value: one, label: t(`atrium.calendar.look.${one}` as TranslationKey), title: t(`atrium.calendar.look.${one}` as TranslationKey) }))}
+      />
+    </Row>
+  )
   if (settings.link) {
     let host = settings.link
     try { host = new URL(settings.link).hostname } catch { /* shown whole */ }
     return (
-      <div data-calendar-link="" className="flex items-center gap-2">
-        <span className="flex-1 min-w-0 truncate text-xs text-nier-bg/85" title={t('atrium.calendar.followsHint')}>{t('atrium.calendar.follows', { host })}</span>
-        <button type="button" data-calendar-unfollow="" className={BUTTON} onClick={() => { const { link: _, ...rest } = settings; onChange(rest) }}>{t('atrium.calendar.unfollow')}</button>
+      <div>
+        {looks}
+        <div data-calendar-link="" className="mt-2 flex items-center gap-2">
+          <span className="flex-1 min-w-0 truncate text-xs text-nier-bg/85" title={t('atrium.calendar.followsHint')}>{t('atrium.calendar.follows', { host })}</span>
+          <button type="button" data-calendar-unfollow="" className={BUTTON} onClick={() => { const { link: _, ...rest } = settings; onChange(rest) }}>{t('atrium.calendar.unfollow')}</button>
+        </div>
       </div>
     )
   }
   return (
     <div data-calendar-link="">
-      <p className="mb-2 text-[11px] text-nier-bg/70">{t('atrium.calendar.addHint')}</p>
+      {looks}
+      <p className="mt-2 mb-2 text-[11px] text-nier-bg/70">{t('atrium.calendar.addHint')}</p>
       {onFile && (
         <>
           <input ref={file} type="file" hidden accept=".ics,text/calendar" data-calendar-file="" onChange={e => { const chosen = e.target.files?.[0]; e.target.value = ''; if (chosen) onFile(chosen) }} />

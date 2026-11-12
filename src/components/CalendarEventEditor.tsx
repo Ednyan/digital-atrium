@@ -13,6 +13,8 @@ const FIELD = 'w-full h-8 bg-nier-black text-nier-bg border border-nier-border/3
 const LABEL = 'block text-[10px] tracking-[0.14em] uppercase text-nier-bg/70 mb-1'
 const BUTTON = 'h-8 px-3 border text-[11px] tracking-[0.12em] uppercase'
 const REPEATS: Repeat[] = ['none', 'daily', 'weekly', 'monthly', 'yearly']
+// Its highlight, from the Atrium's palette (as charts'); the words on it are black or white, whichever reads.
+const COLOURS = ['#d9823b', '#b5655f', '#c7b27c', '#87a874', '#5c958f', '#6d9bb5', '#9886b8', '#e6e1d3', '#2b2722']
 
 export default function CalendarEventEditor({ at, start, existing, readOnly, onSave, onDelete, onClose }: {
   // Where it was pressed, on the screen.
@@ -40,7 +42,7 @@ export default function CalendarEventEditor({ at, start, existing, readOnly, onS
   // On the screen whole, beside where it was pressed.
   const width = 272
   const left = Math.max(8, Math.min(window.innerWidth - width - 8, at.x + 12))
-  const top = Math.max(8, Math.min(window.innerHeight - 330, at.y - 20))
+  const top = Math.max(8, Math.min(window.innerHeight - 390, at.y - 20))
   const repeats = draft.repeat === 'custom' ? [...REPEATS, 'custom' as const] : REPEATS
   return createPortal(
     <form
@@ -82,6 +84,17 @@ export default function CalendarEventEditor({ at, start, existing, readOnly, onS
           </label>
         </div>
       )}
+      <div>
+        <span className={LABEL}>{t('atrium.calendar.event.colour')}</span>
+        <div className="flex flex-wrap gap-1" role="radiogroup" aria-label={t('atrium.calendar.event.colour')}>
+          <button type="button" role="radio" aria-checked={!draft.colour} disabled={readOnly} data-event-colour="none" title={t('atrium.calendar.event.noColour')} onClick={() => set({ colour: undefined })}
+            className={`w-6 h-6 border text-[10px] leading-none text-nier-bg/70 ${!draft.colour ? 'border-nier-strong' : 'border-nier-border/40'}`}>∅</button>
+          {COLOURS.map(colour => (
+            <button key={colour} type="button" role="radio" aria-checked={draft.colour === colour} disabled={readOnly} data-event-colour={colour} title={colour} onClick={() => set({ colour })}
+              className={`w-6 h-6 border-2 ${draft.colour === colour ? 'border-nier-strong' : 'border-transparent'}`} style={{ background: colour }} />
+          ))}
+        </div>
+      </div>
       <label>
         <span className={LABEL}>{t('atrium.calendar.event.repeat')}</span>
         <select data-event-repeat="" value={draft.repeat} disabled={readOnly} onChange={e => set({ repeat: e.target.value as Repeat })} className={FIELD}>

@@ -4545,7 +4545,7 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
       const url = await uploadFile(new File([ics], 'calendar.ics', { type: 'text/calendar' }))
       keepCalendarFile(url, ics)
       keepLinkedCalendar(link, read)
-      await insertDroppedTrace('calendar', read.name ?? new URL(link).hostname, url, at.x, at.y, undefined, undefined, undefined, { calendar: { view: 'month', link } })
+      await insertDroppedTrace('calendar', read.name ?? new URL(link).hostname, url, at.x, at.y, undefined, undefined, undefined, { calendar: { view: 'month', link, theme: 'auto' } })
     } catch (error) {
       console.error('Calendar link unreadable:', error)
       showToast(t('atrium.error.calendarLinkUnreadable'))
@@ -4564,7 +4564,7 @@ export default function LobbyScene({ lobbyId, onLeaveLobby, onKicked }: LobbySce
           const read = await readCalendar(text)
           const url = await uploadFile(file)
           keepCalendarFile(url, text)
-          await insertDroppedTrace('calendar', read.name ?? (fileTitle(file.name) || file.name), url, worldX + i * 760 / zoomRef.current, worldY, undefined, undefined, undefined, { calendar: { view: 'month' } })
+          await insertDroppedTrace('calendar', read.name ?? (fileTitle(file.name) || file.name), url, worldX + i * 760 / zoomRef.current, worldY, undefined, undefined, undefined, { calendar: { view: 'month', theme: 'auto' } })
         } catch (error) {
           console.error('Calendar unreadable:', file.name, error)
           showToast(t('atrium.error.calendarUnreadable', { name: file.name }))

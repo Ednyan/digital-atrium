@@ -58,7 +58,7 @@ const TOOL_WORD: Record<Tool, TranslationKey> = { multi: 'atrium.model.toolMulti
 
 interface Gizmo { mode: GizmoMode; object?: Object3D; attach(o: Object3D): void; detach(): void; dragging: boolean; axis: string | null; enabled: boolean; dispose(): void; setSize(size: number): void; getHelper(): Object3D }
 // What posing shows over the model: its skeleton, a dot at each joint, the gizmos.
-interface Posing { shown: Object3D[]; gizmos: Gizmo[]; pick: (event: PointerEvent) => void }
+interface Posing { shown: Object3D[]; gizmos: Gizmo[]; pick: (event: PointerEvent) => void; placeDots: () => void }
 
 export default function ModelLive({ trace, scale, editable, style, onReady, onDone, onSnapshot }: {
   trace: Trace
@@ -117,6 +117,7 @@ export default function ModelLive({ trace, scale, editable, style, onReady, onDo
   const draw = () => {
     const at = stage.current
     if (!at) return
+    posingTools.current?.placeDots()
     at.render()
     const box = host.current
     if (!box) return
@@ -253,15 +254,18 @@ export default function ModelLive({ trace, scale, editable, style, onReady, onDo
     const skeleton = new SkeletonHelper(at.object)
     const dot = new SphereGeometry(1, 12, 8)
     const paint = new MeshBasicMaterial({ color: 0xff8a3d, depthTest: false, transparent: true, opacity: 0.9 })
-    const markers = at.bones.map((bone, i) => {
+    const markers = at.bones.map((_, i) => {
       const marker = new Mesh(dot, paint)
       marker.renderOrder = 999
       marker.scale.setScalar(size)
       marker.userData.bone = i
-      // Where its joint is, as it's drawn.
-      marker.onBeforeRender = () => { bone.getWorldPosition(marker.position); marker.updateMatrixWorld() }
+      // Always drawn: it was left out as off the view while still where it was
+      // made -- the scene's middle -- never reaching its joint, on a model away from it.
+      marker.frustumCulled = false
       return marker
     })
+    // Each at its joint, before every drawing.
+    const placeDots = () => markers.forEach((marker, i) => { at.bones[i].getWorldPosition(marker.position); marker.updateMatrixWorld() })
     const gizmos = (['translate', 'rotate', 'scale'] as const).map(mode => {
       const gizmo = new TransformControls(at.camera, canvas)
       gizmo.setMode(mode)
@@ -284,14 +288,14 @@ export default function ModelLive({ trace, scale, editable, style, onReady, onDo
       const r = canvas.getBoundingClientRect()
       point.set((event.clientX - r.left) / r.width * 2 - 1, -((event.clientY - r.top) / r.height * 2 - 1))
       ray.setFromCamera(point, at.camera)
-      markers.forEach(marker => marker.updateMatrixWorld())
+      placeDots()
       const hit = ray.intersectObjects(markers, false)[0]
       if (!hit) return
       event.stopImmediatePropagation()
       chooseRef.current(hit.object.userData.bone as number)
     }
     canvas.addEventListener('pointerdown', pick, { capture: true })
-    posingTools.current = { shown: [skeleton, ...markers], gizmos: gizmos as unknown as Gizmo[], pick }
+    posingTools.current = { shown: [skeleton, ...markers], gizmos: gizmos as unknown as Gizmo[], pick, placeDots }
   }
   const pose = async (on: boolean) => {
     setPosing(on)
@@ -439,7 +443,9 @@ export default function ModelLive({ trace, scale, editable, style, onReady, onDo
       onDoubleClick={keep}
       onContextMenu={keep}
     >
-      {whole && createPortal(
+      {createPortal(
+        <>
+          {whole && (
         // The full screen: the model on the whole window, dimmed behind; a press
         // outside it, or Escape, puts it back in its box.
         <div
@@ -452,10 +458,8 @@ export default function ModelLive({ trace, scale, editable, style, onReady, onDo
           onWheel={keep}
         >
           <div ref={room} className="relative w-[94vw] h-[86vh] border border-nier-border/30" style={{ background: 'rgb(var(--c-ground) / 0.6)' }} />
-        </div>,
-        scene)}
-      {createPortal(
-        <>
+        </div>
+          )}
           {posing && (
             <div
               ref={strip}

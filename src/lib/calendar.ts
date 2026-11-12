@@ -6,15 +6,20 @@
 // Trace.calendar keeps how it's shown: a month, or a week.
 
 import { ATRIUM_FONT, atriumInk } from './atriumLook.ts'
+import { readableOn } from './shapeStyle.ts'
 import type { Trace } from '../types/database'
 
 export type CalendarView = 'month' | 'week'
 // `link`: an iCal address it follows (lib/calendarLink), read again as it's shown.
-export interface CalendarSettings { view: CalendarView; link?: string }
+// `theme`: light or dark paper, or as the one looking has the atrium ('auto');
+// none, in its trace's own colours.
+export const CALENDAR_THEMES = ['auto', 'light', 'dark'] as const
+export type CalendarTheme = typeof CALENDAR_THEMES[number]
+export interface CalendarSettings { view: CalendarView; link?: string; theme?: CalendarTheme }
 // `uid` is its event's; a repeat's `series` is when its event began (its first),
 // and `repeat` how it repeats, where that's plain enough to say ('custom' if not).
 export type Repeat = 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom'
-export interface Occurrence { title: string; start: Date; end: Date; allDay: boolean; uid?: string; series?: { start: Date; end: Date }; repeat?: Repeat }
+export interface Occurrence { title: string; start: Date; end: Date; allDay: boolean; uid?: string; series?: { start: Date; end: Date }; repeat?: Repeat; colour?: string }
 export interface Calendar { name: string | null; between(from: Date, to: Date): Occurrence[] }
 
 export const CALENDAR_SIZE = { width: 720, height: 540 }
@@ -25,9 +30,11 @@ export function asCalendarSettings(raw: unknown): CalendarSettings | undefined {
   const value = typeof raw === 'string' ? (() => { try { return JSON.parse(raw) } catch { return null } })() : raw
   if (!value || typeof value !== 'object') return undefined
   const link = (value as { link?: unknown }).link
+  const theme = CALENDAR_THEMES.find(one => one === (value as { theme?: unknown }).theme)
   return {
     view: (value as { view?: unknown }).view === 'week' ? 'week' : 'month',
     ...(typeof link === 'string' && /^https?:\/\/\S+$/i.test(link) && link.length < 2048 ? { link } : {}),
+    ...(theme ? { theme } : {}),
   }
 }
 
@@ -82,7 +89,8 @@ export async function readCalendar(text: string): Promise<Calendar> {
       }
       for (const event of own) {
         if (!event.startDate || cancelled(event)) continue
-        if (!event.isRecurring()) { add(event.summary, event.startDate, event.endDate, { uid: event.uid, repeat: 'none' }); continue }
+        const colour = colourOf(event.component)
+        if (!event.isRecurring()) { add(event.summary, event.startDate, event.endDate, { uid: event.uid, repeat: 'none', colour }); continue }
         const series = { start: event.startDate.toJSDate(), end: endOf(event.startDate, event.endDate) }
         const repeat = repeatOf(event.component.getFirstPropertyValue('rrule'))
         const repeats = event.iterator()
@@ -90,12 +98,19 @@ export async function readCalendar(text: string): Promise<Calendar> {
           if (next.toJSDate() >= to) break
           const one = event.getOccurrenceDetails(next)
           if (cancelled(one.item)) continue
-          add(one.item.summary, one.startDate, one.endDate, { uid: event.uid, series, repeat })
+          add(one.item.summary, one.startDate, one.endDate, { uid: event.uid, series, repeat, colour: colourOf(one.item.component) ?? colour })
         }
       }
       return out.sort((a, b) => +a.start - +b.start || (a.allDay === b.allDay ? 0 : a.allDay ? -1 : 1))
     },
   }
+}
+
+// An event's highlight, as the atrium keeps it (X-ATRIUM-COLOR, a #rrggbb): none otherwise.
+const COLOUR_PROPERTY = 'x-atrium-color'
+function colourOf(component: { getFirstPropertyValue(name: string): unknown }): string | undefined {
+  const value = component.getFirstPropertyValue(COLOUR_PROPERTY)
+  return typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value.trim()) ? value.trim().toLowerCase() : undefined
 }
 
 // A repeat as plain as a person says it: every day, week, month, year -- or custom.
@@ -144,7 +159,7 @@ export const keepCalendarFile = (url: string, text: string) => {
 /** An event as it's made or changed in the atrium: a day (YYYY-MM-DD), the whole
  *  of it or from a time to a time (HH:MM), and how it repeats ('custom' keeps a
  *  rule the atrium can't say). */
-export interface EventDraft { title: string; date: string; allDay: boolean; from: string; to: string; repeat: Repeat }
+export interface EventDraft { title: string; date: string; allDay: boolean; from: string; to: string; repeat: Repeat; colour?: string }
 
 const pad2 = (n: number) => String(n).padStart(2, '0')
 export const dayKey = (date: Date) => `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`
@@ -167,6 +182,8 @@ export async function withEvent(text: string, draft: EventDraft, uid?: string): 
     root.addSubcomponent(event)
   }
   event.updatePropertyWithValue('summary', draft.title.trim() || '—')
+  event.removeAllProperties(COLOUR_PROPERTY)
+  if (draft.colour && /^#[0-9a-f]{6}$/i.test(draft.colour)) event.addPropertyWithValue(COLOUR_PROPERTY, draft.colour)
   event.updatePropertyWithValue('dtstart', start)
   event.removeAllProperties('duration')
   event.updatePropertyWithValue('dtend', end)
@@ -213,6 +230,15 @@ export function daysShown(view: CalendarView, anchor: Date, weekStart: number): 
   return { from, to: addDays(from, weeks * 7), weeks }
 }
 
+/** The week's number in the year, as calendars in Europe count it (ISO 8601). */
+export function isoWeek(date: Date): number {
+  const day = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
+  day.setUTCDate(day.getUTCDate() + 4 - (day.getUTCDay() || 7))
+  return Math.ceil(((day.getTime() - Date.UTC(day.getUTCFullYear(), 0, 1)) / DAY + 1) / 7)
+}
+// The number of a week shown from `start` (any first day): its Thursday's.
+const weekNumber = (start: Date) => isoWeek(addDays(start, (4 - start.getDay() + 7) % 7))
+
 /** A month or a week on from `anchor` (back, with -1). */
 export const stepped = (view: CalendarView, anchor: Date, by: number) =>
   view === 'week' ? addDays(anchor, 7 * by) : new Date(anchor.getFullYear(), anchor.getMonth() + by, 1)
@@ -221,10 +247,14 @@ export const stepped = (view: CalendarView, anchor: Date, by: number) =>
 
 export interface CalendarLook { ink: string; surface?: string; accent: string; font: string }
 /** In the Atrium's look, in the trace's own colours: its fill behind, its text colour (or one readable on the fill). */
-export function calendarLook(trace: Pick<Trace, 'fillColor' | 'textColor' | 'showBackground'>): CalendarLook {
+export function calendarLook(trace: Pick<Trace, 'fillColor' | 'textColor' | 'showBackground' | 'calendar'>, mode: 'light' | 'dark' = 'dark'): CalendarLook {
+  const theme = trace.calendar?.theme === 'auto' ? mode : trace.calendar?.theme
+  if (theme) return { ...PAPERS[theme], accent: '#ff8a3d', font: ATRIUM_FONT }
   const { ink, surface } = atriumInk(trace.fillColor, trace.textColor)
   return { ink, surface: trace.showBackground === false ? undefined : surface, accent: '#ff8a3d', font: ATRIUM_FONT }
 }
+// Its two papers: warm white, and the night's.
+const PAPERS = { light: { ink: '#2b2722', surface: '#f7f4ee' }, dark: { ink: '#e6e1d3', surface: '#18181b' } } as const
 const esc = (text: string) => text.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!)
 const n = (v: number) => Math.round(v * 100) / 100
 // Clipped to `width`, by its letters at about this size: SVG text has no ellipsis of its own.
@@ -240,14 +270,14 @@ const eventMark = (e: Occurrence) => (e.uid ? ` data-event="${esc(e.uid)}" data-
 export const HEADER = 48
 const PAD = 14
 
-export function calendarSvg(events: Occurrence[], view: CalendarView, anchor: Date, width: number, height: number, look: CalendarLook, language: string, today: Date, weekStart = weekStartFor(language), scale = 1): string {
+export function calendarSvg(events: Occurrence[], view: CalendarView, anchor: Date, width: number, height: number, look: CalendarLook, language: string, today: Date, weekStart = weekStartFor(language), scale = 1, weekWord = 'CW'): string {
   const { from, weeks } = daysShown(view, anchor, weekStart)
   const ink = look.ink, faint = `${ink}33`, quiet = `${ink}99`
   const out: string[] = [`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${n(width)} ${n(height)}" width="${n(width * scale)}" height="${n(height * scale)}" font-family="${esc(look.font)}">`]
   if (look.surface) out.push(`<rect width="${n(width)}" height="${n(height)}" fill="${look.surface}"/>`)
   const title = view === 'month'
     ? new Intl.DateTimeFormat(language, { month: 'long', year: 'numeric' }).format(anchor)
-    : formatRange(language, from, addDays(from, 6))
+    : `${formatRange(language, from, addDays(from, 6))} (${weekWord}${weekNumber(from)})`
   out.push(`<text x="${PAD}" y="${PAD + 20}" font-size="19" fill="${ink}">${esc(fit(title, width - PAD * 2 - 230, 19))}</text>`)
   const dayNames = Array.from({ length: 7 }, (_, i) => new Intl.DateTimeFormat(language, { weekday: 'short' }).format(addDays(from, i)))
   const time = new Intl.DateTimeFormat(language, { hour: 'numeric', minute: '2-digit' })
@@ -256,12 +286,19 @@ export function calendarSvg(events: Occurrence[], view: CalendarView, anchor: Da
   const shortTime = (date: Date) => twelve
     ? new Intl.DateTimeFormat(language, { hour: 'numeric', ...(date.getMinutes() ? { minute: '2-digit' } : {}) }).formatToParts(date).map(part => part.value).join('').replace(/\s+/g, '')
     : time.format(date)
-  const left = PAD, top = HEADER, gridW = width - PAD * 2
+  const top = HEADER
+  // A month's weeks numbered down its left.
+  const numbers = view === 'month' ? 26 : 0
+  const left = PAD + numbers, gridW = width - PAD * 2 - numbers
+  // An event's own colour, and the words on it readable on that.
+  const chip = (e: Occurrence, fallback: string) => e.colour ?? fallback
+  const wordsOn = (e: Occurrence, fallback: string) => (e.colour ? readableOn(e.colour) : fallback)
 
   if (view === 'month') {
     const namesH = 22, cellW = gridW / 7, cellH = (height - top - namesH - PAD) / weeks
     dayNames.forEach((name, i) => out.push(`<text x="${n(left + i * cellW + 6)}" y="${n(top + 14)}" font-size="10" fill="${quiet}" letter-spacing="1">${esc(name.toUpperCase())}</text>`))
     const gridTop = top + namesH
+    for (let r = 0; r < weeks; r++) out.push(`<text x="${n(left - 8)}" y="${n(gridTop + r * cellH + 16)}" font-size="9" text-anchor="end" fill="${quiet}" data-week-number="">${weekWord}${weekNumber(addDays(from, r * 7))}</text>`)
     const lines: string[] = []
     for (let r = 0; r <= weeks; r++) lines.push(`M${n(left)} ${n(gridTop + r * cellH)}H${n(left + gridW)}`)
     for (let c = 0; c <= 7; c++) lines.push(`M${n(left + c * cellW)} ${n(gridTop)}V${n(gridTop + weeks * cellH)}`)
@@ -281,8 +318,8 @@ export function calendarSvg(events: Occurrence[], view: CalendarView, anchor: Da
         const ly = y + 22 + k * lineH
         const words = e.allDay ? e.title : `${shortTime(e.start)} ${e.title}`
         out.push(`<g${eventMark(e)}>`)
-        out.push(`<rect x="${n(x + 3)}" y="${n(ly)}" width="${n(cellW - 6)}" height="${lineH - 2}" rx="2" fill="${look.accent}" fill-opacity="${e.allDay ? 0.22 : 0}" pointer-events="all"/>`)
-        out.push(`<text x="${n(x + 6)}" y="${n(ly + 10.5)}" font-size="10" fill="${inMonth ? ink : quiet}">${esc(fit(words, cellW - 10, 10))}</text>`)
+        out.push(`<rect x="${n(x + 3)}" y="${n(ly)}" width="${n(cellW - 6)}" height="${lineH - 2}" rx="2" fill="${chip(e, look.accent)}" fill-opacity="${e.colour ? 1 : e.allDay ? 0.22 : 0}" pointer-events="all"/>`)
+        out.push(`<text x="${n(x + 6)}" y="${n(ly + 10.5)}" font-size="10" fill="${wordsOn(e, inMonth ? ink : quiet)}">${esc(fit(words, cellW - 10, 10))}</text>`)
         out.push('</g>')
       })
       if (todays.length > shown) out.push(`<text x="${n(x + 6)}" y="${n(y + 22 + shown * lineH + 10.5)}" font-size="10" fill="${quiet}">+${todays.length - shown}</text>`)
@@ -310,8 +347,8 @@ export function calendarSvg(events: Occurrence[], view: CalendarView, anchor: Da
       allDay.filter(e => e.start < addDays(day, 1) && e.end > day).slice(0, lanesAllDay).forEach((e, k) => {
         const y = top + namesH + 2 + k * 16
         out.push(`<g${eventMark(e)}>`)
-        out.push(`<rect x="${n(x + 2)}" y="${n(y)}" width="${n(colW - 4)}" height="14" rx="2" fill="${look.accent}" fill-opacity="0.22"/>`)
-        out.push(`<text x="${n(x + 6)}" y="${n(y + 10)}" font-size="10" fill="${ink}">${esc(fit(e.title, colW - 10, 10))}</text>`)
+        out.push(`<rect x="${n(x + 2)}" y="${n(y)}" width="${n(colW - 4)}" height="14" rx="2" fill="${chip(e, look.accent)}" fill-opacity="${e.colour ? 1 : 0.22}"/>`)
+        out.push(`<text x="${n(x + 6)}" y="${n(y + 10)}" font-size="10" fill="${wordsOn(e, ink)}">${esc(fit(e.title, colW - 10, 10))}</text>`)
         out.push('</g>')
       })
       // Its timed events, side by side where they meet.
@@ -329,9 +366,9 @@ export function calendarSvg(events: Occurrence[], view: CalendarView, anchor: Da
       for (const one of placed) {
         const y = gridTop + (one.from - firstHour) * hourH, h = Math.max(12, (one.to - one.from) * hourH - 1), x0 = x + 2 + one.lane * laneW
         out.push(`<g${eventMark(one.e)}>`)
-        out.push(`<rect x="${n(x0)}" y="${n(y)}" width="${n(laneW - 2)}" height="${n(h)}" rx="2" fill="${look.accent}" fill-opacity="0.3" stroke="${look.accent}" stroke-opacity="0.7"/>`)
-        out.push(`<text x="${n(x0 + 4)}" y="${n(y + 11)}" font-size="10" fill="${ink}">${esc(fit(one.e.title, laneW - 8, 10))}</text>`)
-        if (h > 26) out.push(`<text x="${n(x0 + 4)}" y="${n(y + 23)}" font-size="9" fill="${quiet}">${esc(fit(time.format(one.e.start), laneW - 8, 9))}</text>`)
+        out.push(`<rect x="${n(x0)}" y="${n(y)}" width="${n(laneW - 2)}" height="${n(h)}" rx="2" fill="${chip(one.e, look.accent)}" fill-opacity="${one.e.colour ? 0.95 : 0.3}" stroke="${chip(one.e, look.accent)}" stroke-opacity="0.7"/>`)
+        out.push(`<text x="${n(x0 + 4)}" y="${n(y + 11)}" font-size="10" fill="${wordsOn(one.e, ink)}">${esc(fit(one.e.title, laneW - 8, 10))}</text>`)
+        if (h > 26) out.push(`<text x="${n(x0 + 4)}" y="${n(y + 23)}" font-size="9" fill="${one.e.colour ? wordsOn(one.e, ink) : quiet}" fill-opacity="${one.e.colour ? 0.8 : 1}">${esc(fit(time.format(one.e.start), laneW - 8, 9))}</text>`)
         out.push('</g>')
       }
     }
