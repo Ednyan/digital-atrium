@@ -27,7 +27,8 @@ import { DEFAULT_LOOK, DEFAULT_VIEW, makeStage, parseModel, sameView, stillSize,
 import { fetchMedia } from '../lib/exportImage'
 import { useTranslation } from '../lib/i18n'
 import { bendOf, chainOf, reach, reachTwo } from '../lib/modelIk'
-import { bendFor, humanoidOf, poseHumanoid, POSES, type Humanoid, type PoseName } from '../lib/modelHumanoid'
+import { applyFrame, basicPose, BASIC_POSES, bendFor, humanoidOf, restOf, type Aims, type Frame, type Humanoid, type RigRest } from '../lib/modelHumanoid'
+import { frameAt, lengthOf, motionOf, playables, posesOf, type Motion, type Playable } from '../lib/motions'
 import type { TranslationKey } from '../locales/en'
 import { FootHint } from './QuickBar'
 
@@ -67,6 +68,9 @@ const TOOL_ICON: Record<Tool, string> = {
 }
 const TOOL_WORD: Record<Tool, TranslationKey> = { view: 'atrium.model.toolView', multi: 'atrium.model.toolMulti', translate: 'atrium.model.toolMove', rotate: 'atrium.model.toolRotate', scale: 'atrium.model.toolScale' }
 const POLE = 0x4cc9f0
+// How the ready-made poses and the animations are grouped, in order.
+const POSE_GROUPS = ['standard', 'expressive', 'action'] as const
+const ANIMATION_GROUPS = ['everyday', 'dance', 'expressive', 'action'] as const
 
 // What's being worked on: posing (a joint, or its pole) or not (a part: 0, the
 // whole model), with which tool, how far IK reaches, and whether its gizmos show
@@ -191,7 +195,6 @@ export default function ModelLive({ trace, scale, editable, style, onReady, onDo
     let live = true
     let made: Stage | null = null
     let orbit: { dispose(): void } | null = null
-    let frame = 0
     void (async () => {
       try {
         const file = trace.imageUrl ? await fetchMedia(trace.imageUrl) : null
@@ -223,19 +226,8 @@ export default function ModelLive({ trace, scale, editable, style, onReady, onDo
         setBones(made.bones.map((bone, i) => bone.name || `${i + 1}`))
         setPartNames(made.parts.map((part, i) => (i === 0 ? t('atrium.model.wholeModel') : part.name || `${t('atrium.model.part')} ${i}`)))
         rig.current = humanoidOf(made.bones)
-        // A VRM's hair and clothes swing while it's open: stepped and drawn each
-        // frame (no more than a twentieth of a second at once, after a pause).
-        if (made.moves) {
-          const moving = made
-          let last = performance.now()
-          const tick = (now: number) => {
-            moving.step(Math.min(0.05, (now - last) / 1000))
-            last = now
-            drawRef.current()
-            frame = requestAnimationFrame(tick)
-          }
-          frame = requestAnimationFrame(tick)
-        }
+        // A VRM's hair and clothes swing while it's open.
+        if (made.moves) wakeRef.current()
         drawRef.current()
         setStatus('ready')
         onReady()
@@ -245,7 +237,8 @@ export default function ModelLive({ trace, scale, editable, style, onReady, onDo
     })()
     return () => {
       live = false
-      cancelAnimationFrame(frame)
+      cancelAnimationFrame(frameAsked.current)
+      frameAsked.current = 0
       const tools = kit.current
       kit.current = null
       if (tools) {
@@ -269,6 +262,88 @@ export default function ModelLive({ trace, scale, editable, style, onReady, onDo
     draw()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lookKey])
+
+  // ---- Moving by itself: a VRM's physics, an animation playing ------------------------
+
+  // Drawn a frame at a time while anything moves by itself, and not otherwise: a
+  // VRM's springs stepped, an animation's frame given to its rig (from rest: its
+  // own rest, read as it started). No more than a twentieth of a second at once.
+  const frameAsked = useRef(0)
+  const lastFrame = useRef(0)
+  const playRef = useRef<{ motion: Motion; time: number; paused: boolean; rest: RigRest } | null>(null)
+  const [playing, setPlaying] = useState<{ id: string; paused: boolean } | null>(null)
+  const [fetching, setFetching] = useState(false)
+  // Paused where it is: that frame its pose now, kept (one step of its undo).
+  const pausePlaying = () => {
+    const play = playRef.current
+    if (!play || play.paused) return
+    play.paused = true
+    setPlaying(now => now && { ...now, paused: true })
+    remember()
+  }
+  const pauseRef = useRef(pausePlaying)
+  pauseRef.current = pausePlaying
+  const tick = (now: number) => {
+    frameAsked.current = 0
+    const at = stage.current, play = playRef.current, person = rig.current
+    if (!at) return
+    const seconds = Math.min(0.05, Math.max(0, (now - lastFrame.current) / 1000))
+    lastFrame.current = now
+    const running = !!play && !play.paused && !!person
+    if (running) {
+      play.time += seconds
+      at.setPose(undefined)
+      applyFrame(person, play.rest, frameAt(play.motion, play.time), play.motion.aims)
+      // One that doesn't loop stops at its end, held there.
+      if (!play.motion.loop && play.time >= lengthOf(play.motion)) pausePlaying()
+    }
+    at.step(seconds)
+    drawRef.current()
+    if (at.moves || running) frameAsked.current = requestAnimationFrame(next => tickRef.current(next))
+  }
+  const tickRef = useRef(tick)
+  tickRef.current = tick
+  const wake = () => {
+    if (frameAsked.current) return
+    lastFrame.current = performance.now()
+    frameAsked.current = requestAnimationFrame(next => tickRef.current(next))
+  }
+  const wakeRef = useRef(wake)
+  wakeRef.current = wake
+  // Played from its start (from rest, as it's read now).
+  const play = async (playable: Playable) => {
+    const at = stage.current, person = rig.current
+    if (!at || !person) return
+    pausePlaying()
+    setFetching(true)
+    try {
+      const motion = await motionOf(playable)
+      if (stage.current !== at) return
+      at.setPose(undefined)
+      playRef.current = { motion, time: 0, paused: false, rest: restOf(person) }
+      setPlaying({ id: playable.id, paused: false })
+      wake()
+    } catch (error) {
+      console.error('Animation not fetched:', error)
+    } finally {
+      setFetching(false)
+    }
+  }
+  // On again from where it was paused (its end: its start).
+  const resume = () => {
+    const at = stage.current, play = playRef.current, person = rig.current
+    if (!at || !play || !person) return
+    if (!play.motion.loop && play.time >= lengthOf(play.motion)) play.time = 0
+    at.setPose(undefined)
+    play.rest = restOf(person)
+    play.paused = false
+    setPlaying(now => now && { ...now, paused: false })
+    wake()
+  }
+  // The ready-made poses, and what can be played: fetched the first time a person's
+  // full screen opens (the frames of an animation only when it's played).
+  const [poseList, setPoseList] = useState<Motion[]>([])
+  const [playList, setPlayList] = useState<Playable[]>([])
 
   // ---- Working on it ----------------------------------------------------------------
 
@@ -298,7 +373,9 @@ export default function ModelLive({ trace, scale, editable, style, onReady, onDo
   const show = (e: Editing) => {
     const tools = kit.current, at = stage.current
     if (!tools || !at) return
-    tools.shown.forEach(part => { part.visible = e.posing })
+    // (A person's hair and clothes' bones, and its rig's helpers, aren't dotted:
+    // they hid the body. They're still in its list of bones.)
+    tools.shown.forEach(part => { part.visible = e.posing && !part.userData.aside })
     const { bone, reaching, twoBone } = reachOf(e)
     const onPole = twoBone && e.onPole
     tools.pole.visible = tools.poleLine.visible = twoBone
@@ -342,10 +419,12 @@ export default function ModelLive({ trace, scale, editable, style, onReady, onDo
     // Always drawn, never left out as off the view: each is made at the scene's
     // middle and only moved to its joint before it's drawn.
     const onTop = <T extends Object3D>(made: T) => { made.renderOrder = 999; made.frustumCulled = false; return made }
+    const person = rig.current ? new Set(Object.values(rig.current)) : null
     const markers = at.bones.map((_, i) => {
       const marker = onTop(new Mesh(dot, paint))
       marker.scale.setScalar(size)
       marker.userData.bone = i
+      marker.userData.aside = !!person && !person.has(at.bones[i])
       return marker
     })
     const pole = onTop(new Mesh(new OctahedronGeometry(1), new MeshBasicMaterial({ color: POLE, depthTest: false, transparent: true, opacity: 0.95 })))
@@ -397,7 +476,7 @@ export default function ModelLive({ trace, scale, editable, style, onReady, onDo
       gizmo.addEventListener('change', () => drawRef.current())
       gizmo.addEventListener('dragging-changed', event => { if (controls.current) controls.current.enabled = !event.value })
       // One gizmo at a time: a press the arrows took isn't the rings' too.
-      gizmo.addEventListener('mouseDown', () => { for (const other of gizmos) if (other !== gizmo) other.enabled = false })
+      gizmo.addEventListener('mouseDown', () => { pauseRef.current(); for (const other of gizmos) if (other !== gizmo) other.enabled = false })
       gizmo.addEventListener('mouseUp', () => { for (const other of gizmos) other.enabled = true; remember() })
       at.scene.add(gizmo.getHelper())
     }
@@ -428,7 +507,7 @@ export default function ModelLive({ trace, scale, editable, style, onReady, onDo
         return
       }
       if (onGizmo) return
-      const hit = ray.intersectObjects(markers, false)[0]
+      const hit = ray.intersectObjects(markers.filter(marker => marker.visible), false)[0]
       if (!hit) return
       event.stopImmediatePropagation()
       editRef.current({ joint: hit.object.userData.bone as number, onPole: false, tool: e.tool === 'view' ? 'rotate' : e.tool })
@@ -448,6 +527,7 @@ export default function ModelLive({ trace, scale, editable, style, onReady, onDo
 
   // Back in its box: what's shown to work on it put away, what was done to it kept.
   const toBox = () => {
+    pausePlaying()
     setWhole(false)
     edit({ posing: false, tool: 'view', onPole: false })
   }
@@ -460,19 +540,28 @@ export default function ModelLive({ trace, scale, editable, style, onReady, onDo
     const hips = rig.current?.Hips ? stage.current?.bones.indexOf(rig.current.Hips) ?? -1 : -1
     edit(on ? { posing: true, joint: e.joint ?? Math.max(0, hips), onPole: false, tool: e.tool === 'view' ? 'rotate' : e.tool } : { posing: false, onPole: false, tool: 'view' })
   }
-  // One of a person's poses (lib/modelHumanoid): taken from its rest.
-  const takePose = (name: PoseName) => {
-    const at = stage.current
-    if (!at || !rig.current) return
+  // One of a person's poses (lib/modelHumanoid, lib/motions): taken from its rest.
+  const takePose = (pose: { frame: Frame; aims: Aims }) => {
+    const at = stage.current, person = rig.current
+    if (!at || !person) return
+    pausePlaying()
     at.setPose(undefined)
-    poseHumanoid(rig.current, name)
+    applyFrame(person, restOf(person), pose.frame, pose.aims)
     edit({ onPole: false })
     remember()
+  }
+  // Chosen from the list: a basic one, or a ready-made one.
+  const choosePose = (value: string) => {
+    const [kind, name] = [value.slice(0, value.indexOf(':')), value.slice(value.indexOf(':') + 1)]
+    if (kind === 'basic') takePose(basicPose(name as typeof BASIC_POSES[number]))
+    const made = poseList.find(one => one.id === name)
+    if (kind === 'pose' && made) takePose({ frame: frameAt(made, 0), aims: made.aims })
   }
   // Its pose, or its parts, as they were made.
   const resetShape = () => {
     const at = stage.current
     if (!at) return
+    pausePlaying()
     if (editingRef.current.posing) at.setPose(undefined)
     else at.setParts(undefined)
     edit({ onPole: false })
@@ -557,6 +646,7 @@ export default function ModelLive({ trace, scale, editable, style, onReady, onDo
       // Its own, then: never the atrium's undo as well.
       event.preventDefault()
       event.stopImmediatePropagation()
+      pauseRef.current()
       if (back) future.current.push(history.current.pop()!)
       else history.current.push(future.current.pop()!)
       const now = history.current[history.current.length - 1]
@@ -591,6 +681,15 @@ export default function ModelLive({ trace, scale, editable, style, onReady, onDo
   }
 
   const ready = status === 'ready'
+  const person = ready && !!rig.current
+  useEffect(() => {
+    if (!whole || !person || poseList.length) return
+    let live = true
+    Promise.all([posesOf(), playables()])
+      .then(([poses, animations]) => { if (live) { setPoseList(poses); setPlayList(animations) } })
+      .catch(error => console.error('Poses not fetched:', error))
+    return () => { live = false }
+  }, [whole, person, poseList.length])
   const { posing, tool, joint, part, ik, ikLength, onPole, gizmos } = editing
   const poleShown = ready && reachOf(editing).twoBone
   const shaping = !posing && tool !== 'view'
@@ -598,7 +697,7 @@ export default function ModelLive({ trace, scale, editable, style, onReady, onDo
   const layer = whole ? 'var(--layer-dialog)' : 'var(--layer-menu)'
   const hint: TranslationKey = posing ? (onPole && poleShown ? 'atrium.model.poleHint' : poleShown ? 'atrium.model.poleShown' : 'atrium.model.poseHint')
     : shaping ? 'atrium.model.partHint' : 'atrium.model.hint'
-  const hintChip = <FootHint data-model-status="">{status === 'loading' ? t('atrium.model.loading') : ready ? t(hint) : status.error}</FootHint>
+  const hintChip = <FootHint data-model-status="">{status === 'loading' || fetching ? t('atrium.model.loading') : ready ? t(hint) : status.error}</FootHint>
   // The foot of the atrium's screen (LobbyScene's), where the tools' hints are.
   const foot = document.querySelector('[data-hud-foot]')
   return (
@@ -660,8 +759,8 @@ export default function ModelLive({ trace, scale, editable, style, onReady, onDo
             ref={bar}
             data-ui-element=""
             data-model-bar={trace.id}
-            className="fixed left-0 top-0 flex items-center gap-1.5"
-            style={{ zIndex: layer, pointerEvents: 'none' }}
+            className="fixed left-0 top-0 flex flex-wrap items-center justify-end gap-1.5"
+            style={{ zIndex: layer, pointerEvents: 'none', maxWidth: 'calc(100vw - 16px)' }}
           >
             {/* In its box: a picture of it, its view back, and the rest on the full screen. */}
             {!whole && ready && editable && onSnapshot && (
@@ -686,13 +785,35 @@ export default function ModelLive({ trace, scale, editable, style, onReady, onDo
                     {[1, 2, 3, 4].map(length => <option key={length} value={length}>{t('atrium.model.chainOf', { n: length })}</option>)}
                   </select>
                 )}
-                {rig.current && (
-                  <select data-model-poses="" aria-label={t('atrium.model.poses')} value="" onChange={e => { if (e.target.value) takePose(e.target.value as PoseName) }} className={SELECT}>
-                    <option value="">{t('atrium.model.poses')}</option>
-                    {(Object.keys(POSES) as PoseName[]).map(name => <option key={name} value={name}>{t(`atrium.model.pose.${name}` as TranslationKey)}</option>)}
-                  </select>
-                )}
                 <button type="button" data-model-reset-pose="" onClick={resetShape} className={QUIET}>{t('atrium.model.resetPose')}</button>
+              </>
+            )}
+            {whole && person && editable && (
+              <>
+                <select data-model-poses="" aria-label={t('atrium.model.poses')} value="" onChange={e => { if (e.target.value) choosePose(e.target.value) }} className={`${SELECT} max-w-[11rem]`}>
+                  <option value="">{t('atrium.model.poses')}</option>
+                  <optgroup label={t('atrium.model.group.basic')}>
+                    {BASIC_POSES.map(name => <option key={name} value={`basic:${name}`}>{t(`atrium.model.pose.${name}` as TranslationKey)}</option>)}
+                  </optgroup>
+                  {POSE_GROUPS.map(group => (
+                    <optgroup key={group} label={t(`atrium.model.group.${group}` as TranslationKey)}>
+                      {poseList.filter(one => one.group === group).map(one => <option key={one.id} value={`pose:${one.id}`}>{one.name}</option>)}
+                    </optgroup>
+                  ))}
+                </select>
+                <select data-model-animations="" aria-label={t('atrium.model.animations')} value={playing?.id ?? ''} onChange={e => { const chosen = playList.find(one => one.id === e.target.value); if (chosen) void play(chosen) }} className={`${SELECT} max-w-[11rem]`}>
+                  <option value="">{t('atrium.model.animations')}</option>
+                  {ANIMATION_GROUPS.map(group => (
+                    <optgroup key={group} label={t(`atrium.model.group.${group}` as TranslationKey)}>
+                      {playList.filter(one => one.group === group).map(one => <option key={one.id} value={one.id}>{one.name}</option>)}
+                    </optgroup>
+                  ))}
+                </select>
+                {playing && (
+                  <button type="button" data-model-play="" aria-pressed={!playing.paused} onClick={() => (playing.paused ? resume() : pausePlaying())} className={playing.paused ? QUIET : ON}>
+                    {t(playing.paused ? 'atrium.model.play' : 'atrium.model.pause')}
+                  </button>
+                )}
               </>
             )}
             {shaping && (

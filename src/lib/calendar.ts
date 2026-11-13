@@ -240,8 +240,13 @@ export function isoWeek(date: Date): number {
 const weekNumber = (start: Date) => isoWeek(addDays(start, (4 - start.getDay() + 7) % 7))
 
 /** A month or a week on from `anchor` (back, with -1). */
-export const stepped = (view: CalendarView, anchor: Date, by: number) =>
-  view === 'week' ? addDays(anchor, 7 * by) : new Date(anchor.getFullYear(), anchor.getMonth() + by, 1)
+/** A week or month on (or back). Paged back to this month, it's on today again --
+ *  its Week this week, not the month's first. */
+export function stepped(view: CalendarView, anchor: Date, by: number, today = new Date()): Date {
+  if (view === 'week') return addDays(anchor, 7 * by)
+  const first = new Date(anchor.getFullYear(), anchor.getMonth() + by, 1)
+  return first.getFullYear() === today.getFullYear() && first.getMonth() === today.getMonth() ? new Date(today) : first
+}
 
 // ---- Drawing ---------------------------------------------------------------------
 

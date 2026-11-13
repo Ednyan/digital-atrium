@@ -95,7 +95,7 @@ first. Web and Desktop mean only there; no mark means both.
 |---|---|---|---|
 | [`pictures`](bringing-things-in/pictures.md) | **Written.** Formats, GIFs, crop, flip, reset | 1 | |
 | [`exr-grading`](bringing-things-in/exr-grading.md) | **Written.** View transform, colour space, exposure, looks, LUTs | 3 | Yes |
-| [`3d-models`](bringing-things-in/3d-models.md) | **Written.** Formats, turning, snapshot, keeping a view, what can't be read | 2 | Yes |
+| [`3d-models`](bringing-things-in/3d-models.md) | **Written.** Formats, starting shapes and mannequins, turning in its box, More tools (part tools, posing, IK and pole), ready-made poses and animations, light and colour, VRM | 2 | Yes |
 | [`video-and-sound`](bringing-things-in/video-and-sound.md) | **Written.** Files; their controls; a sound's bars; spatial sound | 2 | |
 | [`embeds-and-links`](bringing-things-in/embeds-and-links.md) | **Written.** Pasting links, several at once, interaction on and off, iframes, what can't be framed, Convert to Image | 1 | |
 
@@ -106,7 +106,7 @@ first. Web and Desktop mean only there; no mark means both.
 | [`pdf-and-slides`](bringing-things-in/pdf-and-slides.md) | **Written.** Paging, Extract Pages, PowerPoint | 2 | |
 | [`spreadsheets-and-charts`](bringing-things-in/spreadsheets-and-charts.md) | **Written.** What comes in, editing cells, charts, limits | 2 | Yes |
 | [`live-files`](bringing-things-in/live-files.md) | **Written.** Desktop. What follows its file, seeing it, stopping | 3 | |
-| [`calendars`](bringing-things-in/calendars.md) | **Written.** .ics in, month and week, paging, Today, what it reads | 2 | |
+| [`calendars`](bringing-things-in/calendars.md) | **Written.** Empty, .ics or followed; month and week with week numbers, paging, Today; own events with colours; Look; following an iCal address and why it fails | 2 | Yes |
 
 **3.5 From elsewhere**
 

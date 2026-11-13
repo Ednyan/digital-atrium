@@ -55,6 +55,9 @@ test('a month shows its whole weeks, a week its seven days', () => {
   assert.equal((+week.to - +week.from) / 86_400_000, 7)
   assert.equal(stepped('month', new Date(2026, 0, 31), 1).getMonth(), 1)
   assert.equal(stepped('week', new Date(2026, 10, 12), -1).getDate(), 5)
+  // Back to this month: on today, so its Week is this week.
+  assert.equal(stepped('month', new Date(2026, 11, 1), -1, new Date(2026, 10, 13)).getDate(), 13)
+  assert.equal(stepped('month', new Date(2026, 10, 13), 1, new Date(2026, 10, 13)).getDate(), 1)
 })
 
 test('its words are drawn as words, never as markup', async () => {

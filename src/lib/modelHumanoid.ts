@@ -1,28 +1,41 @@
-// Poses for anyone: a model whose skeleton is a person's -- whatever its rig
-// calls its bones (Hips or pelvis, LeftArm or upperarm_l or upper_arm.L) --
-// found by their names, and posed as a reference figure is, in the body's own
-// frame (its up, left and forward), so a rig that faces another way takes the
-// same pose.
+// Poses and animations for anyone: a model whose skeleton is a person's --
+// whatever its rig calls its bones (Hips or pelvis, LeftArm or upperarm_l or
+// upper_arm.L), fingers too -- found by their names (or, in a VRM, by what the
+// file says), and moved as another person's skeleton is moved.
 //
-// How: the reference's turns are taken as turns from rest -- the torso, legs,
-// hands and feet turn as the reference's do, keeping the rig's own posture --
-// but the arms are pointed where the reference's point, since rigs rest them
-// differently (a T, an A, at the sides).
+// What's moved between them is a frame (Frame): each part's turn beyond the
+// part above it, in the body's own frame (its left, up and forward), and where the
+// hips have gone, a share of their height: sunk (over the lower foot), and shifted
+// (from between the feet -- weight on one leg, a lunge; never a walk's travel).
+// Read from any skeleton posed
+// (readFrame) -- a mocap recording's, an animation's, the reference figure's --
+// and given to any other at rest (applyFrame), so a rig that faces another way,
+// or is sized another way, takes the same pose. The torso, legs, hands and
+// fingers turn as the source's do, keeping the rig's own posture; the arms are
+// pointed where the source's point, since rigs rest them differently (a T, an
+// A, at the sides).
 
 import { Bone, Euler, MathUtils, Matrix4, Quaternion, Vector3, type Object3D } from 'three'
 import { frameTurn, turnBy } from './modelIk.ts'
 
 type V3 = [number, number, number]
-const SIDED = ['Shoulder', 'Arm', 'ForeArm', 'Hand', 'UpLeg', 'Leg', 'Foot'] as const
+const LIMBS = ['Shoulder', 'Arm', 'ForeArm', 'Hand'] as const
+const FINGERS = ['Thumb', 'Index', 'Middle', 'Ring', 'Little'] as const
+const LEGS = ['UpLeg', 'Leg', 'Foot'] as const
+const sided = <T extends string>(side: 'Left' | 'Right', parts: readonly T[]) => parts.map(part => `${side}${part}` as const)
+const fingersOf = (side: 'Left' | 'Right') => FINGERS.flatMap(finger => [1, 2, 3].map(n => `${side}${finger}${n}` as const))
 // Each after the one it hangs from.
-export const BODY = ['Hips', 'Spine', 'Chest', 'Neck', 'Head', ...(['Left', 'Right'] as const).flatMap(side => SIDED.map(part => `${side}${part}` as const))] as const
+export const BODY = ['Hips', 'Spine', 'Spine2', 'Chest', 'Neck', 'Head',
+  ...(['Left', 'Right'] as const).flatMap(side => [...sided(side, LIMBS), ...fingersOf(side), ...sided(side, LEGS)])] as const
 export type BodyPart = typeof BODY[number]
 export type Humanoid = Partial<Record<BodyPart, Bone>>
 
-const PARENT = Object.fromEntries(BODY.map(part => {
+export const PARENT = Object.fromEntries(BODY.map(part => {
   const side = part.startsWith('Left') ? 'Left' : part.startsWith('Right') ? 'Right' : ''
   const own = part.slice(side.length)
-  const above: Record<string, string | null> = { Hips: null, Spine: 'Hips', Chest: 'Spine', Neck: 'Chest', Head: 'Neck', Shoulder: 'Chest', Arm: `${side}Shoulder`, ForeArm: `${side}Arm`, Hand: `${side}ForeArm`, UpLeg: 'Hips', Leg: `${side}UpLeg`, Foot: `${side}Leg` }
+  const finger = /^(Thumb|Index|Middle|Ring|Little)(\d)$/.exec(own)
+  if (finger) return [part, finger[2] === '1' ? `${side}Hand` : `${side}${finger[1]}${Number(finger[2]) - 1}`]
+  const above: Record<string, string | null> = { Hips: null, Spine: 'Hips', Spine2: 'Spine', Chest: 'Spine2', Neck: 'Chest', Head: 'Neck', Shoulder: 'Chest', Arm: `${side}Shoulder`, ForeArm: `${side}Arm`, Hand: `${side}ForeArm`, UpLeg: 'Hips', Leg: `${side}UpLeg`, Foot: `${side}Leg` }
   return [part, above[own]]
 })) as Record<BodyPart, BodyPart | null>
 
@@ -42,19 +55,32 @@ const PART_WORDS: [RegExp, string][] = [
   [/\b(low(er)? ?leg|leg|calf|shin|knee)\b/, 'Leg'],
   [/\b(foot|ankle)\b/, 'Foot'],
 ]
+const FINGER_WORDS: [RegExp, typeof FINGERS[number]][] = [[/\bthumb/, 'Thumb'], [/\bindex/, 'Index'], [/\bmiddle/, 'Middle'], [/\bring/, 'Ring'], [/\b(pinky|little)/, 'Little']]
+const NOT_FINGER = /\b(end|nub|tip|leaf|meta|metacarpal|palm|helper|ik|ctrl|control|mch)/
 
-/** What a bone's name says it is: a part of a body, 'spine' (one of several), or nothing. */
-export function partOf(name: string): BodyPart | 'spine' | null {
+const wordsOf = (name: string) => {
   // Its words: camelCase and separators apart, a rig's own prefix (mixamorig:) left off.
   const words = name.replace(/^.*[:|]/, '').replace(/([a-z0-9])([A-Z])/g, '$1 $2').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean)
   const side = words.some(w => w === 'left' || w === 'l') ? 'Left' : words.some(w => w === 'right' || w === 'r') ? 'Right' : ''
-  const rest = words.filter(w => !['left', 'l', 'right', 'r'].includes(w)).join(' ')
+  return { side, rest: words.filter(w => !['left', 'l', 'right', 'r'].includes(w)).join(' ') }
+}
+
+/** What a bone's name says it is: a part of a body, 'spine' (one of several), or nothing. */
+export function partOf(name: string): BodyPart | 'spine' | null {
+  const { side, rest } = wordsOf(name)
   if (NOT_BODY.test(rest)) return null
   const found = PART_WORDS.find(([words]) => words.test(rest))?.[1]
   if (!found) return null
-  const sided = (SIDED as readonly string[]).includes(found)
-  if (sided !== !!side) return null
-  return (sided ? `${side}${found}` : found) as BodyPart | 'spine'
+  const isSided = !['Hips', 'Neck', 'Head', 'spine'].includes(found)
+  if (isSided !== !!side) return null
+  return (isSided ? `${side}${found}` : found) as BodyPart | 'spine'
+}
+
+/** Which finger a bone's name says it is part of, or none. */
+export function fingerOf(name: string): typeof FINGERS[number] | null {
+  const { rest } = wordsOf(name)
+  if (NOT_FINGER.test(rest)) return null
+  return FINGER_WORDS.find(([words]) => words.test(rest))?.[1] ?? null
 }
 
 const isAbove = (upper: Object3D, lower: Object3D) => {
@@ -67,12 +93,18 @@ const VRM_PARTS: Record<string, BodyPart> = {
   hips: 'Hips', spine: 'Spine', chest: 'Chest', upperChest: 'Chest', neck: 'Neck', head: 'Head',
   ...Object.fromEntries((['Left', 'Right'] as const).flatMap(side => {
     const s = side.toLowerCase()
-    return [[`${s}Shoulder`, `${side}Shoulder`], [`${s}UpperArm`, `${side}Arm`], [`${s}LowerArm`, `${side}ForeArm`], [`${s}Hand`, `${side}Hand`], [`${s}UpperLeg`, `${side}UpLeg`], [`${s}LowerLeg`, `${side}Leg`], [`${s}Foot`, `${side}Foot`]]
+    return [
+      [`${s}Shoulder`, `${side}Shoulder`], [`${s}UpperArm`, `${side}Arm`], [`${s}LowerArm`, `${side}ForeArm`], [`${s}Hand`, `${side}Hand`],
+      [`${s}UpperLeg`, `${side}UpLeg`], [`${s}LowerLeg`, `${side}Leg`], [`${s}Foot`, `${side}Foot`],
+      [`${s}ThumbMetacarpal`, `${side}Thumb1`], [`${s}ThumbProximal`, `${side}Thumb2`], [`${s}ThumbDistal`, `${side}Thumb3`],
+      ...(['Index', 'Middle', 'Ring', 'Little'] as const).flatMap(f => [[`${s}${f}Proximal`, `${side}${f}1`], [`${s}${f}Intermediate`, `${side}${f}2`], [`${s}${f}Distal`, `${side}${f}3`]]),
+    ]
   })),
 }
 
 /** A person's skeleton found among these bones (as they're met, parents first), or none.
- *  A VRM says which is which; any other rig is read by its bones' names. */
+ *  A VRM says which is which; any other rig is read by its bones' names -- its
+ *  fingers, the bones under each hand named as one, joint by joint outward. */
 export function humanoidOf(bones: Bone[]): Humanoid | null {
   const rig: Humanoid = {}
   const spine: Bone[] = []
@@ -81,6 +113,8 @@ export function humanoidOf(bones: Bone[]): Humanoid | null {
     // (A VRM's upper chest is met after its chest, and taken over it.)
     if (said) {
       const part = VRM_PARTS[bone.userData?.humanBone]
+      // An upper chest over a chest: the chest the middle of the back.
+      if (part === 'Chest' && rig.Chest) rig.Spine2 = rig.Chest
       if (part) rig[part] = bone
       continue
     }
@@ -88,10 +122,26 @@ export function humanoidOf(bones: Bone[]): Humanoid | null {
     if (part === 'spine') spine.push(bone)
     else if (part && !rig[part]) rig[part] = bone
   }
-  // The lowest of the spine's bones and the highest: Spine and Chest.
+  // The lowest of the spine's bones, the highest, and one between: Spine, Chest, Spine2.
   const back = spine.filter(bone => !rig.Hips || isAbove(rig.Hips, bone))
   if (back.length) rig.Spine = back[0]
   if (back.length > 1) rig.Chest = back[back.length - 1]
+  if (back.length > 2) rig.Spine2 = back[Math.floor(back.length / 2)]
+  if (!said) {
+    for (const side of ['Left', 'Right'] as const) {
+      const hand = rig[`${side}Hand`]
+      if (!hand) continue
+      for (const finger of FINGERS) {
+        // Its joints in a row from the hand out: each the last one's child.
+        const chain: Bone[] = []
+        for (const bone of bones) {
+          if (chain.length === 3 || !isAbove(chain[chain.length - 1] ?? hand, bone) || fingerOf(bone.name) !== finger) continue
+          chain.push(bone)
+        }
+        chain.forEach((bone, i) => { rig[`${side}${finger}${i + 1}` as BodyPart] = bone })
+      }
+    }
+  }
   const needed: BodyPart[] = ['Hips', 'Head', 'LeftArm', 'LeftForeArm', 'RightArm', 'RightForeArm', 'LeftUpLeg', 'LeftLeg', 'RightUpLeg', 'RightLeg']
   if (needed.some(part => !rig[part])) return null
   // Each where it should hang -- or the names said something else.
@@ -99,49 +149,21 @@ export function humanoidOf(bones: Bone[]): Humanoid | null {
     const bone = rig[part]
     let above = PARENT[part]
     while (above && !rig[above]) above = PARENT[above]
-    if (bone && above && !isAbove(rig[above]!, bone)) return null
+    if (bone && above && !isAbove(rig[above]!, bone)) delete rig[part]
   }
-  return rig
+  return needed.every(part => rig[part]) ? rig : null
 }
 
-// ---- Posing them ------------------------------------------------------------------
+// ---- A body at rest, and a frame of it moving ------------------------------------
 
-// The reference: where its joints are standing, arms down, facing +z, its left at
-// +x (metres) -- what the poses are made on.
-const REFERENCE: Record<BodyPart, V3> = (() => {
-  const joints: Partial<Record<BodyPart, V3>> = { Hips: [0, 0.95, 0], Spine: [0, 1.05, 0], Chest: [0, 1.22, 0], Neck: [0, 1.43, 0], Head: [0, 1.53, 0] }
-  for (const [side, x] of [['Left', 1], ['Right', -1]] as const) {
-    Object.assign(joints, {
-      [`${side}Shoulder`]: [x * 0.05, 1.4, 0], [`${side}Arm`]: [x * 0.195, 1.4, 0], [`${side}ForeArm`]: [x * 0.195, 1.12, 0], [`${side}Hand`]: [x * 0.195, 0.87, 0],
-      [`${side}UpLeg`]: [x * 0.095, 0.92, 0], [`${side}Leg`]: [x * 0.095, 0.5, 0], [`${side}Foot`]: [x * 0.095, 0.08, 0],
-    })
-  }
-  return joints as Record<BodyPart, V3>
-})()
-
-// Turns from standing, in degrees about x, y, z of the reference; the hips moved
-// too where a pose lowers them (metres, for the reference's length of leg).
-export interface Pose { turns: Partial<Record<BodyPart, V3>>; hips?: V3 }
-export const POSES = {
-  stand: { turns: {} },
-  relaxed: { turns: { Hips: [0, 0, 4], Spine: [0, 0, -3], Chest: [0, 0, -3], Head: [0, 0, 3], LeftArm: [0, 0, 6], RightArm: [0, 0, -4], RightUpLeg: [-6, 0, -3], RightLeg: [10, 0, 0] } },
-  tpose: { turns: { LeftArm: [0, 0, 90], RightArm: [0, 0, -90] } },
-  apose: { turns: { LeftArm: [0, 0, 45], RightArm: [0, 0, -45] } },
-  walk: { turns: { LeftUpLeg: [-25, 0, 0], LeftLeg: [12, 0, 0], RightUpLeg: [18, 0, 0], RightLeg: [28, 0, 0], RightFoot: [-10, 0, 0], LeftArm: [20, 0, 4], LeftForeArm: [-15, 0, 0], RightArm: [-22, 0, -4], RightForeArm: [-20, 0, 0], Spine: [3, 0, 0] } },
-  run: { turns: { Spine: [12, 0, 0], LeftUpLeg: [-60, 0, 0], LeftLeg: [70, 0, 0], RightUpLeg: [25, 0, 0], RightLeg: [85, 0, 0], RightArm: [-50, 0, -5], RightForeArm: [-85, 0, 0], LeftArm: [45, 0, 5], LeftForeArm: [-80, 0, 0] } },
-  sit: { hips: [0, -0.45, 0], turns: { LeftUpLeg: [-90, 0, 4], RightUpLeg: [-90, 0, -4], LeftLeg: [90, 0, 0], RightLeg: [90, 0, 0], LeftArm: [-25, 0, 4], RightArm: [-25, 0, -4], LeftForeArm: [-45, 0, 0], RightForeArm: [-45, 0, 0] } },
-  kneel: { hips: [0, -0.42, 0], turns: { LeftUpLeg: [-90, 0, 0], LeftLeg: [90, 0, 0], RightUpLeg: [0, 0, 0], RightLeg: [90, 0, 0], RightFoot: [-40, 0, 0] } },
-  think: { turns: { Spine: [6, 0, 0], Head: [10, -10, 0], RightArm: [-55, 0, -12], RightForeArm: [-125, 25, 0], LeftArm: [-30, 0, 18], LeftForeArm: [-95, -60, 0] } },
-  wave: { turns: { RightArm: [0, 0, -150], RightForeArm: [0, 0, -25], Head: [0, -10, 0], LeftArm: [0, 0, 6] } },
-  reach: { turns: { Spine: [-6, 0, 0], LeftArm: [0, 0, 170], RightArm: [0, 0, -170], Head: [-15, 0, 0] } },
-} satisfies Record<string, Pose>
-export type PoseName = keyof typeof POSES
-
-// Pointed where the reference's point, not turned as they turn.
+// Pointed where the source's point, not turned as they turn.
 const AIMED: Partial<Record<BodyPart, BodyPart>> = { LeftArm: 'LeftForeArm', LeftForeArm: 'LeftHand', RightArm: 'RightForeArm', RightForeArm: 'RightHand' }
 const FORWARD = new Vector3(0, 0, 1)
+const UP = new Vector3(0, 1, 0)
+const worldTurn = (part: Object3D) => part.getWorldQuaternion(new Quaternion())
+const worldAt = (part: Object3D) => part.getWorldPosition(new Vector3())
 
-/** Which way the body faces, as a turn from the reference's: its left, up and forward. */
+/** Which way the body faces, as a turn from the reference axes: its left (x), up (y) and forward (z). */
 function frameOf(at: (part: BodyPart) => Vector3): Quaternion {
   const left = at('LeftUpLeg').sub(at('RightUpLeg')).normalize()
   const up = at('Head').sub(at('Hips'))
@@ -149,66 +171,166 @@ function frameOf(at: (part: BodyPart) => Vector3): Quaternion {
   return new Quaternion().setFromRotationMatrix(new Matrix4().makeBasis(left, up, new Vector3().crossVectors(left, up)))
 }
 
-const worldTurn = (part: Object3D) => part.getWorldQuaternion(new Quaternion())
-const worldAt = (part: Object3D) => part.getWorldPosition(new Vector3())
+/** A rig as it stands at rest: each part's turn (and what it hangs from's), its frame,
+ *  how high its hips stand over its lower foot and where from between its feet, and
+ *  how its arms point, in its frame. */
+export interface RigRest {
+  parts: BodyPart[]
+  turn: Map<BodyPart, Quaternion>
+  above: Map<BodyPart, Quaternion>
+  frame: Quaternion
+  hips: Vector3
+  height: number
+  fromFeet: Vector3
+  aims: Partial<Record<BodyPart, Vector3>>
+}
 
-/** The rig -- at rest -- posed so. */
-export function poseHumanoid(rig: Humanoid, name: PoseName) {
-  const pose: Pose = POSES[name]
-  // The reference, posed (at rest, every turn of it is none).
-  const ref = new Map<BodyPart, Bone>()
-  for (const part of BODY) {
-    const bone = new Bone()
-    const joint = REFERENCE[part], above = PARENT[part]
-    const from = above ? REFERENCE[above] : [0, 0, 0]
-    bone.position.set(joint[0] - from[0], joint[1] - from[1], joint[2] - from[2])
-    const turn = pose.turns[part]
-    if (turn) bone.quaternion.setFromEuler(new Euler(...turn.map(MathUtils.degToRad) as V3, 'XYZ'))
-    if (above) ref.get(above)!.add(bone)
-    ref.set(part, bone)
-  }
-  if (pose.hips) ref.get('Hips')!.position.add(new Vector3(...pose.hips))
-  ref.get('Hips')!.updateMatrixWorld(true)
+const feetOf = (rig: Humanoid) => (['LeftFoot', 'RightFoot', 'LeftLeg', 'RightLeg'] as const).filter(part => rig[part]).slice(0, 2).map(part => worldAt(rig[part]!))
+// How high the hips are over the lower of the feet, along `up`.
+const hipsHeight = (rig: Humanoid, up: Vector3) => worldAt(rig.Hips!).dot(up) - Math.min(...feetOf(rig).map(foot => foot.dot(up)))
+// Where the hips are from between the feet.
+const hipsFromFeet = (rig: Humanoid) => {
+  const feet = feetOf(rig)
+  return worldAt(rig.Hips!).sub(feet.reduce((sum, foot) => sum.add(foot), new Vector3()).divideScalar(feet.length))
+}
 
-  // The rig at rest: how each part and what it hangs from are turned, and the body's frame.
+export function restOf(rig: Humanoid): RigRest {
   const parts = BODY.filter(part => rig[part])
-  const rest = new Map(parts.map(part => [part, worldTurn(rig[part]!)]))
-  const restAbove = new Map(parts.map(part => [part, rig[part]!.parent ? worldTurn(rig[part]!.parent!) : new Quaternion()]))
   const frame = frameOf(part => worldAt(rig[part]!))
-  const inFrame = (turn: Quaternion) => frame.clone().multiply(turn).multiply(frame.clone().invert())
-
-  // Lowered as far, for its own length of leg.
-  if (pose.hips) {
-    const hips = rig.Hips!, low: BodyPart = rig.LeftFoot ? 'LeftFoot' : 'LeftLeg'
-    const up = new Vector3(0, 1, 0).applyQuaternion(frame)
-    const scale = worldAt(hips).sub(worldAt(rig[low]!)).dot(up) / (REFERENCE.Hips[1] - REFERENCE[low][1])
-    const to = worldAt(hips).add(new Vector3(...pose.hips).applyQuaternion(frame).multiplyScalar(scale))
-    hips.position.copy(hips.parent ? hips.parent.worldToLocal(to) : to)
-    hips.updateMatrixWorld(true)
+  const back = frame.clone().invert()
+  const aims: RigRest['aims'] = {}
+  for (const [part, toward] of Object.entries(AIMED) as [BodyPart, BodyPart][]) {
+    if (rig[part] && rig[toward]) aims[part] = worldAt(rig[toward]!).sub(worldAt(rig[part]!)).normalize().applyQuaternion(back)
   }
+  return {
+    parts,
+    turn: new Map(parts.map(part => [part, worldTurn(rig[part]!)])),
+    above: new Map(parts.map(part => [part, rig[part]!.parent ? worldTurn(rig[part]!.parent!) : new Quaternion()])),
+    frame,
+    hips: worldAt(rig.Hips!),
+    height: hipsHeight(rig, UP.clone().applyQuaternion(frame)) || 1,
+    fromFeet: hipsFromFeet(rig),
+    aims,
+  }
+}
 
-  for (const part of parts) {
+/** A body's pose: each part's turn beyond the part above it, in the body's frame;
+ *  and where its hips have gone, in its frame, a share of their height at rest --
+ *  up (y) over the lower foot, across (x, z) from between the feet. With it, how
+ *  the arms of the body it was read from point at rest (Aims), to point them so. */
+export interface Frame { own: Partial<Record<BodyPart, Quaternion>>; hips: Vector3 }
+export type Aims = Partial<Record<BodyPart, Vector3>>
+
+/** The rig's pose now, read against its rest. A part it hasn't turns with the one above. */
+export function readFrame(rig: Humanoid, rest: RigRest): Frame {
+  const back = rest.frame.clone().invert()
+  const turned = new Map<BodyPart, Quaternion>()
+  const own: Frame['own'] = {}
+  for (const part of BODY) {
+    const bone = rig[part], above = PARENT[part]
+    // Its turn from rest, in the world, seen in the body's frame.
+    const turn = bone
+      ? back.clone().multiply(worldTurn(bone).multiply(rest.turn.get(part)!.clone().invert())).multiply(rest.frame)
+      : (above ? turned.get(above)!.clone() : new Quaternion())
+    turned.set(part, turn)
+    own[part] = above ? turned.get(above)!.clone().invert().multiply(turn) : turn
+  }
+  const up = UP.clone().applyQuaternion(rest.frame)
+  const shift = hipsFromFeet(rig).sub(rest.fromFeet).applyQuaternion(back).divideScalar(rest.height)
+  return { own, hips: new Vector3(shift.x, (hipsHeight(rig, up) - rest.height) / rest.height, shift.z) }
+}
+
+/** The rig -- at rest -- posed as `frame` says, its arms pointed as `aims` (its source's). */
+export function applyFrame(rig: Humanoid, rest: RigRest, frame: Frame, aims: Aims) {
+  const F = rest.frame, back = F.clone().invert()
+  const inWorld = (turn: Quaternion) => F.clone().multiply(turn).multiply(back)
+  // Each part's turn from rest, in the body's frame: what's above it, then its own.
+  const turned = new Map<BodyPart, Quaternion>()
+  for (const part of BODY) {
+    const above = PARENT[part], own = frame.own[part] ?? new Quaternion()
+    turned.set(part, above ? turned.get(above)!.clone().multiply(own) : own.clone())
+  }
+  // Sunk and shifted as far, for its own height.
+  const hips = rig.Hips!
+  const to = rest.hips.clone().add(frame.hips.clone().multiplyScalar(rest.height).applyQuaternion(F))
+  hips.position.copy(hips.parent ? hips.parent.worldToLocal(to) : to)
+  hips.updateMatrixWorld(true)
+
+  for (const part of rest.parts) {
     const bone = rig[part]!
     const toward = AIMED[part]
-    if (toward && rig[toward]) {
-      // Pointed as the reference's, rolled as it is (its forward, turned with it).
-      const turned = worldTurn(bone).multiply(rest.get(part)!.clone().invert())
-      const wanted = worldAt(ref.get(toward)!).sub(worldAt(ref.get(part)!)).applyQuaternion(frame)
-      const wantedRoll = FORWARD.clone().applyQuaternion(worldTurn(ref.get(part)!)).applyQuaternion(frame)
-      turnBy(bone, frameTurn(worldAt(rig[toward]!).sub(worldAt(bone)), FORWARD.clone().applyQuaternion(frame).applyQuaternion(turned), wanted, wantedRoll))
+    if (toward && rig[toward] && aims[part]) {
+      // Pointed as the source's, rolled as it is (its forward, turned with it).
+      const since = worldTurn(bone).multiply(rest.turn.get(part)!.clone().invert())
+      const wanted = aims[part]!.clone().applyQuaternion(turned.get(part)!).applyQuaternion(F)
+      const wantedRoll = FORWARD.clone().applyQuaternion(turned.get(part)!).applyQuaternion(F)
+      turnBy(bone, frameTurn(worldAt(rig[toward]!).sub(worldAt(bone)), FORWARD.clone().applyQuaternion(F).applyQuaternion(since), wanted, wantedRoll))
       continue
     }
-    // Turned as the reference's is beyond what it hangs from -- in the body's frame --
-    // after what it hangs from has turned.
+    // Turned as the source's is beyond what it hangs from here -- in the body's
+    // frame -- after what it hangs from has turned.
     let above = PARENT[part]
     while (above && !rig[above]) above = PARENT[above]
-    const own = above ? worldTurn(ref.get(above)!).invert().multiply(worldTurn(ref.get(part)!)) : worldTurn(ref.get(part)!)
-    const parentTurned = bone.parent ? worldTurn(bone.parent).multiply(restAbove.get(part)!.clone().invert()) : new Quaternion()
-    const want = parentTurned.multiply(inFrame(own)).multiply(rest.get(part)!)
+    const own = above ? turned.get(above)!.clone().invert().multiply(turned.get(part)!) : turned.get(part)!.clone()
+    const parentTurned = bone.parent ? worldTurn(bone.parent).multiply(rest.above.get(part)!.clone().invert()) : new Quaternion()
+    const want = parentTurned.multiply(inWorld(own)).multiply(rest.turn.get(part)!)
     bone.quaternion.copy((bone.parent ? worldTurn(bone.parent) : new Quaternion()).invert().multiply(want))
     bone.updateMatrixWorld(true)
   }
 }
+
+// ---- The reference figure, and its basic poses -----------------------------------
+
+// Where its joints are standing, arms down, facing +z, its left at +x (metres).
+const REFERENCE: Partial<Record<BodyPart, V3>> = (() => {
+  const joints: Partial<Record<BodyPart, V3>> = { Hips: [0, 0.95, 0], Spine: [0, 1.05, 0], Chest: [0, 1.22, 0], Neck: [0, 1.43, 0], Head: [0, 1.53, 0] }
+  for (const [side, x] of [['Left', 1], ['Right', -1]] as const) {
+    Object.assign(joints, {
+      [`${side}Shoulder`]: [x * 0.05, 1.4, 0], [`${side}Arm`]: [x * 0.195, 1.4, 0], [`${side}ForeArm`]: [x * 0.195, 1.12, 0], [`${side}Hand`]: [x * 0.195, 0.87, 0],
+      [`${side}UpLeg`]: [x * 0.095, 0.92, 0], [`${side}Leg`]: [x * 0.095, 0.5, 0], [`${side}Foot`]: [x * 0.095, 0.08, 0],
+    })
+  }
+  return joints
+})()
+
+// Turns from standing, in degrees about x, y, z of the reference.
+const BASIC = {
+  stand: {},
+  tpose: { LeftArm: [0, 0, 90], RightArm: [0, 0, -90] },
+  apose: { LeftArm: [0, 0, 45], RightArm: [0, 0, -45] },
+} satisfies Record<string, Partial<Record<BodyPart, V3>>>
+export type BasicPose = keyof typeof BASIC
+export const BASIC_POSES = Object.keys(BASIC) as BasicPose[]
+
+/** One of the basic poses, as a frame, with the reference's arms to point by. */
+export function basicPose(name: BasicPose): { frame: Frame; aims: Aims } {
+  const ref: Humanoid = {}
+  for (const part of BODY) {
+    const joint = REFERENCE[part]
+    if (!joint) continue
+    const bone = new Bone()
+    // (It has no middle of the back: its chest hangs from its spine.)
+    let above = PARENT[part]
+    while (above && !REFERENCE[above]) above = PARENT[above]
+    const from = above ? REFERENCE[above]! : [0, 0, 0]
+    bone.position.set(joint[0] - from[0], joint[1] - from[1], joint[2] - from[2])
+    if (above) ref[above]!.add(bone)
+    ref[part] = bone
+  }
+  ref.Hips!.updateMatrixWorld(true)
+  const rest = restOf(ref)
+  for (const [part, turn] of Object.entries(BASIC[name]) as [BodyPart, V3][]) ref[part]!.quaternion.setFromEuler(new Euler(...turn.map(MathUtils.degToRad) as V3, 'XYZ'))
+  ref.Hips!.updateMatrixWorld(true)
+  return { frame: readFrame(ref, rest), aims: rest.aims }
+}
+
+/** The rig -- at rest -- in one of the basic poses. */
+export function poseHumanoid(rig: Humanoid, name: BasicPose) {
+  const { frame, aims } = basicPose(name)
+  applyFrame(rig, restOf(rig), frame, aims)
+}
+
+// ---- Which way it faces, and bends ---------------------------------------------------
 
 /** Which way the body faces now, in the world. */
 export const facingOf = (rig: Humanoid) => FORWARD.clone().applyQuaternion(frameOf(part => worldAt(rig[part]!)))
