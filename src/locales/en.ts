@@ -1431,6 +1431,8 @@ export const en = {
   'atrium.model.animations': "Animations",
   'atrium.model.play': "Play",
   'atrium.model.pause': "Pause",
+  'atrium.model.stop': "Stop",
+  'atrium.model.loop': "Loop",
   'atrium.model.group.basic': "Basic",
   'atrium.model.group.standard': "Standard",
   'atrium.model.group.expressive': "Expressive",

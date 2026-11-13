@@ -1459,6 +1459,8 @@ const ja: Catalogue = {
   'atrium.model.animations': "アニメーション",
   'atrium.model.play': "再生",
   'atrium.model.pause': "一時停止",
+  'atrium.model.stop': "停止",
+  'atrium.model.loop': "ループ",
   'atrium.model.group.basic': "基本",
   'atrium.model.group.standard': "標準",
   'atrium.model.group.expressive': "表現",

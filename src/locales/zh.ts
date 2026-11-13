@@ -1462,6 +1462,8 @@ const zh: Catalogue = {
   'atrium.model.animations': "动画",
   'atrium.model.play': "播放",
   'atrium.model.pause': "暂停",
+  'atrium.model.stop': "停止",
+  'atrium.model.loop': "循环",
   'atrium.model.group.basic': "基础",
   'atrium.model.group.standard': "标准",
   'atrium.model.group.expressive': "表现",

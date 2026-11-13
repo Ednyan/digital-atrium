@@ -1463,6 +1463,8 @@ const ko: Catalogue = {
   'atrium.model.animations': "애니메이션",
   'atrium.model.play': "재생",
   'atrium.model.pause': "일시 정지",
+  'atrium.model.stop': "정지",
+  'atrium.model.loop': "반복",
   'atrium.model.group.basic': "기본",
   'atrium.model.group.standard': "표준",
   'atrium.model.group.expressive': "표현",

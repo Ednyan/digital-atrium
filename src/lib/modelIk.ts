@@ -89,8 +89,9 @@ export function bendOf(end: Object3D): Vector3 | null {
 /** Two bones -- `end`'s parent and its parent -- turned for `end` to reach `goal`
  *  (as near as they're long), the middle bending toward `pole`. The bend keeps
  *  its own hinge: the limb is first turned whole, its bend onto the pole's side,
- *  then opened or closed in that plane. */
-export function reachTwo(end: Object3D, goal: Vector3, pole: Vector3) {
+ *  then opened or closed in that plane. A limb held straight bends, by its hinge,
+ *  the way `straight` says (a knee forward); without it, toward the pole. */
+export function reachTwo(end: Object3D, goal: Vector3, pole: Vector3, straight?: Vector3) {
   const mid = end.parent, root = mid?.parent
   if (!mid || !root) return
   const a = root.getWorldPosition(new Vector3()), b = mid.getWorldPosition(new Vector3()), c = end.getWorldPosition(new Vector3())
@@ -110,7 +111,7 @@ export function reachTwo(end: Object3D, goal: Vector3, pole: Vector3) {
   else bend.normalize()
   // Turned whole: the line root to end along the goal's, its bend toward the pole's.
   const line = c.clone().sub(a)
-  turnBy(root, frameTurn(line, bendOf(end) ?? bend, along, bend))
+  turnBy(root, frameTurn(line, bendOf(end) ?? straight ?? bend, along, bend))
   // Then, in that plane, the middle where the two lengths meet.
   const x = (upper * upper - lower * lower + span * span) / (2 * span)
   const elbow = a.clone().addScaledVector(along, x).addScaledVector(bend, Math.sqrt(Math.max(0, upper * upper - x * x)))

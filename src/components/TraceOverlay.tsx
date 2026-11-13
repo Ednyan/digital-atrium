@@ -6823,7 +6823,7 @@ export default function TraceOverlay({ traces: storeTraces, onPaste, atriumBackg
         imageUrl: modelUrl,
         mediaUrl: stillUrl,
         content: origin.source.name.replace(/\.[^.]+$/, '') || trace.content,
-        model: { ...origin.record, look: { light, exposure } },
+        model: { ...origin.record, look: { ...origin.record.look, light, exposure } },
       })
     } catch (error) {
       console.error('3D model not replaced:', error)

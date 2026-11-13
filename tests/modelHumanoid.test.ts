@@ -5,7 +5,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { AnimationMixer, Bone, Vector3, type AnimationClip, type Object3D } from 'three'
+import { AnimationMixer, Bone, Quaternion, Vector3, type AnimationClip, type Object3D } from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 
 import { applyFrame, basicPose, bendFor, facingOf, fingerOf, humanoidOf, partOf, readFrame, restOf, type Humanoid } from '../src/lib/modelHumanoid.ts'
@@ -57,7 +57,8 @@ for (const kind of ['man', 'woman']) {
     applyFrame(rig, rest, frame, aims)
     const shoulder = at(rig.LeftArm!), hand = at(rig.LeftHand!)
     assert.ok(shoulder.y - hand.y > 0.4 && Math.abs(hand.x - shoulder.x) < 0.08, 'left arm hangs from its T')
-    assert.ok(at(rig.LeftFoot!).distanceTo(foot) < 0.01, 'feet where they were')
+    // Standing on its own feet: under its hips as they were, on the ground.
+    assert.ok(at(rig.LeftFoot!).distanceTo(foot) < 0.05 && Math.abs(at(rig.LeftFoot!).y - foot.y) < 0.01, `feet where they were (${at(rig.LeftFoot!).distanceTo(foot).toFixed(3)})`)
     toRest()
     const t = basicPose('tpose')
     applyFrame(rig, rest, t.frame, t.aims)
@@ -150,4 +151,31 @@ test('a VRM says which bone is which: its word taken over any name', () => {
   assert.equal(rig.LeftUpLeg!.userData.humanBone, 'leftUpperLeg')
   assert.equal(rig.RightForeArm!.userData.humanBone, 'rightLowerArm')
   assert.equal(rig.LeftIndex1!.userData.humanBone, 'leftIndexProximal')
+})
+
+test('knees and elbows bend by their own hinges, whatever the source rests them as', async () => {
+  const { bones, toRest } = await load('src/assets/models/mannequin-man.glb')
+  const rig = humanoidOf(bones)!
+  const rest = restOf(rig)
+  const pairs = [['LeftUpLeg', 'LeftLeg', 'LeftFoot'], ['RightUpLeg', 'RightLeg', 'RightFoot'], ['LeftArm', 'LeftForeArm', 'LeftHand'], ['RightArm', 'RightForeArm', 'RightHand']] as const
+  // Each limb's hinge at rest, in its root bone's own space: the normal of its slight bend.
+  const hinge = (root: Bone, middle: Bone, end: Bone) => {
+    const upper = at(middle).sub(at(root)), lower = at(end).sub(at(middle))
+    return new Vector3().crossVectors(upper, lower)
+  }
+  const restHinges = pairs.map(([a, b, c]) => hinge(rig[a]!, rig[b]!, rig[c]!).normalize().applyQuaternion(rig[a]!.getWorldQuaternion(new Quaternion()).invert()))
+  const cases: [string, string, number][] = [['cmu', 'cmu-79_69', 0.49], ['cmu', 'cmu-137_37', 3.01], ['cmu', 'cmu-91_30', 5.02], ['quaternius', 'ual1-Sitting_Idle_Loop', 0.5], ['cmu', 'cmu-135_07', 2.82]]
+  for (const [file, id, seconds] of cases) {
+    toRest()
+    const m = motion(file, id)
+    applyFrame(rig, rest, frameAt(m, seconds), m.aims)
+    pairs.forEach(([a, b, c], i) => {
+      const bent = hinge(rig[a]!, rig[b]!, rig[c]!)
+      // Only where it's bent enough to have a plane.
+      if (bent.length() < 0.01) return
+      const own = restHinges[i].clone().applyQuaternion(rig[a]!.getWorldQuaternion(new Quaternion()))
+      const along = Math.abs(bent.normalize().dot(own))
+      assert.ok(along > 0.95, `${id}: ${b} bends ${(Math.acos(Math.min(1, along)) * 180 / Math.PI).toFixed(0)}° off its hinge`)
+    })
+  }
 })

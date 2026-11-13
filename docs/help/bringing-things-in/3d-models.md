@@ -25,7 +25,9 @@ picture is made again from there.
 | Another in its place | Customize it > **3D model** > **Choose a model file…** |
 | A shape or a figure | Customize it > **3D model** > **Start from**: **Cube**, **Sphere**, **Cylinder**, **Cone**, or a **Mannequin** (man or woman) |
 
-The mannequins are by Quaternius (free to use: CC0), standing, ready to pose.
+The mannequins are by Quaternius (free to use: CC0), standing, ready to pose. The
+Atrium's own models start in one plain colour; switch on **Its own colours and
+textures** for theirs.
 
 Files: **.glb**, **.gltf**, **.fbx** (7.0 or newer), **.obj**, **.stl**, **.dae**
 (Collada), **.vrm** (an avatar: VRoid and the like).
@@ -125,9 +127,15 @@ skeleton named some other way has none, but poses by hand.
 | **Poses** > **Action** | Superhero landing, aiming, fists up, hook, punch, kicks, guard, karate stance, blocking, sword, spells, ninja, throwing, sliding |
 | **Animations** | Everyday, Dance, Expressive and Action: walks, idles, salsa, Charleston, boxing, karate, swordplay and more |
 
-An animation plays round (or to its end); **Pause** holds it where it is, and
-that's its pose then: change it, or **Done** to keep it. **Play** goes on from
-there. Taking a pose, **Reset pose**, or dragging a joint pauses it too.
+| You want | Do this |
+|---|---|
+| It held where it is | **Pause**: that's its pose then; change it, or **Done** to keep it |
+| On from there | **Play** |
+| Back to its start, held | **Stop** |
+| Round and round, or once and held at its end | **Loop** (on at first) |
+
+Taking a pose, **Reset pose**, or dragging a joint pauses it too. The pose you
+take shows in the **Poses** list until something else changes it.
 
 ![The woman mannequin playing an animation: waiting, weight shifting from hip to hip](../images/3d-models-animation.webp)
 

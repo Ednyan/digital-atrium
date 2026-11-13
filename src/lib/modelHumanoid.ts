@@ -11,12 +11,14 @@
 // (readFrame) -- a mocap recording's, an animation's, the reference figure's --
 // and given to any other at rest (applyFrame), so a rig that faces another way,
 // or is sized another way, takes the same pose. The torso, legs, hands and
-// fingers turn as the source's do, keeping the rig's own posture; the arms are
-// pointed where the source's point, since rigs rest them differently (a T, an
-// A, at the sides).
+// fingers turn as the source's do, keeping the rig's own posture; the arms and
+// legs are placed where the source's are -- the hand or foot where its is, the
+// elbow or knee bending its way -- by the rig's own hinges (lib/modelIk
+// reachTwo), since rigs rest them differently (a T, an A, at the sides; a leg
+// rolled in or out), and a turn copied would carry that roll into a knee.
 
 import { Bone, Euler, MathUtils, Matrix4, Quaternion, Vector3, type Object3D } from 'three'
-import { frameTurn, turnBy } from './modelIk.ts'
+import { reachTwo } from './modelIk.ts'
 
 type V3 = [number, number, number]
 const LIMBS = ['Shoulder', 'Arm', 'ForeArm', 'Hand'] as const
@@ -157,7 +159,12 @@ export function humanoidOf(bones: Bone[]): Humanoid | null {
 // ---- A body at rest, and a frame of it moving ------------------------------------
 
 // Pointed where the source's point, not turned as they turn.
-const AIMED: Partial<Record<BodyPart, BodyPart>> = { LeftArm: 'LeftForeArm', LeftForeArm: 'LeftHand', RightArm: 'RightForeArm', RightForeArm: 'RightHand' }
+// Placed where the source's are, not turned as they turn: each limb's root, middle
+// and end, and which way its middle bends of itself (a knee forward, an elbow back).
+const LIMB_CHAINS = (['Left', 'Right'] as const).flatMap(side => [
+  { root: `${side}Arm`, middle: `${side}ForeArm`, end: `${side}Hand`, bends: -1 },
+  { root: `${side}UpLeg`, middle: `${side}Leg`, end: `${side}Foot`, bends: 1 },
+] as { root: BodyPart; middle: BodyPart; end: BodyPart; bends: number }[])
 const FORWARD = new Vector3(0, 0, 1)
 const UP = new Vector3(0, 1, 0)
 const worldTurn = (part: Object3D) => part.getWorldQuaternion(new Quaternion())
@@ -173,7 +180,7 @@ function frameOf(at: (part: BodyPart) => Vector3): Quaternion {
 
 /** A rig as it stands at rest: each part's turn (and what it hangs from's), its frame,
  *  how high its hips stand over its lower foot and where from between its feet, and
- *  how its arms point, in its frame. */
+ *  each limb's two bones (root to middle, middle to end), in its frame, in its heights. */
 export interface RigRest {
   parts: BodyPart[]
   turn: Map<BodyPart, Quaternion>
@@ -198,9 +205,12 @@ export function restOf(rig: Humanoid): RigRest {
   const parts = BODY.filter(part => rig[part])
   const frame = frameOf(part => worldAt(rig[part]!))
   const back = frame.clone().invert()
+  const height = hipsHeight(rig, UP.clone().applyQuaternion(frame)) || 1
   const aims: RigRest['aims'] = {}
-  for (const [part, toward] of Object.entries(AIMED) as [BodyPart, BodyPart][]) {
-    if (rig[part] && rig[toward]) aims[part] = worldAt(rig[toward]!).sub(worldAt(rig[part]!)).normalize().applyQuaternion(back)
+  for (const { root, middle, end } of LIMB_CHAINS) {
+    if (!rig[root] || !rig[middle] || !rig[end]) continue
+    aims[root] = worldAt(rig[middle]!).sub(worldAt(rig[root]!)).applyQuaternion(back).divideScalar(height)
+    aims[middle] = worldAt(rig[end]!).sub(worldAt(rig[middle]!)).applyQuaternion(back).divideScalar(height)
   }
   return {
     parts,
@@ -208,7 +218,7 @@ export function restOf(rig: Humanoid): RigRest {
     above: new Map(parts.map(part => [part, rig[part]!.parent ? worldTurn(rig[part]!.parent!) : new Quaternion()])),
     frame,
     hips: worldAt(rig.Hips!),
-    height: hipsHeight(rig, UP.clone().applyQuaternion(frame)) || 1,
+    height,
     fromFeet: hipsFromFeet(rig),
     aims,
   }
@@ -256,15 +266,34 @@ export function applyFrame(rig: Humanoid, rest: RigRest, frame: Frame, aims: Aim
   hips.position.copy(hips.parent ? hips.parent.worldToLocal(to) : to)
   hips.updateMatrixWorld(true)
 
+  const placed = new Set<BodyPart>(), ends = new Set<BodyPart>()
   for (const part of rest.parts) {
     const bone = rig[part]!
-    const toward = AIMED[part]
-    if (toward && rig[toward] && aims[part]) {
-      // Pointed as the source's, rolled as it is (its forward, turned with it).
-      const since = worldTurn(bone).multiply(rest.turn.get(part)!.clone().invert())
-      const wanted = aims[part]!.clone().applyQuaternion(turned.get(part)!).applyQuaternion(F)
-      const wantedRoll = FORWARD.clone().applyQuaternion(turned.get(part)!).applyQuaternion(F)
-      turnBy(bone, frameTurn(worldAt(rig[toward]!).sub(worldAt(bone)), FORWARD.clone().applyQuaternion(F).applyQuaternion(since), wanted, wantedRoll))
+    if (placed.has(part)) continue
+    const limb = LIMB_CHAINS.find(one => one.root === part)
+    if (limb && rig[limb.middle] && rig[limb.end] && aims[limb.root] && aims[limb.middle] && rest.aims[limb.root] && rest.aims[limb.middle]) {
+      // The source's limb as it's posed: its two bones, in its frame, in its heights.
+      const upper = aims[limb.root]!.clone().applyQuaternion(turned.get(limb.root)!)
+      const lower = aims[limb.middle]!.clone().applyQuaternion(turned.get(limb.middle)!)
+      const reach = upper.clone().add(lower)
+      // Its end as far out, for how far this limb reaches at rest; its middle bending its way.
+      const scale = rest.aims[limb.root]!.clone().add(rest.aims[limb.middle]!).length() / Math.max(1e-9, aims[limb.root]!.clone().add(aims[limb.middle]!).length())
+      const start = worldAt(bone)
+      const goal = start.clone().add(reach.clone().multiplyScalar(scale * rest.height).applyQuaternion(F))
+      const out = upper.clone().addScaledVector(reach, -upper.dot(reach) / Math.max(1e-9, reach.lengthSq()))
+      const own = FORWARD.clone().multiplyScalar(limb.bends).applyQuaternion(F)
+      const bend = out.lengthSq() > 1e-8 ? out.normalize().applyQuaternion(F) : own
+      reachTwo(rig[limb.end]!, goal, start.clone().add(bend.multiplyScalar(rest.height)), own)
+      placed.add(limb.middle)
+      ends.add(limb.end)
+      continue
+    }
+    // A hand or foot of a limb placed so: turned in the world as the source's is
+    // (a fist facing its way, a foot flat), whatever its forearm's roll.
+    if (ends.has(part)) {
+      const want = inWorld(turned.get(part)!).multiply(rest.turn.get(part)!)
+      bone.quaternion.copy((bone.parent ? worldTurn(bone.parent) : new Quaternion()).invert().multiply(want))
+      bone.updateMatrixWorld(true)
       continue
     }
     // Turned as the source's is beyond what it hangs from here -- in the body's

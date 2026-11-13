@@ -1484,6 +1484,8 @@ const ptPT: Catalogue = {
   'atrium.model.animations': "Animações",
   'atrium.model.play': "Reproduzir",
   'atrium.model.pause': "Pausa",
+  'atrium.model.stop': "Parar",
+  'atrium.model.loop': "Repetir",
   'atrium.model.group.basic': "Básicas",
   'atrium.model.group.standard': "Padrão",
   'atrium.model.group.expressive': "Expressivas",

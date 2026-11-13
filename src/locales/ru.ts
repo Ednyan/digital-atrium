@@ -1483,6 +1483,8 @@ const ru: Catalogue = {
   'atrium.model.animations': "Анимации",
   'atrium.model.play': "Воспроизвести",
   'atrium.model.pause': "Пауза",
+  'atrium.model.stop': "Стоп",
+  'atrium.model.loop': "Повтор",
   'atrium.model.group.basic': "Базовые",
   'atrium.model.group.standard': "Обычные",
   'atrium.model.group.expressive': "Выразительные",

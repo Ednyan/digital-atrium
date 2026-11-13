@@ -1480,6 +1480,8 @@ const de: Catalogue = {
   'atrium.model.animations': "Animationen",
   'atrium.model.play': "Abspielen",
   'atrium.model.pause': "Pause",
+  'atrium.model.stop': "Stopp",
+  'atrium.model.loop': "Schleife",
   'atrium.model.group.basic': "Grundposen",
   'atrium.model.group.standard': "Standard",
   'atrium.model.group.expressive': "Ausdrucksstark",

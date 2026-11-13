@@ -1477,6 +1477,8 @@ const es: Catalogue = {
   'atrium.model.animations': "Animaciones",
   'atrium.model.play': "Reproducir",
   'atrium.model.pause': "Pausa",
+  'atrium.model.stop': "Detener",
+  'atrium.model.loop': "Repetir",
   'atrium.model.group.basic': "Básicas",
   'atrium.model.group.standard': "Estándar",
   'atrium.model.group.expressive': "Expresivas",

@@ -272,7 +272,14 @@ export default function ModelLive({ trace, scale, editable, style, onReady, onDo
   const lastFrame = useRef(0)
   const playRef = useRef<{ motion: Motion; time: number; paused: boolean; rest: RigRest } | null>(null)
   const [playing, setPlaying] = useState<{ id: string; paused: boolean } | null>(null)
+  // Round again at its end (or held there): the person's choice, on at first.
+  const [looping, setLooping] = useState(true)
+  const loopingRef = useRef(looping)
+  loopingRef.current = looping
   const [fetching, setFetching] = useState(false)
+  // The ready-made pose last taken, shown in its list -- till something else poses it.
+  const [poseChoice, setPoseChoice] = useState('')
+  const forgetChoice = useRef(() => setPoseChoice(''))
   // Paused where it is: that frame its pose now, kept (one step of its undo).
   const pausePlaying = () => {
     const play = playRef.current
@@ -292,10 +299,11 @@ export default function ModelLive({ trace, scale, editable, style, onReady, onDo
     const running = !!play && !play.paused && !!person
     if (running) {
       play.time += seconds
+      const length = lengthOf(play.motion)
       at.setPose(undefined)
-      applyFrame(person, play.rest, frameAt(play.motion, play.time), play.motion.aims)
-      // One that doesn't loop stops at its end, held there.
-      if (!play.motion.loop && play.time >= lengthOf(play.motion)) pausePlaying()
+      applyFrame(person, play.rest, frameAt(play.motion, loopingRef.current ? play.time % length : play.time), play.motion.aims)
+      // Not looping, it stops at its end, held there.
+      if (!loopingRef.current && play.time >= length) { play.time = length; pausePlaying() }
     }
     at.step(seconds)
     drawRef.current()
@@ -322,6 +330,7 @@ export default function ModelLive({ trace, scale, editable, style, onReady, onDo
       at.setPose(undefined)
       playRef.current = { motion, time: 0, paused: false, rest: restOf(person) }
       setPlaying({ id: playable.id, paused: false })
+      setPoseChoice('')
       wake()
     } catch (error) {
       console.error('Animation not fetched:', error)
@@ -329,11 +338,22 @@ export default function ModelLive({ trace, scale, editable, style, onReady, onDo
       setFetching(false)
     }
   }
+  // Back to its start, still: its first frame its pose.
+  const stopPlaying = () => {
+    const at = stage.current, play = playRef.current, person = rig.current
+    if (!at || !play || !person) return
+    pausePlaying()
+    play.time = 0
+    at.setPose(undefined)
+    applyFrame(person, play.rest, frameAt(play.motion, 0), play.motion.aims)
+    drawRef.current()
+    remember()
+  }
   // On again from where it was paused (its end: its start).
   const resume = () => {
     const at = stage.current, play = playRef.current, person = rig.current
     if (!at || !play || !person) return
-    if (!play.motion.loop && play.time >= lengthOf(play.motion)) play.time = 0
+    if (play.time >= lengthOf(play.motion)) play.time = 0
     at.setPose(undefined)
     play.rest = restOf(person)
     play.paused = false
@@ -476,7 +496,7 @@ export default function ModelLive({ trace, scale, editable, style, onReady, onDo
       gizmo.addEventListener('change', () => drawRef.current())
       gizmo.addEventListener('dragging-changed', event => { if (controls.current) controls.current.enabled = !event.value })
       // One gizmo at a time: a press the arrows took isn't the rings' too.
-      gizmo.addEventListener('mouseDown', () => { pauseRef.current(); for (const other of gizmos) if (other !== gizmo) other.enabled = false })
+      gizmo.addEventListener('mouseDown', () => { pauseRef.current(); forgetChoice.current(); for (const other of gizmos) if (other !== gizmo) other.enabled = false })
       gizmo.addEventListener('mouseUp', () => { for (const other of gizmos) other.enabled = true; remember() })
       at.scene.add(gizmo.getHelper())
     }
@@ -548,10 +568,13 @@ export default function ModelLive({ trace, scale, editable, style, onReady, onDo
     at.setPose(undefined)
     applyFrame(person, restOf(person), pose.frame, pose.aims)
     edit({ onPole: false })
+    // Drawn now, not only when the view next moves.
+    drawRef.current()
     remember()
   }
   // Chosen from the list: a basic one, or a ready-made one.
   const choosePose = (value: string) => {
+    setPoseChoice(value)
     const [kind, name] = [value.slice(0, value.indexOf(':')), value.slice(value.indexOf(':') + 1)]
     if (kind === 'basic') takePose(basicPose(name as typeof BASIC_POSES[number]))
     const made = poseList.find(one => one.id === name)
@@ -562,7 +585,7 @@ export default function ModelLive({ trace, scale, editable, style, onReady, onDo
     const at = stage.current
     if (!at) return
     pausePlaying()
-    if (editingRef.current.posing) at.setPose(undefined)
+    if (editingRef.current.posing) { at.setPose(undefined); setPoseChoice('') }
     else at.setParts(undefined)
     edit({ onPole: false })
     remember()
@@ -607,11 +630,14 @@ export default function ModelLive({ trace, scale, editable, style, onReady, onDo
     let frame = 0
     const follow = () => {
       const box = (wholeRef.current ? room.current : host.current), buttons = bar.current
-      if (box && buttons) {
+      if (box) {
         const r = box.getBoundingClientRect()
-        const above = r.top > buttons.offsetHeight + 16
-        const right = Math.min(window.innerWidth - 8, Math.max(buttons.offsetWidth + 8, r.right))
-        buttons.style.transform = `translate(${right - buttons.offsetWidth}px, ${above ? r.top - buttons.offsetHeight - 8 : Math.min(window.innerHeight - buttons.offsetHeight - 8, r.bottom + 8)}px)`
+        // In its box, its buttons follow it; on the full screen they're laid out above it.
+        if (buttons && !wholeRef.current) {
+          const above = r.top > buttons.offsetHeight + 16
+          const right = Math.min(window.innerWidth - 8, Math.max(buttons.offsetWidth + 8, r.right))
+          buttons.style.transform = `translate(${right - buttons.offsetWidth}px, ${above ? r.top - buttons.offsetHeight - 8 : Math.min(window.innerHeight - buttons.offsetHeight - 8, r.bottom + 8)}px)`
+        }
         if (strip.current) strip.current.style.transform = `translate(${Math.max(8, r.left + 8)}px, ${Math.max(8, r.top + 8)}px)`
       }
       frame = requestAnimationFrame(follow)
@@ -647,6 +673,7 @@ export default function ModelLive({ trace, scale, editable, style, onReady, onDo
       event.preventDefault()
       event.stopImmediatePropagation()
       pauseRef.current()
+      forgetChoice.current()
       if (back) future.current.push(history.current.pop()!)
       else history.current.push(future.current.pop()!)
       const now = history.current[history.current.length - 1]
@@ -690,6 +717,7 @@ export default function ModelLive({ trace, scale, editable, style, onReady, onDo
       .catch(error => console.error('Poses not fetched:', error))
     return () => { live = false }
   }, [whole, person, poseList.length])
+  const listsLoading = whole && person && !poseList.length
   const { posing, tool, joint, part, ik, ikLength, onPole, gizmos } = editing
   const poleShown = ready && reachOf(editing).twoBone
   const shaping = !posing && tool !== 'view'
@@ -697,7 +725,89 @@ export default function ModelLive({ trace, scale, editable, style, onReady, onDo
   const layer = whole ? 'var(--layer-dialog)' : 'var(--layer-menu)'
   const hint: TranslationKey = posing ? (onPole && poleShown ? 'atrium.model.poleHint' : poleShown ? 'atrium.model.poleShown' : 'atrium.model.poseHint')
     : shaping ? 'atrium.model.partHint' : 'atrium.model.hint'
-  const hintChip = <FootHint data-model-status="">{status === 'loading' || fetching ? t('atrium.model.loading') : ready ? t(hint) : status.error}</FootHint>
+  const hintChip = <FootHint data-model-status="">{status === 'loading' || fetching || listsLoading ? t('atrium.model.loading') : ready ? t(hint) : status.error}</FootHint>
+  // Its buttons: above it in its box, or above the room on the full screen.
+  const barItems = (
+    <>
+      {/* In its box: a picture of it, its view back, and the rest on the full screen. */}
+      {!whole && ready && editable && onSnapshot && (
+        <button type="button" data-model-snapshot="" onClick={() => void snapshot()} className={QUIET}>{t('atrium.model.snapshot')}</button>
+      )}
+      {!whole && ready && <button type="button" data-model-reset="" onClick={reset} className={QUIET}>{t('atrium.model.reset')}</button>}
+      {!whole && ready && (
+        <button type="button" data-model-whole-switch="" onClick={() => setWhole(true)} className={QUIET}>{t('atrium.model.moreTools')}</button>
+      )}
+      {whole && ready && editable && bones.length > 0 && (
+        <button type="button" data-model-pose="" aria-pressed={posing} onClick={() => pose(!posing)} className={posing ? ON : QUIET}>{t('atrium.model.pose')}</button>
+      )}
+      {posing && (
+        <>
+          <select data-model-bone="" aria-label={t('atrium.model.bone')} value={joint ?? ''} onChange={e => edit({ joint: e.target.value === '' ? null : Number(e.target.value), onPole: false })} className={`${SELECT} max-w-[10rem]`}>
+            <option value="">{t('atrium.model.bone')}</option>
+            {bones.map((name, i) => <option key={i} value={i}>{name}</option>)}
+          </select>
+          <button type="button" data-model-ik="" aria-pressed={ik} title={t('atrium.model.ikHint')} onClick={() => edit({ ik: !ik, onPole: false })} className={ik ? ON : QUIET}>{t('atrium.model.ik')}</button>
+          {ik && (
+            <select data-model-ik-length="" aria-label={t('atrium.model.chain')} title={t('atrium.model.chain')} value={ikLength} onChange={e => edit({ ikLength: Number(e.target.value), onPole: false })} className={SELECT}>
+              {[1, 2, 3, 4].map(length => <option key={length} value={length}>{t('atrium.model.chainOf', { n: length })}</option>)}
+            </select>
+          )}
+          <button type="button" data-model-reset-pose="" onClick={resetShape} className={QUIET}>{t('atrium.model.resetPose')}</button>
+        </>
+      )}
+      {whole && person && editable && (
+        <>
+          <select data-model-poses="" aria-label={t('atrium.model.poses')} value={poseChoice} onChange={e => { if (e.target.value) choosePose(e.target.value) }} className={`${SELECT} max-w-[11rem]`}>
+            <option value="">{listsLoading ? t('atrium.model.loading') : t('atrium.model.poses')}</option>
+            <optgroup label={t('atrium.model.group.basic')}>
+              {BASIC_POSES.map(name => <option key={name} value={`basic:${name}`}>{t(`atrium.model.pose.${name}` as TranslationKey)}</option>)}
+            </optgroup>
+            {POSE_GROUPS.map(group => (
+              <optgroup key={group} label={t(`atrium.model.group.${group}` as TranslationKey)}>
+                {poseList.filter(one => one.group === group).map(one => <option key={one.id} value={`pose:${one.id}`}>{one.name}</option>)}
+              </optgroup>
+            ))}
+          </select>
+          <select data-model-animations="" aria-label={t('atrium.model.animations')} value={playing?.id ?? ''} disabled={listsLoading || fetching} onChange={e => { const chosen = playList.find(one => one.id === e.target.value); if (chosen) void play(chosen) }} className={`${SELECT} max-w-[11rem]`}>
+            <option value="">{listsLoading || fetching ? t('atrium.model.loading') : t('atrium.model.animations')}</option>
+            {ANIMATION_GROUPS.map(group => (
+              <optgroup key={group} label={t(`atrium.model.group.${group}` as TranslationKey)}>
+                {playList.filter(one => one.group === group).map(one => <option key={one.id} value={one.id}>{one.name}</option>)}
+              </optgroup>
+            ))}
+          </select>
+          {playing && (
+            <>
+              <button type="button" data-model-play="" aria-pressed={!playing.paused} onClick={() => (playing.paused ? resume() : pausePlaying())} className={playing.paused ? QUIET : ON}>
+                {t(playing.paused ? 'atrium.model.play' : 'atrium.model.pause')}
+              </button>
+              <button type="button" data-model-stop="" onClick={stopPlaying} className={QUIET}>{t('atrium.model.stop')}</button>
+              <button type="button" data-model-loop="" aria-pressed={looping} onClick={() => setLooping(on => !on)} className={looping ? ON : QUIET}>{t('atrium.model.loop')}</button>
+            </>
+          )}
+        </>
+      )}
+      {shaping && (
+        <>
+          {partNames.length > 1 && (
+            <select data-model-part="" aria-label={t('atrium.model.part')} value={part} onChange={e => edit({ part: Number(e.target.value) })} className={`${SELECT} max-w-[10rem]`}>
+              {partNames.map((name, i) => <option key={i} value={i}>{name}</option>)}
+            </select>
+          )}
+          <button type="button" data-model-reset-parts="" onClick={resetShape} className={QUIET}>{t('atrium.model.resetParts')}</button>
+        </>
+      )}
+      {whole && ready && editable && onSnapshot && !posing && !shaping && (
+        <button type="button" data-model-snapshot="" onClick={() => void snapshot()} className={QUIET}>{t('atrium.model.snapshot')}</button>
+      )}
+      {whole && ready && !posing && !shaping && <button type="button" data-model-reset="" onClick={reset} className={QUIET}>{t('atrium.model.reset')}</button>}
+      {whole && (posing || shaping) && (
+        <button type="button" data-model-gizmos="" aria-pressed={!gizmos} onClick={() => edit({ gizmos: !gizmos })} className={gizmos ? QUIET : ON}>{t(gizmos ? 'atrium.model.hideGizmos' : 'atrium.model.showGizmos')}</button>
+      )}
+      {whole && <button type="button" data-model-back="" onClick={toBox} className={QUIET}>{t('atrium.model.backToTrace')}</button>}
+      {whole && <button type="button" data-model-done="" onClick={() => void finish()} className={ON}>{t('atrium.model.done')}</button>}
+    </>
+  )
   // The foot of the atrium's screen (LobbyScene's), where the tools' hints are.
   const foot = document.querySelector('[data-hud-foot]')
   return (
@@ -722,13 +832,16 @@ export default function ModelLive({ trace, scale, editable, style, onReady, onDo
               ref={overlay}
               data-ui-element=""
               data-model-whole={trace.id}
-              className="fixed inset-0 flex items-center justify-center"
+              className="fixed inset-0 flex flex-col items-center gap-2 p-3"
               style={{ zIndex: 'var(--layer-dialog)', background: 'rgb(0 0 0 / 0.72)' }}
               onPointerDown={event => { if (event.target === event.currentTarget) toBox() }}
               onWheel={keep}
             >
-              <div ref={room} className="relative w-[94vw] h-[86vh] border border-nier-border/30" style={{ background: 'rgb(var(--c-ground) / 0.6)' }} />
-              <div className="absolute bottom-[2vh] left-1/2 -translate-x-1/2 pointer-events-none">{hintChip}</div>
+              <div ref={bar} data-model-bar={trace.id} className="w-[94vw] flex flex-wrap items-center justify-end gap-1.5" style={{ pointerEvents: 'none' }}>
+                {barItems}
+              </div>
+              <div ref={room} className="relative w-[94vw] flex-1 min-h-0 border border-nier-border/30" style={{ background: 'rgb(var(--c-ground) / 0.6)' }} />
+              <div className="pointer-events-none">{hintChip}</div>
             </div>
           )}
           {ready && editable && whole && (
@@ -755,87 +868,17 @@ export default function ModelLive({ trace, scale, editable, style, onReady, onDo
               ))}
             </div>
           )}
-          <div
-            ref={bar}
-            data-ui-element=""
-            data-model-bar={trace.id}
-            className="fixed left-0 top-0 flex flex-wrap items-center justify-end gap-1.5"
-            style={{ zIndex: layer, pointerEvents: 'none', maxWidth: 'calc(100vw - 16px)' }}
-          >
-            {/* In its box: a picture of it, its view back, and the rest on the full screen. */}
-            {!whole && ready && editable && onSnapshot && (
-              <button type="button" data-model-snapshot="" onClick={() => void snapshot()} className={QUIET}>{t('atrium.model.snapshot')}</button>
-            )}
-            {!whole && ready && <button type="button" data-model-reset="" onClick={reset} className={QUIET}>{t('atrium.model.reset')}</button>}
-            {!whole && ready && (
-              <button type="button" data-model-whole-switch="" onClick={() => setWhole(true)} className={QUIET}>{t('atrium.model.moreTools')}</button>
-            )}
-            {whole && ready && editable && bones.length > 0 && (
-              <button type="button" data-model-pose="" aria-pressed={posing} onClick={() => pose(!posing)} className={posing ? ON : QUIET}>{t('atrium.model.pose')}</button>
-            )}
-            {posing && (
-              <>
-                <select data-model-bone="" aria-label={t('atrium.model.bone')} value={joint ?? ''} onChange={e => edit({ joint: e.target.value === '' ? null : Number(e.target.value), onPole: false })} className={`${SELECT} max-w-[10rem]`}>
-                  <option value="">{t('atrium.model.bone')}</option>
-                  {bones.map((name, i) => <option key={i} value={i}>{name}</option>)}
-                </select>
-                <button type="button" data-model-ik="" aria-pressed={ik} title={t('atrium.model.ikHint')} onClick={() => edit({ ik: !ik, onPole: false })} className={ik ? ON : QUIET}>{t('atrium.model.ik')}</button>
-                {ik && (
-                  <select data-model-ik-length="" aria-label={t('atrium.model.chain')} title={t('atrium.model.chain')} value={ikLength} onChange={e => edit({ ikLength: Number(e.target.value), onPole: false })} className={SELECT}>
-                    {[1, 2, 3, 4].map(length => <option key={length} value={length}>{t('atrium.model.chainOf', { n: length })}</option>)}
-                  </select>
-                )}
-                <button type="button" data-model-reset-pose="" onClick={resetShape} className={QUIET}>{t('atrium.model.resetPose')}</button>
-              </>
-            )}
-            {whole && person && editable && (
-              <>
-                <select data-model-poses="" aria-label={t('atrium.model.poses')} value="" onChange={e => { if (e.target.value) choosePose(e.target.value) }} className={`${SELECT} max-w-[11rem]`}>
-                  <option value="">{t('atrium.model.poses')}</option>
-                  <optgroup label={t('atrium.model.group.basic')}>
-                    {BASIC_POSES.map(name => <option key={name} value={`basic:${name}`}>{t(`atrium.model.pose.${name}` as TranslationKey)}</option>)}
-                  </optgroup>
-                  {POSE_GROUPS.map(group => (
-                    <optgroup key={group} label={t(`atrium.model.group.${group}` as TranslationKey)}>
-                      {poseList.filter(one => one.group === group).map(one => <option key={one.id} value={`pose:${one.id}`}>{one.name}</option>)}
-                    </optgroup>
-                  ))}
-                </select>
-                <select data-model-animations="" aria-label={t('atrium.model.animations')} value={playing?.id ?? ''} onChange={e => { const chosen = playList.find(one => one.id === e.target.value); if (chosen) void play(chosen) }} className={`${SELECT} max-w-[11rem]`}>
-                  <option value="">{t('atrium.model.animations')}</option>
-                  {ANIMATION_GROUPS.map(group => (
-                    <optgroup key={group} label={t(`atrium.model.group.${group}` as TranslationKey)}>
-                      {playList.filter(one => one.group === group).map(one => <option key={one.id} value={one.id}>{one.name}</option>)}
-                    </optgroup>
-                  ))}
-                </select>
-                {playing && (
-                  <button type="button" data-model-play="" aria-pressed={!playing.paused} onClick={() => (playing.paused ? resume() : pausePlaying())} className={playing.paused ? QUIET : ON}>
-                    {t(playing.paused ? 'atrium.model.play' : 'atrium.model.pause')}
-                  </button>
-                )}
-              </>
-            )}
-            {shaping && (
-              <>
-                {partNames.length > 1 && (
-                  <select data-model-part="" aria-label={t('atrium.model.part')} value={part} onChange={e => edit({ part: Number(e.target.value) })} className={`${SELECT} max-w-[10rem]`}>
-                    {partNames.map((name, i) => <option key={i} value={i}>{name}</option>)}
-                  </select>
-                )}
-                <button type="button" data-model-reset-parts="" onClick={resetShape} className={QUIET}>{t('atrium.model.resetParts')}</button>
-              </>
-            )}
-            {whole && ready && editable && onSnapshot && !posing && !shaping && (
-              <button type="button" data-model-snapshot="" onClick={() => void snapshot()} className={QUIET}>{t('atrium.model.snapshot')}</button>
-            )}
-            {whole && ready && !posing && !shaping && <button type="button" data-model-reset="" onClick={reset} className={QUIET}>{t('atrium.model.reset')}</button>}
-            {whole && (posing || shaping) && (
-              <button type="button" data-model-gizmos="" aria-pressed={!gizmos} onClick={() => edit({ gizmos: !gizmos })} className={gizmos ? QUIET : ON}>{t(gizmos ? 'atrium.model.hideGizmos' : 'atrium.model.showGizmos')}</button>
-            )}
-            {whole && <button type="button" data-model-back="" onClick={toBox} className={QUIET}>{t('atrium.model.backToTrace')}</button>}
-            {whole && <button type="button" data-model-done="" onClick={() => void finish()} className={ON}>{t('atrium.model.done')}</button>}
-          </div>
+          {!whole && (
+            <div
+              ref={bar}
+              data-ui-element=""
+              data-model-bar={trace.id}
+              className="fixed left-0 top-0 flex flex-wrap items-center justify-end gap-1.5"
+              style={{ zIndex: layer, pointerEvents: 'none', maxWidth: 'calc(100vw - 16px)' }}
+            >
+              {barItems}
+            </div>
+          )}
           {/* What dragging does, at the foot of the screen among the tools' hints. */}
           {!whole && !foot && <div className="fixed bottom-4 left-1/2 -translate-x-1/2 pointer-events-none" style={{ zIndex: layer }}>{hintChip}</div>}
         </>,

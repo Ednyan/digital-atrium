@@ -562,11 +562,16 @@ export async function makeStage(object: Object3D, canvas: HTMLCanvasElement = do
 
 // ---- Files -----------------------------------------------------------------------
 
+// The Atrium's own models (a cube, the shapes, the mannequins): one plain colour at
+// first, their own colours off -- marked as they're made, kept so as they're placed.
+const plainAtFirst = new WeakSet<Blob>()
+export const plainFirst = <T extends Blob>(file: T): T => { plainAtFirst.add(file); return file }
+
 /** A model's still, framed from the usual angle, and the view it's kept with. */
-async function firstStill(object: Object3D): Promise<{ png: Blob; view: ModelView }> {
+async function firstStill(object: Object3D, own = true): Promise<{ png: Blob; view: ModelView }> {
   const stage = await makeStage(object)
   try {
-    stage.setLook(DEFAULT_LOOK, true)
+    stage.setLook(DEFAULT_LOOK, own)
     // A person seen from the front, whichever way its file has it face.
     const { humanoidOf, facingOf } = await import('./modelHumanoid')
     const rig = humanoidOf(stage.bones), facing = rig && facingOf(rig)
@@ -626,9 +631,10 @@ export async function withModelsAsPng(files: File[], onUnreadable: (file: File, 
       const object = await parseModel(await file.arrayBuffer(), format, sides, used)
       const bundled = used.size > before && format !== 'glb'
       const source = bundled ? new File([await asOneFile(object)], file.name.replace(/\.[^.]+$/, '.glb'), { type: 'model/gltf-binary' }) : file
-      const { png, view } = await firstStill(object)
+      const plain = plainAtFirst.has(file)
+      const { png, view } = await firstStill(object, !plain)
       const still = new File([png], file.name.replace(/\.[^.]+$/, '.png'), { type: 'image/png' })
-      origins.set(still, { source, record: { format: bundled ? 'glb' : format, view } })
+      origins.set(still, { source, record: { format: bundled ? 'glb' : format, view, ...(plain ? { look: { ...DEFAULT_LOOK, textures: false } } : {}) } })
       out.push(still)
     } catch (error) {
       onUnreadable(file, error)
@@ -642,5 +648,5 @@ export async function defaultCubeFile(name = 'Cube'): Promise<File> {
   const { BoxGeometry, Group, Mesh, MeshStandardMaterial } = await import('three')
   const cube = new Group()
   cube.add(new Mesh(new BoxGeometry(1, 1, 1), new MeshStandardMaterial({ color: 0xbdbdbd, roughness: 0.55, metalness: 0.05 })))
-  return new File([await asOneFile(cube)], `${name}.glb`, { type: 'model/gltf-binary' })
+  return plainFirst(new File([await asOneFile(cube)], `${name}.glb`, { type: 'model/gltf-binary' }))
 }

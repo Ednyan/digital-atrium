@@ -10,9 +10,9 @@ export type Starter = typeof STARTERS[number]
 
 /** A model to start from, as a .glb file. */
 export async function starterFile(kind: Starter, name: string): Promise<File> {
-  const { asOneFile } = await import('./model3d')
+  const { asOneFile, plainFirst } = await import('./model3d')
   const object = kind === 'man' || kind === 'woman' ? await mannequin(kind) : await shape(kind)
-  return new File([await asOneFile(object)], `${name}.glb`, { type: 'model/gltf-binary' })
+  return plainFirst(new File([await asOneFile(object)], `${name}.glb`, { type: 'model/gltf-binary' }))
 }
 
 async function shape(kind: Exclude<Starter, 'man' | 'woman'>): Promise<Object3D> {
