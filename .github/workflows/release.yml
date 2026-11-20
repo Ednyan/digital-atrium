@@ -1,0 +1,155 @@
+name: Release desktop app
+
+# The app's source is private (Ednyan/digital-atrium-src); this public repo
+# only builds it and holds the releases, so the installers stay downloadable
+# by anyone and the installed apps' updater can read latest.json. Public
+# repos' Actions minutes are free, macOS included.
+#
+# Started by hand (Actions -> Release desktop app -> Run workflow) or by
+# scripts/finish-release.mjs --build in the source repo, with the version's
+# tag, which must already be pushed to the source repo.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Version tag in digital-atrium-src, e.g. v1.19.3'
+        required: true
+
+run-name: Release ${{ inputs.tag }}
+
+jobs:
+  release:
+    permissions:
+      contents: write
+
+    strategy:
+      # One platform failing shouldn't discard the others' artifacts -- a
+      # partial release is still useful and can be topped up by re-running.
+      fail-fast: false
+      matrix:
+        include:
+          - platform: 'windows-latest'
+            args: ''
+          - platform: 'macos-latest'
+            # Universal binary: one download covering Apple Silicon and Intel,
+            # rather than making people identify their own Mac.
+            args: '--target universal-apple-darwin'
+          - platform: 'ubuntu-22.04'
+            args: ''
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      # The source, at the tag, into the workspace root, so everything below
+      # runs as it did in the source repo. SRC_TOKEN: a fine-grained token
+      # with read-only Contents on digital-atrium-src and nothing else.
+      - uses: actions/checkout@v4
+        with:
+          repository: Ednyan/digital-atrium-src
+          ref: ${{ inputs.tag }}
+          token: ${{ secrets.SRC_TOKEN }}
+
+      # Tagging without bumping tauri.conf.json produces a release whose
+      # artifacts and latest.json carry the OLD version, so installed apps see
+      # their own version and offer no update -- an inert release that looks
+      # completely successful. Fail here instead, where it's obvious.
+      - name: Check the tag matches the app version
+        shell: bash
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          CONF_VERSION=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          TAG_VERSION="${TAG#v}"
+          if [ "$CONF_VERSION" != "$TAG_VERSION" ]; then
+            echo "::error::Tag is $TAG but src-tauri/tauri.conf.json says $CONF_VERSION."
+            echo "::error::Bump the version, commit, and move the tag to that commit."
+            exit 1
+          fi
+          echo "Version $CONF_VERSION matches tag $TAG"
+
+      # Tauri can't cross-compile, which is the whole reason this workflow
+      # exists: each artifact must be built on its own OS.
+      - name: Install Linux build dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            build-essential \
+            curl \
+            wget \
+            file \
+            libxdo-dev \
+            libssl-dev
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          # Both Apple architectures, since the mac job builds a universal binary.
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - uses: actions/setup-node@v4
+        with:
+          # 22, not 20: Node 20 reached end of life in April 2026 and stopped
+          # getting security fixes, and this job builds what users install.
+          node-version: 22
+          cache: 'npm'
+
+      - run: npm ci
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Without this the build still succeeds but produces no signatures,
+          # and every installed app rejects the update as unsigned. The key
+          # must be the same one whose public half is in tauri.conf.json.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          # Read by the frontend build that tauri-action runs
+          # (beforeBuildCommand). Desktop uses its local SQLite vault for
+          # everything an atrium is made of, so it never needed these before --
+          # but the contributors list and the monthly goal bar read the real
+          # database, and with these unset they are baked in as undefined and
+          # the panel is simply empty in every released build while looking
+          # correct in dev.
+          #
+          # Public by design: the anon key already ships inside the web bundle,
+          # and row-level security is what actually protects the data, not the
+          # secrecy of this. Repository *variables* are the right home. Accepted
+          # from either place, so adding them as secrets by mistake still works
+          # rather than silently producing the empty build this exists to
+          # prevent.
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL || secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY || secrets.VITE_SUPABASE_ANON_KEY }}
+          # Google Drive atriums (lib/drive) and Pinterest, the same way: public
+          # in the web bundle too. Unset, every Drive call went out without
+          # the API key and Google refused it ("unregistered callers"). The
+          # key's HTTP-referrer list has to include the desktop's pages
+          # (http://tauri.localhost/*) as well.
+          VITE_GOOGLE_CLIENT_ID: ${{ vars.VITE_GOOGLE_CLIENT_ID || secrets.VITE_GOOGLE_CLIENT_ID }}
+          VITE_GOOGLE_API_KEY: ${{ vars.VITE_GOOGLE_API_KEY || secrets.VITE_GOOGLE_API_KEY }}
+          VITE_PINTEREST_CLIENT_ID: ${{ vars.VITE_PINTEREST_CLIENT_ID || secrets.VITE_PINTEREST_CLIENT_ID }}
+          # Hardcoded empty rather than read from a secret: the key was
+          # generated without a password, and GitHub refuses to store a secret
+          # with an empty value. The variable still has to be present -- if it
+          # is unset entirely the signer waits for a password on stdin, which
+          # in CI means the job hangs until it times out.
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ''
+        with:
+          tagName: ${{ inputs.tag }}
+          releaseName: ${{ inputs.tag }}
+          releaseBody: 'See the assets below to download and install.'
+          # Published as a draft so you can read the notes and confirm every
+          # platform actually uploaded before users' apps start offering it.
+          releaseDraft: true
+          prerelease: false
+          args: ${{ matrix.args }}
+          # Generates latest.json covering every platform in the matrix. This
+          # is why the workflow beats the local scripts for multi-platform:
+          # a hand-built manifest would only ever describe the OS you built on.
+          includeUpdaterJson: true
